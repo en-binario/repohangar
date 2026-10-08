@@ -1,0 +1,8 @@
+* text=auto
+
+# Executables and shell scripts keep LF so their shebang works in every checkout.
+*.sh text eol=lf
+
+*.png binary
+*.gif binary
+*.vsix binary

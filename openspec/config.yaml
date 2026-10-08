@@ -1,0 +1,55 @@
+schema: spec-driven
+
+context: |
+  Product: RepoHangar (listed as "RepoHangar - Multi-Repo Git Dashboard"), one VS Code extension, ID enbinario.repohangar,
+  MIT license. A dashboard in the editor area with one row per Git repository (branch, ahead/behind, changes, last fetch,
+  stashes, the GitLab merge request or GitHub pull request of the current branch with its pipeline/checks), batch Git
+  operations (fetch all, pull all fast-forward only, switch or create a branch across repos), one-keystroke merge request
+  creation from saved MR profiles (target, reviewers, assignees, labels, squash, delete source branch, draft, auto-merge,
+  title and description templates), and shortcuts to Git Graph (when installed, else VS Code's Source Control Graph),
+  the Explorer and Source Control. It absorbs the Git Graph Opener extension.
+  Product source of truth: PROPOSAL.md (r4), kept outside this repository. Section numbers (§7.5), wireframes (W4),
+  decision ids (D1-D21) and appendices (Appendix A settings, B provider API, C layout, D migration) refer to it.
+  Key decisions: Git state only from the built-in Git extension API (vscode.git, getAPI(1)); network Git operations go
+  through the API so VS Code's credential prompts keep working; own `git` processes only for local fast paths
+  (execFile, argument array, no shell, 10 s timeout, GIT_TERMINAL_PROMPT=0) and GitLab push options; hosting providers
+  through their HTTP APIs (REST + GraphQL, one batched status query per host), glab/gh only as optional token sources;
+  GitHub auth through vscode.authentication, GitLab tokens only in SecretStorage keyed by host; minimum GitLab CE 17.10.0
+  (one reviewer and one assignee on Free); RepoHangar never merges MRs; Git Graph is optional and detected at run time.
+  Tech stack: TypeScript (strict), VS Code extension API, Preact + codicons webview (no Webview UI Toolkit), esbuild,
+  Vitest (unit and provider contract tests with msw recorded fixtures), @vscode/test-electron (integration tests on real
+  temp repos with a bare remote), Playwright driving VS Code (webview UI), GitLab CE 17.10.0 container (nightly).
+  Architecture rules: the webview is a pure view, all logic in the extension host, every message validated against the
+  protocol schema; modules that hold logic (URL parsing, provider detection, profile resolution, templates, repo-root
+  scan, ff-only eligibility) import nothing from vscode; Workspace Trust Restricted Mode makes the dashboard read-only;
+  tokens never in settings, logs or the webview; no telemetry; destructive actions confirm and are never a batch default.
+  Conventions: setting, command and context key prefix `repohangar.`; Conventional Commits; every commit ends with a
+  Co-Authored-By trailer; one CHANGELOG.md (docs/versioning.md).
+
+# Per-artifact rules: the full standards are docs/spec-writing.md, docs/versioning.md and docs/openspec.md.
+rules:
+  proposal:
+    - 'State "Depends on: <change>" when the change adds to capabilities created by an earlier change that is not archived yet.'
+    - 'Cite the PROPOSAL.md sections, wireframes and decision ids the change implements, and the roadmap phase (§13).'
+  specs:
+    - 'Follow docs/spec-writing.md.'
+    - 'When an outcome depends on two or more conditions (repo state, upstream, operation in progress, provider, token, GitLab version or tier, project policy, setting value, Git Graph installed, Source Control selection mode, workspace trust, selection or focused row), write a decision table under a "#### Scenario: … matrix" header instead of several WHEN/THEN scenarios.'
+    - 'Decision tables: first column # with stable ids R1, R2, … (never reused); conditions, then outcomes; no blank cells (use *Any* or *N/A*); bold outcome values; short-circuit rows first; the requirement text stays normative.'
+    - 'Non-table scenario bullets start with **GIVEN**, **WHEN**, **THEN** or **AND** (AND WHEN / AND THEN for sequences); no RFC 2119 keywords in scenarios or cells.'
+    - 'Outcomes name checkable values: the row cell text, the per-repo job result (ok, skipped: <reason>, failed), the exact English notification text and its buttons, the Git API call or git command, the provider request and its fields, the setting written and its scope, or the state left unchanged (HEAD, working tree, refs, settings, no request sent). Never "is rejected", "shows an error", "properly", "as expected".'
+    - 'Name settings by key and default (repohangar.mr.quickCreate, default "direct"), commands by id, context keys by name; put limits in a **Constraints:** list exercised by a scenario or row.'
+    - 'Non-goals go inside ## Purpose, never a separate section. A MODIFIED block copies every existing scenario; to drop or convert one, REMOVED + ADDED under a new name with "> **Supersedes:** <old name>".'
+    - 'Against a capability created by an unarchived change, use ADDED only. When behaviour is removed or renamed, give every other spec that mentions it a MODIFIED delta in the same change.'
+  tasks:
+    - 'For every decision table in the deltas, add one task naming the table and its test (Vitest it.each, a provider contract test with recorded fixtures, a @vscode/test-electron integration test, a Playwright UI test, or a manual checklist), one case per row id.'
+    - 'When the change has a user-observable effect, end with a task that adds a kind-prefixed entry under ## Unreleased in CHANGELOG.md (docs/versioning.md).'
+
+operations:
+  apply:
+    guidance:
+      - 'Implement the tasks in order and tick each one only after its tests pass. A table task is done when its test has one case per row id.'
+      - 'Do not edit "version" in package.json or package-lock.json; only the release script does (docs/versioning.md §5).'
+  archive:
+    guidance:
+      - 'Before archiving, run "openspec validate <change> --strict" and check that every task is ticked and that a change with a user-observable effect has its CHANGELOG.md entry.'
+      - 'After archiving, run "openspec validate --specs --strict" so the synced specs still validate together.'
