@@ -1,4 +1,6 @@
 import * as assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import * as vscode from 'vscode';
 import { ready, rowNamed, waitFor } from '../helpers';
 
@@ -24,6 +26,28 @@ describe('smoke', () => {
     assert.deepEqual(config.get('hosts'), {});
     assert.equal(config.get('concurrency'), 6);
     assert.equal(config.get('fetchTimeoutSeconds'), 60);
+    // explorer-open-in-git-graph, explorer-reveal, source-control-reveal, source-control-selection-sync
+    assert.equal(config.get('dashboard.nameClick'), 'explorer');
+    assert.equal(config.get('gitGraph.whenMissing'), 'sourceControlGraph');
+    assert.equal(config.get('gitGraph.revealSourceControl'), true);
+    assert.equal(config.get('gitGraph.syncSourceControlSelection'), true);
+    assert.equal(config.get('explorer.contextMenu.showOn'), 'repositoryRoots');
+    assert.equal(config.get('explorer.submenu'), true);
+    assert.equal(config.get('explorer.collapseBeforeReveal'), false);
+    assert.equal(config.get('explorer.outsideWorkspace'), 'ask');
+    assert.equal(config.get('repositoryScanDepth'), 3);
+    const manifest = vscode.extensions.getExtension('enbinario.repohangar')?.packageJSON as {
+      contributes: { configuration: { properties: Record<string, { minimum?: number }> } };
+    };
+    assert.equal(manifest.contributes.configuration.properties['repohangar.repositoryScanDepth']?.minimum, 0);
+  });
+
+  it('creates the RepoHangar log output channel', async () => {
+    const api = await ready(14);
+    assert.equal(api.log.channel.name, 'RepoHangar');
+    api.log.info('smoke test');
+    // A log output channel writes to <name>.log in the extension's log folder, which the Output view lists.
+    await waitFor(() => existsSync(join(api.logUri.fsPath, 'RepoHangar.log')), 'the RepoHangar log file');
   });
 
   it('declares the Git operation commands and the Source Control Fetch item', async () => {

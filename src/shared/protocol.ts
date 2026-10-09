@@ -1,6 +1,7 @@
 // Messages between the extension host and the dashboard webview, and the validator for messages from the webview
 // (design D-4). No vscode import.
 
+import type { GraphVariant, NameClick } from './graph';
 import { ROW_ACTIONS, type BatchAction, type DashboardState, type GroupingMode, type RowAction, type RowData, type RowDetails } from './model';
 
 export interface Snapshot {
@@ -12,12 +13,18 @@ export interface Snapshot {
   staleFetchHours: number;
   /** `process.platform` of the extension host */
   platform: string;
+  /** How the graph entry points read (explorer-open-in-git-graph: Graph command variants) */
+  graph: GraphVariant;
+  /** `repohangar.dashboard.nameClick` */
+  nameClick: NameClick;
 }
 
 export type HostMessage =
   | Snapshot
   | { type: 'patch'; upserts: RowData[]; removals: string[] }
-  | { type: 'details'; id: string; details: RowDetails };
+  | { type: 'details'; id: string; details: RowDetails }
+  /** Show in RepoHangar: make the row visible and move the focus to it */
+  | { type: 'reveal'; id: string };
 
 export type ViewMessage =
   | { type: 'ready' }

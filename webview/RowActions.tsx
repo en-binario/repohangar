@@ -1,10 +1,11 @@
-// The dashboard's action controls (git-operations design D-6): the toolbar batch buttons, the hover buttons of a row,
-// its more-actions menu and the action a click on the Sync cell runs.
+// The dashboard's action controls (git-operations design D-6, explorer-open-in-git-graph design D-8): the toolbar batch
+// buttons, the hover buttons of a row, its more-actions menu and the action a click on the Sync cell runs.
 
 import { Fragment } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
 import { toolbarLabel } from '../src/shared/batch';
 import { syncCell } from '../src/shared/format';
+import { graphLabel, type GraphVariant } from '../src/shared/graph';
 import type { BatchAction, RowAction, RowData } from '../src/shared/model';
 import { rowMenu, type MenuItem } from '../src/shared/rowMenu';
 
@@ -40,18 +41,22 @@ export function BatchButtons({ selected, onRun }: { selected: number; onRun(acti
 
 interface HoverProps {
   row: RowData;
+  graph: GraphVariant;
   onAction(action: RowAction): void;
   onMenu(): void;
 }
 
 /** The buttons at the right edge of a hovered or focused row; out of the tab order, since keys cover them. */
-export function HoverActions({ row, onAction, onMenu }: HoverProps) {
+export function HoverActions({ row, graph, onAction, onMenu }: HoverProps) {
   const push = publishes(row) ? 'Publish' : 'Push';
+  const graphName = graphLabel(graph);
   const buttons: [string, string, () => void][] = [
     ['⟳', 'Fetch', () => onAction('fetch')],
     ['⇣', 'Pull', () => onAction('pull')],
     ['⇡', push, () => onAction('push')],
     ['⎇', 'Switch Branch…', () => onAction('switchBranch')],
+    ...(graphName ? [['◈', graphName, () => onAction('graph')] as [string, string, () => void]] : []),
+    ['▤', 'Reveal in Explorer', () => onAction('revealInExplorer')],
     ['⋯', 'More Actions…', onMenu],
   ];
   return (
@@ -79,14 +84,15 @@ export function HoverActions({ row, onAction, onMenu }: HoverProps) {
 interface MenuProps {
   row: RowData;
   platform: string;
+  graph: GraphVariant;
   onChoose(action: RowAction): void;
   onClose(): void;
 }
 
 /** The more-actions menu of a row, operable with ↑, ↓, Enter and Esc. */
-export function RowMenu({ row, platform, onChoose, onClose }: MenuProps) {
+export function RowMenu({ row, platform, graph, onChoose, onClose }: MenuProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const groups = rowMenu(row, platform);
+  const groups = rowMenu(row, platform, graph);
 
   useEffect(() => {
     ref.current?.querySelector<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])')?.focus();

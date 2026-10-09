@@ -39,11 +39,12 @@ test('names the push button Publish on a branch without upstream', async () => {
 });
 
 test('copies the path from the more-actions menu by keyboard', async () => {
+  await vscode.app.evaluate(({ clipboard }) => clipboard.writeText(''));
   await focusRow(frame, 'billing-api');
   await page.keyboard.press('.');
   const menu = frame.getByRole('menu', { name: 'Actions for billing-api' });
   await expect(menu).toBeVisible();
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 12; i++) {
     const action = await frame.locator('body').evaluate(() => document.activeElement?.getAttribute('data-action'));
     if (action === 'copyPath') break;
     await page.keyboard.press('ArrowDown');
@@ -51,9 +52,9 @@ test('copies the path from the more-actions menu by keyboard', async () => {
   await expect(menu.locator('[data-action="copyPath"]')).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(menu).toHaveCount(0);
-  await expect.poll(() => vscode.app.evaluate(({ clipboard }) => clipboard.readText())).toBeTruthy();
-  const copied = await vscode.app.evaluate(({ clipboard }) => clipboard.readText());
-  expect(samePath(copied, fixture.repo('backend/billing-api'))).toBe(true);
+  await expect
+    .poll(async () => samePath(await vscode.app.evaluate(({ clipboard }) => clipboard.readText()), fixture.repo('backend/billing-api')))
+    .toBe(true);
 });
 
 test('pushes only the focused row with rows selected', async () => {

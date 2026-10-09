@@ -25,6 +25,8 @@ describe('dashboard webview ages', () => {
       collapsed: [],
       staleFetchHours: 1,
       platform: 'win32',
+      graph: 'gitGraph',
+      nameClick: 'explorer',
     };
     await act(() => {
       window.dispatchEvent(new MessageEvent('message', { data: snapshot }));

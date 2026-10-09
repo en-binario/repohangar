@@ -11,11 +11,15 @@ import { batchSummary, progressText, recentlyFetchedText } from '../jobs/summary
 import type { BatchRun, Job, JobRunner } from '../jobs/runner';
 import { batchTargets } from '../shared/batch';
 import type { BatchAction, JobAction, RowAction } from '../shared/model';
+import type { Notification } from '../integrations/workbench';
 
-export interface Notification {
-  severity: 'information' | 'warning' | 'error';
-  text: string;
-  buttons: string[];
+export type { Notification } from '../integrations/workbench';
+
+/** The row actions of the graph, Explorer and Source Control integrations, on a repository root. */
+export interface RowIntegrations {
+  graph(root: string): Promise<void>;
+  revealInExplorer(root: string, name: string): Promise<void>;
+  showInSourceControl(root: string): Promise<void>;
 }
 
 const SHOW_OUTPUT = 'Show Git Output';
@@ -36,6 +40,8 @@ export class Actions implements vscode.Disposable {
   /** Repositories RepoHangar acted on in this window, most recent first (design D-7). */
   private readonly recent: string[] = [];
   private readonly disposables: vscode.Disposable[];
+  /** Set after construction: the integrations resolve their targets through `resolveActive`. */
+  integrations: RowIntegrations | undefined;
 
   constructor(
     private readonly registry: Registry,
@@ -92,6 +98,12 @@ export class Actions implements vscode.Disposable {
         if (branch) await vscode.env.clipboard.writeText(branch);
         return;
       }
+      case 'graph':
+        return this.integrations?.graph(repository.rootUri.fsPath);
+      case 'revealInExplorer':
+        return this.integrations?.revealInExplorer(repository.rootUri.fsPath, this.name(id));
+      case 'showInSourceControl':
+        return this.integrations?.showInSourceControl(repository.rootUri.fsPath);
     }
   }
 
@@ -181,6 +193,15 @@ export class Actions implements vscode.Disposable {
 
   /** Resolves the active repository of a command (design D-7) and runs `run` on it. */
   private async onActive(arg: unknown, run: (id: string) => Promise<void>): Promise<void> {
+    const id = await this.resolveActive(arg);
+    if (id !== undefined) await run(id);
+  }
+
+  /**
+   * The listed repository a command acts on (git-operations: Active repository for commands), or undefined after a
+   * notification or a dismissed quick pick.
+   */
+  async resolveActive(arg: unknown): Promise<string | undefined> {
     const roots = this.registry.ids().flatMap((id) => {
       const repository = this.registry.repository(id);
       return repository ? [{ id, name: this.name(id), path: repository.rootUri.fsPath }] : [];
@@ -206,9 +227,10 @@ export class Actions implements vscode.Disposable {
     );
     if (resolution.kind === 'notListed') {
       this.notify('warning', notListedText(vscode.workspace.asRelativePath(resolution.path, true)), []);
-    } else if (resolution.kind === 'repository') {
-      await run(resolution.id);
+      return undefined;
     }
+    if (resolution.kind === 'repository') this.touch(resolution.id);
+    return resolution.kind === 'repository' ? resolution.id : undefined;
   }
 
   dispose(): void {
@@ -217,7 +239,7 @@ export class Actions implements vscode.Disposable {
 }
 
 /** An Explorer resource (`Uri`), or a Source Control repository or Git API repository (an object with `rootUri`). */
-function commandArgument(arg: unknown): CommandArgument | undefined {
+export function commandArgument(arg: unknown): CommandArgument | undefined {
   if (arg instanceof vscode.Uri) return arg.scheme === 'file' ? { kind: 'folder', path: arg.fsPath } : undefined;
   const rootUri = (arg as { rootUri?: unknown } | undefined)?.rootUri;
   if (rootUri instanceof vscode.Uri) return { kind: 'repository', path: rootUri.fsPath };

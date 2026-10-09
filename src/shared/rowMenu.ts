@@ -1,7 +1,9 @@
-// The items of a row's more-actions menu and whether each applies (git-operations: Row more-actions menu). Shared by
-// the extension host and the webview; no vscode import.
+// The items of a row's more-actions menu and whether each applies (git-operations: Row more-actions menu), and the
+// buttons of the row details (explorer-open-in-git-graph, explorer-reveal, source-control-reveal; design D-8). Shared
+// by the extension host and the webview; no vscode import.
 
 import { isDirty } from './format';
+import { graphLabel, type GraphVariant } from './graph';
 import type { RowAction, RowData } from './model';
 
 export interface MenuItem {
@@ -19,11 +21,22 @@ export function revealLabel(platform: string): string {
   return 'Reveal in File Explorer';
 }
 
+/** The graph, Explorer, Source Control and terminal actions, in the order of the menu and the row details (W3, W12). */
+function navigationItems(graph: GraphVariant): MenuItem[] {
+  const label = graphLabel(graph);
+  return [
+    ...(label ? [{ action: 'graph' as const, label, key: 'g', enabled: true }] : []),
+    { action: 'revealInExplorer', label: 'Reveal in Explorer', key: 'e', enabled: true },
+    { action: 'showInSourceControl', label: 'Show in Source Control', key: 's', enabled: true },
+    { action: 'terminal', label: 'Open terminal', key: 't', enabled: true },
+  ];
+}
+
 /** The menu in groups, separated by a line. */
-export function rowMenu(row: Pick<RowData, 'counts' | 'stashes' | 'head'>, platform: string): MenuItem[][] {
+export function rowMenu(row: Pick<RowData, 'counts' | 'stashes' | 'head'>, platform: string, graph: GraphVariant): MenuItem[][] {
   const dirty = isDirty(row);
   return [
-    [{ action: 'terminal', label: 'Open terminal', key: 't', enabled: true }],
+    navigationItems(graph),
     [
       { action: 'stash', label: 'Stash changes', enabled: dirty },
       { action: 'stashPop', label: 'Pop latest stash', enabled: row.stashes > 0 },
@@ -35,4 +48,9 @@ export function rowMenu(row: Pick<RowData, 'counts' | 'stashes' | 'head'>, platf
       { action: 'copyBranch', label: 'Copy branch name', enabled: row.head.kind === 'branch' },
     ],
   ];
+}
+
+/** The buttons of the row details: `[Open in Git Graph] [Reveal in Explorer] [Show in Source Control] [Open terminal]`. */
+export function detailsButtons(graph: GraphVariant): { action: RowAction; label: string }[] {
+  return navigationItems(graph).map(({ action, label }) => ({ action, label }));
 }

@@ -9,3 +9,6 @@ test-results/
 playwright-report/
 .idea/
 .playwright/
+
+# The Git Graph Opener release the migration tests install.
+!test/integration/fixtures/*.vsix

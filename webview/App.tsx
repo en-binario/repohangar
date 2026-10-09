@@ -12,8 +12,10 @@ import {
   shownSyncCell,
   type CellText,
 } from '../src/shared/format';
+import { nameClickAction, type GraphVariant } from '../src/shared/graph';
 import type { ChipId, GroupingMode, RowAction, RowData, RowDetails } from '../src/shared/model';
 import type { HostMessage, Snapshot, ViewMessage } from '../src/shared/protocol';
+import { detailsButtons } from '../src/shared/rowMenu';
 import { layout, rowKey, type GridItem } from './layout';
 import { BatchButtons, HoverActions, RowMenu, syncClickAction } from './RowActions';
 
@@ -33,8 +35,11 @@ export interface PersistedView {
 
 const EMPTY_VIEW: PersistedView = { filter: '', chips: [], selected: [], expanded: [], focus: null };
 
-/** The hints of the action keys (git-operations: Row action keys), shown before the navigation hints. */
-export const ACTION_HINTS = 'f fetch · p pull · P push · b switch · t terminal · . more';
+/**
+ * The hints of the action keys (git-operations: Row action keys), then those of the graph, Explorer and Source Control
+ * keys, shown before the navigation hints.
+ */
+export const ACTION_HINTS = 'f fetch · p pull · P push · b switch · t terminal · . more · g graph · e explorer · s source control';
 export const KEY_HINTS = '↑↓ move · Space select · / filter · ⏎ details · ? keys';
 
 export const KEY_HELP: readonly [string, string][] = [
@@ -57,6 +62,9 @@ export const KEY_HELP: readonly [string, string][] = [
   ['b', 'Switch branch in the focused row'],
   ['t', 'Open a terminal in the focused row'],
   ['.', 'More actions for the focused row'],
+  ['g', 'Open the focused row in the graph'],
+  ['e', 'Reveal the focused row in the Explorer'],
+  ['s', 'Show the focused row in Source Control'],
 ];
 
 const GROUP_OPTIONS: readonly [GroupingMode, string][] = [
@@ -88,6 +96,8 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
   const [helpOpen, setHelpOpen] = useState(false);
   /** The row whose more-actions menu is open */
   const [menuFor, setMenuFor] = useState<string | null>(null);
+  /** The row Show in RepoHangar asked to focus, until the grid shows it */
+  const [revealId, setRevealId] = useState<string | null>(null);
   const focusRequested = useRef(false);
   const filterRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -115,6 +125,8 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
         });
       } else if (message.type === 'details') {
         setDetails((current) => new Map(current).set(message.id, message.details));
+      } else if (message.type === 'reveal') {
+        setRevealId(message.id);
       }
     };
     window.addEventListener('message', onMessage);
@@ -178,6 +190,20 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
     update({ focus: key });
   };
 
+  // Show in RepoHangar: the filter and chips are cleared when they hide the row; the host expands its group.
+  useEffect(() => {
+    if (revealId === null || !snapshot || !rows.has(revealId)) return;
+    const key = rowKey(revealId);
+    const inGrid = (filter: string, chips: ChipId[]) =>
+      layout(allRows, snapshot.grouping, snapshot.collapsed, filter, chips).some((i) => i.key === key);
+    if (!inGrid(view.filter, view.chips)) {
+      if (!inGrid('', [])) return;
+      update({ filter: '', chips: [] });
+    }
+    setRevealId(null);
+    moveFocus(key);
+  });
+
   const toggleChip = (chip: ChipId | 'all') => {
     if (chip === 'all') return update({ chips: [] });
     const chips = view.chips.includes(chip) ? view.chips.filter((c) => c !== chip) : [...view.chips, chip];
@@ -231,7 +257,16 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const item = items[index];
     const focusedRow = item?.kind === 'row' ? item.row : undefined;
-    const rowKeys: Record<string, RowAction> = { f: 'fetch', p: 'pull', P: 'push', b: 'switchBranch', t: 'terminal' };
+    const rowKeys: Record<string, RowAction> = {
+      f: 'fetch',
+      p: 'pull',
+      P: 'push',
+      b: 'switchBranch',
+      t: 'terminal',
+      g: 'graph',
+      e: 'revealInExplorer',
+      s: 'showInSourceControl',
+    };
     if (e.key === 'F') {
       e.preventDefault();
       return runBatch('fetchAll');
@@ -338,7 +373,7 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
   const chipActive = (id: ChipId | 'all') => (id === 'all' ? view.chips.length === 0 : view.chips.includes(id));
 
   return (
-    <div class="dashboard">
+    <div class="dashboard" data-graph={snapshot.graph} data-name-click={snapshot.nameClick}>
       <div class="toolbar" role="toolbar" aria-label="Filters">
         <BatchButtons selected={view.selected.length} onRun={(action) => runBatch(action === 'fetch' ? 'fetchAll' : 'pullAllFf')} />
         <input
@@ -419,6 +454,8 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
               now={now}
               staleFetchHours={snapshot.staleFetchHours}
               platform={snapshot.platform}
+              graph={snapshot.graph}
+              nameAction={nameClickAction(snapshot.nameClick)}
               menuOpen={menuFor === item.row.id}
               onFocus={() => update({ focus: item.key })}
               onToggleSelected={() => toggleSelected(item.row.id)}
@@ -474,6 +511,9 @@ interface RowViewProps {
   now: number;
   staleFetchHours: number;
   platform: string;
+  graph: GraphVariant;
+  /** What a click on the repository name runs (explorer-reveal: Repository name click) */
+  nameAction: RowAction;
   menuOpen: boolean;
   onFocus(): void;
   onToggleSelected(): void;
@@ -515,7 +555,17 @@ function RowView(props: RowViewProps) {
           />
         </span>
         <span class="cell name" role="gridcell" data-focus data-col="repository" tabIndex={props.focused ? 0 : -1} title={repo.tooltip}>
-          <span class="repo-name">{repo.name}</span>
+          <button
+            type="button"
+            class="repo-name"
+            tabIndex={-1}
+            onClick={() => {
+              props.onFocus();
+              props.onAction(props.nameAction);
+            }}
+          >
+            {repo.name}
+          </button>
           {repo.badge && (
             <>
               {' '}
@@ -547,7 +597,7 @@ function RowView(props: RowViewProps) {
             {sync.text}
           </span>
         </span>
-        <span class="cell" role="gridcell" data-col="changes">
+        <span class="cell clickable" role="gridcell" data-col="changes" onClick={() => props.onAction('showInSourceControl')}>
           {changes.segments.length === 0 ? (
             <Symbol cell={changes} />
           ) : (
@@ -569,9 +619,15 @@ function RowView(props: RowViewProps) {
           )}
         </span>
         <span class="cell actions" role="gridcell" aria-label="Actions">
-          <HoverActions row={row} onAction={props.onAction} onMenu={props.onMenu} />
+          <HoverActions row={row} graph={props.graph} onAction={props.onAction} onMenu={props.onMenu} />
           {props.menuOpen && (
-            <RowMenu row={row} platform={props.platform} onChoose={props.onMenuChoose} onClose={props.onMenuClose} />
+            <RowMenu
+              row={row}
+              platform={props.platform}
+              graph={props.graph}
+              onChoose={props.onMenuChoose}
+              onClose={props.onMenuClose}
+            />
           )}
         </span>
       </div>
@@ -581,6 +637,20 @@ function RowView(props: RowViewProps) {
             {props.details
               ? detailsLines(row, props.details, props.now).map((line) => <div class="detail-line">{line}</div>)
               : 'Loading…'}
+            <div class="detail-buttons">
+              {detailsButtons(props.graph).map((button) => (
+                <button
+                  type="button"
+                  key={button.action}
+                  class="detail-button"
+                  data-action={button.action}
+                  tabIndex={-1}
+                  onClick={() => props.onAction(button.action)}
+                >
+                  {button.label}
+                </button>
+              ))}
+            </div>
           </span>
         </div>
       )}

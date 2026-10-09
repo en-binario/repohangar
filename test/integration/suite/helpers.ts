@@ -113,3 +113,66 @@ export function recordGitCalls(api: TestApi, passThrough: GitMethod[] = [], dela
   recorder.restore = () => restores.forEach((r) => r());
   return recorder;
 }
+
+export function idOf(api: TestApi, name: string): string {
+  const row = rowNamed(api, name);
+  if (!row) throw new Error(`no row ${name}`);
+  return row.id;
+}
+
+export function rootOf(api: TestApi, name: string): vscode.Uri {
+  return (api.registry.repository(idOf(api, name)) as Repository).rootUri;
+}
+
+/** The names of the repositories selected in the Source Control Repositories view. */
+export function scmSelected(api: TestApi): string[] {
+  return (api.git.current?.repositories ?? []).filter((r) => r.ui.selected).map((r) => r.rootUri.path.split('/').pop() as string);
+}
+
+/** Records the commands, notifications and log lines of the integrations until the returned function is called. */
+export function recordIntegrations(api: TestApi): () => void {
+  api.commands.executed.length = 0;
+  api.notifier.shown.length = 0;
+  api.log.lines.length = 0;
+  api.dashboard.postedMessages.length = 0;
+  api.commands.record = true;
+  api.notifier.record = true;
+  api.log.record = true;
+  api.dashboard.recordMessages = true;
+  return () => {
+    api.commands.record = false;
+    api.notifier.record = false;
+    api.log.record = false;
+    api.dashboard.recordMessages = false;
+    api.notifier.answer = undefined;
+    api.commands.overrides.clear();
+  };
+}
+
+/** The commands the integrations ran, without their arguments. */
+export function commandIds(api: TestApi): string[] {
+  return api.commands.executed.map((c) => c.command);
+}
+
+/** The graph variant of the last snapshot posted to the dashboard. */
+export function lastSnapshotGraph(api: TestApi): string | undefined {
+  const snapshots = api.dashboard.postedMessages.filter((m) => m.type === 'snapshot');
+  const last = snapshots[snapshots.length - 1];
+  return last?.type === 'snapshot' ? last.graph : undefined;
+}
+
+export async function setScopedConfig(key: string, value: unknown, target: vscode.ConfigurationTarget): Promise<void> {
+  await vscode.workspace.getConfiguration().update(key, value, target);
+}
+
+/** Opens the dashboard and waits for its first snapshot. */
+export async function openDashboardAndWait(api: TestApi): Promise<void> {
+  const wasRecording = api.dashboard.recordMessages;
+  api.dashboard.recordMessages = true;
+  const before = api.dashboard.postedMessages.length;
+  if (!api.dashboard.current) {
+    await vscode.commands.executeCommand('repohangar.open');
+    await waitFor(() => api.dashboard.postedMessages.slice(before).some((m) => m.type === 'snapshot'), 'the dashboard snapshot');
+  }
+  api.dashboard.recordMessages = wasRecording;
+}

@@ -33,6 +33,8 @@ describe('dashboard webview escaping', () => {
       collapsed: [],
       staleFetchHours: 1,
       platform: 'win32',
+      graph: 'gitGraph',
+      nameClick: 'explorer',
     };
     await act(() => {
       window.dispatchEvent(new MessageEvent('message', { data: snapshot }));

@@ -99,6 +99,43 @@
       {
         "command": "repohangar.scm.fetch",
         "title": "Fetch"
+      },
+      {
+        "command": "repohangar.openInGitGraph",
+        "title": "Open in Git Graph",
+        "category": "RepoHangar"
+      },
+      {
+        "command": "repohangar.openInSourceControlGraph",
+        "title": "Open in Source Control Graph",
+        "category": "RepoHangar"
+      },
+      {
+        "command": "repohangar.revealInExplorer",
+        "title": "Reveal Repository in Explorer",
+        "category": "RepoHangar"
+      },
+      {
+        "command": "repohangar.scm.revealInExplorer",
+        "title": "Reveal in Explorer"
+      },
+      {
+        "command": "repohangar.showInSourceControl",
+        "title": "Show Repository in Source Control",
+        "category": "RepoHangar"
+      },
+      {
+        "command": "repohangar.showInDashboard",
+        "title": "Show in RepoHangar",
+        "category": "RepoHangar"
+      },
+      {
+        "command": "repohangar.explorer.fetch",
+        "title": "Fetch"
+      },
+      {
+        "command": "repohangar.explorer.pullFf",
+        "title": "Pull (ff)"
       }
     ],
     "keybindings": [
@@ -106,6 +143,18 @@
         "command": "repohangar.open",
         "key": "ctrl+alt+h",
         "mac": "ctrl+cmd+h"
+      },
+      {
+        "command": "repohangar.openInGitGraph",
+        "key": "ctrl+alt+j",
+        "mac": "ctrl+cmd+j",
+        "when": "repohangar.gitGraph.installed || config.repohangar.gitGraph.whenMissing != 'sourceControlGraph'"
+      },
+      {
+        "command": "repohangar.openInSourceControlGraph",
+        "key": "ctrl+alt+j",
+        "mac": "ctrl+cmd+j",
+        "when": "!repohangar.gitGraph.installed && config.repohangar.gitGraph.whenMissing == 'sourceControlGraph'"
       }
     ],
     "menus": {
@@ -124,13 +173,83 @@
         {
           "command": "repohangar.scm.fetch",
           "when": "false"
+        },
+        {
+          "command": "repohangar.openInGitGraph",
+          "when": "repohangar.gitGraph.installed || config.repohangar.gitGraph.whenMissing == 'offerInstall'"
+        },
+        {
+          "command": "repohangar.openInSourceControlGraph",
+          "when": "!repohangar.gitGraph.installed && config.repohangar.gitGraph.whenMissing == 'sourceControlGraph'"
+        },
+        {
+          "command": "repohangar.scm.revealInExplorer",
+          "when": "false"
+        },
+        {
+          "command": "repohangar.showInDashboard",
+          "when": "false"
+        },
+        {
+          "command": "repohangar.explorer.fetch",
+          "when": "false"
+        },
+        {
+          "command": "repohangar.explorer.pullFf",
+          "when": "false"
         }
       ],
       "scm/sourceControl": [
         {
           "command": "repohangar.scm.fetch",
-          "group": "repohangar",
+          "group": "repohangar@1",
           "when": "scmProvider == git"
+        },
+        {
+          "command": "repohangar.openInGitGraph",
+          "group": "repohangar@2",
+          "when": "scmProvider == git && (repohangar.gitGraph.installed || config.repohangar.gitGraph.whenMissing == 'offerInstall')"
+        },
+        {
+          "command": "repohangar.openInSourceControlGraph",
+          "group": "repohangar@2",
+          "when": "scmProvider == git && !repohangar.gitGraph.installed && config.repohangar.gitGraph.whenMissing == 'sourceControlGraph'"
+        },
+        {
+          "command": "repohangar.scm.revealInExplorer",
+          "group": "repohangar@3",
+          "when": "scmProvider == git"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "repohangar.openInGitGraph",
+          "group": "navigation@100",
+          "when": "explorerResourceIsFolder && !listMultiSelection && !repohangar.legacyOpenerInstalled && (repohangar.gitGraph.installed || config.repohangar.gitGraph.whenMissing == 'offerInstall') && (config.repohangar.explorer.contextMenu.showOn == 'allFolders' || resourcePath in repohangar.repositoryRoots)"
+        },
+        {
+          "command": "repohangar.openInSourceControlGraph",
+          "group": "navigation@100",
+          "when": "explorerResourceIsFolder && !listMultiSelection && !repohangar.legacyOpenerInstalled && !repohangar.gitGraph.installed && config.repohangar.gitGraph.whenMissing == 'sourceControlGraph' && (config.repohangar.explorer.contextMenu.showOn == 'allFolders' || resourcePath in repohangar.repositoryRoots)"
+        },
+        {
+          "submenu": "repohangar.explorer",
+          "group": "navigation@101",
+          "when": "explorerResourceIsFolder && !listMultiSelection && config.repohangar.explorer.submenu && (config.repohangar.explorer.contextMenu.showOn == 'allFolders' || resourcePath in repohangar.repositoryRoots)"
+        }
+      ],
+      "repohangar.explorer": [
+        {
+          "command": "repohangar.showInDashboard",
+          "group": "1_repohangar@1"
+        },
+        {
+          "command": "repohangar.explorer.fetch",
+          "group": "1_repohangar@2"
+        },
+        {
+          "command": "repohangar.explorer.pullFf",
+          "group": "1_repohangar@3"
         }
       ]
     },
@@ -222,9 +341,110 @@
           "default": 60,
           "markdownDescription": "Seconds after which RepoHangar stops waiting for the fetch of one repository and records it as failed.",
           "scope": "window"
+        },
+        "repohangar.dashboard.nameClick": {
+          "type": "string",
+          "enum": [
+            "explorer",
+            "gitGraph",
+            "sourceControl"
+          ],
+          "enumDescriptions": [
+            "Reveal the repository in the Explorer.",
+            "Open the repository in Git Graph, or in the Source Control Graph without Git Graph.",
+            "Show the repository in Source Control."
+          ],
+          "default": "explorer",
+          "description": "What a click on a repository name in the dashboard does.",
+          "scope": "window"
+        },
+        "repohangar.gitGraph.whenMissing": {
+          "type": "string",
+          "enum": [
+            "sourceControlGraph",
+            "offerInstall",
+            "hide"
+          ],
+          "enumDescriptions": [
+            "Open VS Code's Source Control Graph instead; the items read \"Open in Source Control Graph\".",
+            "Keep \"Open in Git Graph\" and offer to install Git Graph when it is used.",
+            "Hide the graph items; the graph key offers to install Git Graph."
+          ],
+          "default": "sourceControlGraph",
+          "markdownDescription": "What the graph items do while the [Git Graph](https://marketplace.visualstudio.com/items?itemName=mhutchie.git-graph) extension is not installed. RepoHangar never installs it by itself.",
+          "scope": "window"
+        },
+        "repohangar.gitGraph.revealSourceControl": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "After **Open in Git Graph**, also show the Source Control view in the sidebar, as `Ctrl+Shift+G` does. Keyboard focus stays on Git Graph.",
+          "scope": "resource"
+        },
+        "repohangar.gitGraph.syncSourceControlSelection": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "After **Open in Git Graph**, also select the same repository in the Source Control Repositories view. Only applies when `#scm.repositories.selectionMode#` is `single`. Best effort: relies on internal VS Code commands, and failures are only logged to the **RepoHangar** output channel.",
+          "scope": "resource"
+        },
+        "repohangar.explorer.contextMenu.showOn": {
+          "type": "string",
+          "enum": [
+            "repositoryRoots",
+            "allFolders"
+          ],
+          "enumDescriptions": [
+            "Show the RepoHangar items only on folders detected as repository roots.",
+            "Show the RepoHangar items on every folder; they act on the repository that contains it."
+          ],
+          "default": "repositoryRoots",
+          "description": "Which Explorer folders show \"Open in Git Graph\" and the RepoHangar submenu in their context menu.",
+          "scope": "resource"
+        },
+        "repohangar.explorer.submenu": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show the **RepoHangar** submenu (**Show in RepoHangar**, **Fetch**, **Pull (ff)**) in the Explorer context menu.",
+          "scope": "window"
+        },
+        "repohangar.explorer.collapseBeforeReveal": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Collapse the Explorer folders before **Reveal in Explorer**, so only the path to the repository is expanded.",
+          "scope": "window"
+        },
+        "repohangar.explorer.outsideWorkspace": {
+          "type": "string",
+          "enum": [
+            "ask",
+            "addToWorkspace",
+            "newWindow",
+            "revealInOS"
+          ],
+          "enumDescriptions": [
+            "Ask each time.",
+            "Add the repository folder to the workspace and reveal it.",
+            "Open the repository folder in a new window.",
+            "Reveal the repository folder in the operating system's file manager."
+          ],
+          "default": "ask",
+          "markdownDescription": "What **Reveal in Explorer** does for a repository outside every workspace folder.",
+          "scope": "window"
+        },
+        "repohangar.repositoryScanDepth": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 3,
+          "markdownDescription": "How many folder levels below each workspace folder RepoHangar scans for repository roots for the Explorer context menu, where `0` scans only the workspace folder itself. The scan stops at a repository and never enters `node_modules`.",
+          "scope": "resource"
         }
       }
-    }
+    },
+    "submenus": [
+      {
+        "id": "repohangar.explorer",
+        "label": "RepoHangar"
+      }
+    ]
   },
   "scripts": {
     "build": "node esbuild.mjs",

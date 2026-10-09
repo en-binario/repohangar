@@ -189,6 +189,11 @@ test('shows the key help overlay with ?', async () => {
   // The action keys of git-operations and batch-operations.
   const keys = await help.locator('kbd').allTextContents();
   for (const k of ['f', 'F', 'p', 'P', 'b', 't', '.']) expect(keys).toContain(k);
+  // The graph, Explorer and Source Control keys.
+  for (const k of ['g', 'e', 's']) expect(keys).toContain(k);
+  await expect(help.locator('tr').filter({ has: frame.locator('kbd', { hasText: /^g$/ }) })).toContainText('Open the focused row in the graph');
+  await expect(help.locator('tr').filter({ has: frame.locator('kbd', { hasText: /^e$/ }) })).toContainText('Reveal the focused row in the Explorer');
+  await expect(help.locator('tr').filter({ has: frame.locator('kbd', { hasText: /^s$/ }) })).toContainText('Show the focused row in Source Control');
   await page.keyboard.press('Escape');
 });
 
@@ -214,10 +219,11 @@ test('moves from the filter box to the first shown row with ArrowDown', async ()
   expect(await focusedKey(frame)).toBe(await keyOf('auth-service'));
 });
 
-test('shows the action keys before the navigation hints in the footer', async () => {
+test('shows the action keys, then g graph, e explorer and s source control, before the navigation hints in the footer', async () => {
   await page.keyboard.press('Space');
   await expect(frame.locator('.footer')).toHaveText(
-    '1 selected' + 'f fetch · p pull · P push · b switch · t terminal · . more · ↑↓ move · Space select · / filter · ⏎ details · ? keys',
+    '1 selected' +
+      'f fetch · p pull · P push · b switch · t terminal · . more · g graph · e explorer · s source control · ↑↓ move · Space select · / filter · ⏎ details · ? keys',
   );
   await expect(frame.locator('.selected-count')).toHaveText('1 selected');
 });

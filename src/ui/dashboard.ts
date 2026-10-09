@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import type { GitApiAccess } from '../git/api';
 import type { Registry } from '../git/registry';
 import { dashboardState } from '../shared/format';
+import type { GraphVariant, NameClick } from '../shared/graph';
 import { parseViewMessage, type HostMessage, type Snapshot, type ViewMessage } from '../shared/protocol';
 import type { RowStore } from '../state/store';
 import type { Actions } from './actions';
@@ -16,6 +17,11 @@ export const DASHBOARD_VIEW_TYPE = 'repohangar.dashboard';
 export interface FirstPaint {
   ms: number;
   rows: number;
+}
+
+function nameClickSetting(): NameClick {
+  const value = vscode.workspace.getConfiguration('repohangar').get<string>('dashboard.nameClick', 'explorer');
+  return value === 'gitGraph' || value === 'sourceControl' ? value : 'explorer';
 }
 
 export class DashboardController implements vscode.Disposable, vscode.WebviewPanelSerializer {
@@ -33,6 +39,8 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
   recordMessages = false;
   /** The rows selected in the dashboard, as the webview last reported them; empty while it is closed. */
   selection: readonly string[] = [];
+  /** The row Show in RepoHangar moves the focus to once the webview is ready */
+  private pendingReveal: string | undefined;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -41,6 +49,7 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
     private readonly git: GitApiAccess,
     private readonly viewState: ViewState,
     private readonly actions: Pick<Actions, 'runRowAction' | 'runBatch'>,
+    private readonly graph: { readonly variant: GraphVariant; readonly onDidChange: vscode.Event<void> },
   ) {
     this.disposables.push(
       this.firstPaintEmitter,
@@ -48,8 +57,15 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
       git.onDidChange(() => this.postSnapshot()),
       registry.onDidChangeRepositories(() => this.postSnapshotIfStateChanged()),
       viewState.onDidChangeGrouping(() => this.postSnapshot()),
+      graph.onDidChange(() => this.postSnapshot()),
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration('repohangar.staleFetchHours')) this.postSnapshot();
+        if (
+          e.affectsConfiguration('repohangar.staleFetchHours') ||
+          e.affectsConfiguration('repohangar.gitGraph.whenMissing') ||
+          e.affectsConfiguration('repohangar.dashboard.nameClick')
+        ) {
+          this.postSnapshot();
+        }
       }),
     );
   }
@@ -93,6 +109,28 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
       this.webviewOptions(),
     );
     this.setup(panel);
+  }
+
+  /**
+   * Show in RepoHangar (explorer-open-in-git-graph): opens the dashboard if needed, expands the row's group and moves
+   * the focus to the row; the webview clears the filter and chips when they hide it.
+   */
+  async reveal(id: string): Promise<void> {
+    const group = this.store.get(id)?.group;
+    if (group && this.viewState.collapsed.includes(group)) await this.viewState.toggleGroup(group);
+    this.pendingReveal = id;
+    this.open();
+    if (this.ready) {
+      this.postSnapshot();
+      this.flushReveal();
+    }
+  }
+
+  private flushReveal(): void {
+    const id = this.pendingReveal;
+    if (id === undefined) return;
+    this.pendingReveal = undefined;
+    this.post({ type: 'reveal', id });
   }
 
   async deserializeWebviewPanel(panel: vscode.WebviewPanel): Promise<void> {
@@ -143,6 +181,7 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
       case 'ready':
         this.ready = true;
         this.postSnapshot();
+        this.flushReveal();
         return;
       case 'firstPaint':
         this.firstPaintEmitter.fire({ ms: Date.now() - this.openedAt, rows: message.rows });
@@ -188,6 +227,8 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
       collapsed: this.viewState.collapsed,
       staleFetchHours: vscode.workspace.getConfiguration('repohangar').get<number>('staleFetchHours', 1),
       platform: process.platform,
+      graph: this.graph.variant,
+      nameClick: nameClickSetting(),
     };
   }
 

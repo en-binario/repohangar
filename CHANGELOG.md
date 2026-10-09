@@ -41,3 +41,34 @@ All notable changes to RepoHangar are recorded here. Entries are written and cla
 - **Added:** **Fetch** in the context menu of the Source Control Repositories view.
 - **Added:** the settings `repohangar.concurrency` (how many repositories a batch fetches at once, default `6`) and
   `repohangar.fetchTimeoutSeconds` (when a fetch counts as failed, default `60`).
+- **Added — Open in Git Graph.** `g`, the `◈` button on a row, the row's `⋯` menu and details, the Source Control
+  Repositories menu, the Explorer context menu and **RepoHangar: Open in Git Graph** (`repohangar.openInGitGraph`,
+  `Ctrl+Alt+J`, `Ctrl+Cmd+J` on macOS) open the Git Graph extension switched to the repository, show Source Control
+  next to it with the same repository selected, and keep keyboard focus on the graph. Git Graph is optional: without
+  it the items read **Open in Source Control Graph** (`repohangar.openInSourceControlGraph`) and open VS Code's
+  built-in graph. RepoHangar notices Git Graph being installed or removed without a reload and never installs it
+  unless you click **Install Git Graph**.
+- **Added — Reveal in Explorer.** `e`, the `▤` button, the `⋯` menu, the row details, the Source Control
+  Repositories menu, **RepoHangar: Reveal Repository in Explorer** (`repohangar.revealInExplorer`) and a click on a
+  repository name show its folder in the Explorer. A repository outside the workspace folders can be added to the
+  workspace, opened in a new window or revealed in the file manager, with **Always do this**.
+- **Added — Explorer context menu.** Right-click a repository folder for **Open in Git Graph** (or **Open in Source
+  Control Graph**) and the **RepoHangar** submenu with **Show in RepoHangar** (`repohangar.showInDashboard`), which
+  clears the filter and expands the group to focus the repository's row, **Fetch** and **Pull (ff)**. Repository
+  folders are found down to `repohangar.repositoryScanDepth` levels, including repositories the Git extension did not
+  open; **RepoHangar: Refresh** scans again. The context keys `repohangar.gitGraph.installed`,
+  `repohangar.repositoryRoots` and `repohangar.legacyOpenerInstalled` can be used in your own `when` clauses.
+- **Added — Show in Source Control.** `s`, a click on the Changes cell, the `⋯` menu, the row details and
+  **RepoHangar: Show Repository in Source Control** (`repohangar.showInSourceControl`) show Source Control with the
+  repository selected (with `scm.repositories.selectionMode` set to `single`). Failures go to the new **RepoHangar**
+  output channel instead of a notification.
+- **Added — moving from Git Graph Opener.** On its first start RepoHangar copies `gitGraphOpener.contextMenu.showOn`,
+  `gitGraphOpener.repositoryScanDepth`, `gitGraphOpener.sourceControl.reveal` and
+  `gitGraphOpener.sourceControl.syncSelection` to their `repohangar.*` keys at every scope where you set them, and
+  keeps the old keys. While Git Graph Opener is installed, RepoHangar hides its own Explorer graph item and offers once
+  to uninstall Git Graph Opener.
+- **Added:** the settings `repohangar.dashboard.nameClick` (`explorer`), `repohangar.gitGraph.whenMissing`
+  (`sourceControlGraph`), `repohangar.gitGraph.revealSourceControl` (`true`),
+  `repohangar.gitGraph.syncSourceControlSelection` (`true`), `repohangar.explorer.contextMenu.showOn`
+  (`repositoryRoots`), `repohangar.explorer.submenu` (`true`), `repohangar.explorer.collapseBeforeReveal`
+  (`false`), `repohangar.explorer.outsideWorkspace` (`ask`) and `repohangar.repositoryScanDepth` (`3`).

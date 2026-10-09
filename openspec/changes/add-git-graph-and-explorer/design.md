@@ -129,5 +129,21 @@ buttons with the action of `nameClick` and Show in Source Control. New view mess
 
 ## Open Questions
 
-- Does the Source Control Graph follow the Repositories selection in VS Code 1.141? Answered by the integration test of
-  task 4.3; the spec's outcome holds either way, since the selection sync and the focus command run in both cases.
+- Does the Source Control Graph follow the Repositories selection in VS Code 1.141? **Answered: no.** Recorded while
+  implementing task 2.4 (`main/82-sourceControlGraph.test.ts`, and `test/ui/graph.spec.ts` on Windows): after `g` on
+  `ledger`, the Repositories view selects `ledger` and the Source Control Graph view has keyboard focus, but the
+  graph's **Auto** Repo picker still shows the repository it showed before (checked again after 10 s). As planned in
+  Risks, the graph opens and the user picks the repository in its Repo picker; `SourceControl.openGraph` logs that to
+  the RepoHangar log at `info`. The spec's outcome holds, since the selection sync and the focus command run.
+
+## Implementation Notes
+
+- The four migrated settings (`repohangar.explorer.contextMenu.showOn`, `repohangar.repositoryScanDepth`,
+  `repohangar.gitGraph.revealSourceControl`, `repohangar.gitGraph.syncSourceControlSelection`) are declared with
+  `resource` scope: VS Code refuses to write a `window`-scoped setting to a workspace folder, which the migration's
+  folder scope (Settings migration matrix R6) needs. RepoHangar reads them with the repository root (or workspace
+  folder) as the scope.
+- The `gitGraph` integration session starts without Git Graph and installs it while the window is open (*Git Graph
+  installed while the window is open*), then installs the Git Graph Opener VSIX for the legacy opener suite. Both are
+  installed from VSIX files (`runTest.ts` downloads Git Graph 1.30.0 once into `.vscode-test`), because installing
+  from the Marketplace asks whether to trust the publisher in a dialog that tests cannot answer.

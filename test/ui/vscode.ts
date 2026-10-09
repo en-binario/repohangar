@@ -1,9 +1,9 @@
 // Launches VS Code with RepoHangar under development on a fixture workspace, for the Playwright UI tests.
 
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { _electron as electron, expect, type ElectronApplication, type FrameLocator, type Page } from '@playwright/test';
 import { downloadAndUnzipVSCode, resolveCliArgsFromVSCodeExecutablePath } from '@vscode/test-electron';
 import type { Fixture } from '../integration/fixtures/repos';
@@ -12,6 +12,8 @@ export interface VsCode {
   app: ElectronApplication;
   page: Page;
   fixture: Fixture;
+  /** The user settings.json of this window */
+  settingsFile: string;
   close(): Promise<void>;
 }
 
@@ -65,7 +67,8 @@ export async function launch(
   });
   const page = await app.firstWindow();
   await page.waitForSelector('.monaco-workbench', { timeout: 60_000 });
-  return { app, page, fixture, close: () => app.close() };
+  const settingsFile = join(profile, 'user-data', 'User', 'settings.json');
+  return { app, page, fixture, settingsFile, close: () => app.close() };
 }
 
 /** Runs a command from the command palette by its title. */
@@ -74,7 +77,11 @@ export async function runCommand(page: Page, title: string): Promise<void> {
   const input = page.locator('.quick-input-widget input');
   await expect(input).toBeVisible();
   await input.fill(`>${title}`);
-  await page.locator('.quick-input-list .monaco-list-row', { hasText: title }).first().click();
+  const match = page.locator('.quick-input-list .monaco-list-row', { hasText: title }).first();
+  await expect(match).toBeVisible();
+  // The list can still be moving while it filters; the focused best match runs with Enter.
+  if (await match.evaluate((e) => e.classList.contains('focused'))) await input.press('Enter');
+  else await match.click();
 }
 
 /** The dashboard's document inside VS Code's webview frames. */
@@ -99,10 +106,44 @@ export async function focusedKey(frame: FrameLocator): Promise<string | null> {
   return frame.locator('body').evaluate(() => document.activeElement?.closest('[data-key]')?.getAttribute('data-key') ?? null);
 }
 
-/** Gives keyboard focus to the Repository cell of a row. */
+/** Gives keyboard focus to the Repository cell of a row, clicking beside the name, which runs an action. */
 export async function focusRow(frame: FrameLocator, repo: string): Promise<void> {
-  await row(frame, repo).locator('[data-col="repository"]').click();
-  await row(frame, repo).locator('[data-col="repository"]').focus();
+  const cell = row(frame, repo).locator('[data-col="repository"]');
+  const box = await cell.boundingBox();
+  await cell.click(box ? { position: { x: box.width - 4, y: box.height / 2 } } : {});
+  await cell.focus();
+}
+
+/** Merges `settings` into the user settings.json; VS Code applies the change without a reload. */
+export function writeSettings(vscode: VsCode, settings: Record<string, unknown>): void {
+  const current = existsSync(vscode.settingsFile) ? (JSON.parse(readFileSync(vscode.settingsFile, 'utf8')) as Record<string, unknown>) : {};
+  for (const [key, value] of Object.entries(settings)) {
+    if (value === undefined) delete current[key];
+    else current[key] = value;
+  }
+  mkdirSync(dirname(vscode.settingsFile), { recursive: true });
+  writeFileSync(vscode.settingsFile, JSON.stringify(current, null, 2));
+}
+
+/** The repository selected in the Source Control Repositories view. */
+export function selectedRepository(page: Page) {
+  return page.locator('.part.sidebar .monaco-list-row[aria-label="Git"][aria-selected="true"]');
+}
+
+/** Clicks an item of the open context menu (`window.menuStyle` custom). */
+export async function chooseMenuItem(page: Page, label: string): Promise<void> {
+  await menuItem(page, label).click();
+}
+
+/** An item of the open context menu; its accessible name may end with the keybinding. */
+export function menuItem(page: Page, label: string) {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return page.locator('.context-view').getByRole('menuitem', { name: new RegExp(`^${escaped}(\\s|$)`) });
+}
+
+/** The Explorer row named `name` (the last path segment). */
+export function explorerRow(page: Page, name: string) {
+  return page.locator('.explorer-folders-view .monaco-list-row').filter({ has: page.locator('.label-name', { hasText: new RegExp(`^${name}$`) }) });
 }
 
 /** The VS Code notification toast that contains `text`. */

@@ -305,3 +305,38 @@ select {
     animation: none !important;
   }
 }
+
+/* The repository name runs repohangar.dashboard.nameClick; it reads as the name, not as a button. */
+.repo-name {
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.repo-name:hover {
+  text-decoration: underline;
+}
+
+.detail-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  font-family: var(--vscode-font-family);
+}
+
+.detail-button {
+  padding: 2px 8px;
+  color: var(--vscode-button-secondaryForeground);
+  background: var(--vscode-button-secondaryBackground);
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.detail-button:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+}

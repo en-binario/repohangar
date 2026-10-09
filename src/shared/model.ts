@@ -71,7 +71,10 @@ export type RowAction =
   | 'discardAll'
   | 'revealInOS'
   | 'copyPath'
-  | 'copyBranch';
+  | 'copyBranch'
+  | 'graph'
+  | 'revealInExplorer'
+  | 'showInSourceControl';
 
 export const ROW_ACTIONS: readonly RowAction[] = [
   'fetch',
@@ -86,6 +89,9 @@ export const ROW_ACTIONS: readonly RowAction[] = [
   'revealInOS',
   'copyPath',
   'copyBranch',
+  'graph',
+  'revealInExplorer',
+  'showInSourceControl',
 ];
 
 export type BatchAction = 'fetch' | 'pullFf';

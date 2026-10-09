@@ -1,6 +1,6 @@
 // The file system operations the pure Git modules need, so unit tests can use an in-memory map. No vscode import.
 
-import { readFile, stat } from 'node:fs/promises';
+import { readdir, readFile, stat } from 'node:fs/promises';
 
 export interface FileStat {
   mtimeMs: number;
@@ -14,7 +14,18 @@ export interface FileSystemPort {
   stat(path: string): Promise<FileStat | undefined>;
 }
 
-export const nodeFileSystem: FileSystemPort = {
+export interface DirectoryEntry {
+  name: string;
+  isDirectory: boolean;
+}
+
+/** A file system that can also list a folder, for the repository root scan. */
+export interface DirectoryPort extends FileSystemPort {
+  /** The entries of a folder; throws when the folder does not exist or cannot be read */
+  readdir(path: string): Promise<DirectoryEntry[]>;
+}
+
+export const nodeFileSystem: DirectoryPort = {
   async readFile(path) {
     try {
       return await readFile(path, 'utf8');
@@ -29,5 +40,9 @@ export const nodeFileSystem: FileSystemPort = {
     } catch {
       return undefined;
     }
+  },
+  async readdir(path) {
+    const entries = await readdir(path, { withFileTypes: true });
+    return entries.map((e) => ({ name: e.name, isDirectory: e.isDirectory() }));
   },
 };
