@@ -118,6 +118,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<TestAp
   });
   const panel = dashboard;
   panel.drawer = mr;
+  actions.resultView = panel;
   mr.dashboard = { open: () => panel.open(), postDrawer: (data) => panel.showDrawer(data), postDrawerUsers: (id, users) => panel.postDrawerUsers(id, users) };
   /** Runs a merge request command on its repository: the argument, else the active repository. */
   const onRepository = (run: (id: string) => Promise<void>) => async (arg?: unknown) => {

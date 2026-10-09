@@ -26,7 +26,8 @@ will be skipped)` when `<m>` is at least 1. When the typed text is a valid branc
 first item SHALL be `＋ Create "<text>" from current HEAD in all <n>`.
 
 **Constraints:**
-- Suggestions use `repository.state.refs`; no fetch and no `git` process runs
+- Suggestions read the local refs (the loose refs and `packed-refs` of the common git dir), since the Git extension no
+  longer fills `repository.state.refs`; no fetch and no `git` process runs
 - A branch counts as `local` in a repository that has it locally, else as `remote` when `<remote>/<name>` exists
 - `<remote>/HEAD` is not listed
 

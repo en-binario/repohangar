@@ -26,15 +26,17 @@ export function syncClickAction(row: RowData): RowAction | undefined {
   return undefined;
 }
 
+const TOOLBAR_BATCHES: readonly BatchAction[] = ['fetch', 'pullFf', 'switch', 'createBranch'];
+
+/** Fetch all, Pull all (ff), ⎇ Switch… and ＋ Branch…, with the number of selected rows they act on. */
 export function BatchButtons({ selected, onRun }: { selected: number; onRun(action: BatchAction): void }) {
   return (
     <div class="batch-buttons">
-      <button type="button" class="batch" data-batch="fetch" onClick={() => onRun('fetch')}>
-        {toolbarLabel('fetch', selected)}
-      </button>
-      <button type="button" class="batch" data-batch="pullFf" onClick={() => onRun('pullFf')}>
-        {toolbarLabel('pullFf', selected)}
-      </button>
+      {TOOLBAR_BATCHES.map((action) => (
+        <button type="button" key={action} class="batch" data-batch={action} onClick={() => onRun(action)}>
+          {toolbarLabel(action, selected)}
+        </button>
+      ))}
     </div>
   );
 }

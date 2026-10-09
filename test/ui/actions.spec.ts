@@ -1,5 +1,6 @@
-// git-operations scenarios in a real VS Code window: Publish tooltip on an unpublished branch, Menu by keyboard, Push
-// key with rows selected, Discard canceled in VS Code's confirmation, Pull from the behind notification and Fetch fails.
+// git-operations scenarios in a real VS Code window: Publish tooltip on an unpublished branch, Menu by keyboard,
+// Discard canceled in VS Code's confirmation, Pull from the behind notification and Fetch fails (Push key with rows
+// selected is in keys.spec.ts).
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -55,22 +56,6 @@ test('copies the path from the more-actions menu by keyboard', async () => {
   await expect
     .poll(async () => samePath(await vscode.app.evaluate(({ clipboard }) => clipboard.readText()), fixture.repo('backend/billing-api')))
     .toBe(true);
-});
-
-test('pushes only the focused row with rows selected', async () => {
-  await focusRow(frame, 'billing-api');
-  await page.keyboard.press('Space');
-  await focusRow(frame, 'ledger');
-  await page.keyboard.press('Space');
-  await expect(frame.locator('.selected-count')).toHaveText('2 selected');
-  await expect(row(frame, 'web-shop').locator('[data-col="sync"]')).toHaveText('↑1');
-  await focusRow(frame, 'web-shop');
-  await page.keyboard.press('Shift+P');
-  await expect(row(frame, 'web-shop').locator('[data-col="sync"]')).toHaveText('—', { timeout: 30_000 });
-  await expect(row(frame, 'billing-api').locator('[data-col="sync"]')).toHaveText('↑2');
-  await expect(row(frame, 'ledger').locator('[data-col="sync"]')).toHaveText('↓2');
-  await page.keyboard.press('Escape');
-  await expect(frame.locator('.selected-count')).toHaveCount(0);
 });
 
 test("leaves the working tree unchanged when VS Code's discard confirmation is canceled", async () => {

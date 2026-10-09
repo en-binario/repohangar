@@ -7,11 +7,13 @@ import type { GitApiAccess } from '../git/api';
 import type { Registry } from '../git/registry';
 import { dashboardState } from '../shared/format';
 import type { GraphVariant, NameClick } from '../shared/graph';
+import type { BatchPanel } from '../shared/batchResult';
 import type { DrawerData, DrawerEdits } from '../shared/drawer';
 import type { FirstRunPanel } from '../shared/model';
 import { parseViewMessage, type HostMessage, type Snapshot, type ViewMessage } from '../shared/protocol';
+import type { LineUpdate } from '../jobs/results';
 import type { RowStore } from '../state/store';
-import type { Actions } from './actions';
+import type { Actions, ResultView } from './actions';
 import type { ViewState } from './viewState';
 
 export const DASHBOARD_VIEW_TYPE = 'repohangar.dashboard';
@@ -50,7 +52,7 @@ function nameClickSetting(): NameClick {
   return value === 'gitGraph' || value === 'sourceControl' ? value : 'explorer';
 }
 
-export class DashboardController implements vscode.Disposable, vscode.WebviewPanelSerializer {
+export class DashboardController implements vscode.Disposable, vscode.WebviewPanelSerializer, ResultView {
   private panel: vscode.WebviewPanel | undefined;
   private panelDisposables: vscode.Disposable[] = [];
   private readonly disposables: vscode.Disposable[] = [];
@@ -71,6 +73,10 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
   private pendingDrawer: DrawerData | null | undefined;
   /** Set after construction by merge request creation. */
   drawer: DashboardDrawer | undefined;
+  /** The result panel is shown, so a webview that loads again shows it too */
+  private batchResultShown = false;
+  /** A change of the result panel waits for the webview to be ready */
+  private pendingBatchResult = false;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -78,7 +84,10 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
     private readonly registry: Registry,
     private readonly git: GitApiAccess,
     private readonly viewState: ViewState,
-    private readonly actions: Pick<Actions, 'runRowAction' | 'runBatch'>,
+    private readonly actions: Pick<
+      Actions,
+      'runRowAction' | 'runBatch' | 'switchBranchIn' | 'createBranchIn' | 'fix' | 'retryFailed' | 'closeBatchResult' | 'batchPanel'
+    >,
     private readonly graph: { readonly variant: GraphVariant; readonly onDidChange: vscode.Event<void> },
     private readonly providers?: DashboardProviders,
   ) {
@@ -171,6 +180,26 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
     this.post({ type: 'drawer', data });
   }
 
+  /** Shows the batch result panel above the grid, or closes it; `open` opens the dashboard first (Show Details). */
+  showBatchResult(panel: BatchPanel | null, open = false): void {
+    this.batchResultShown = panel !== null;
+    if (open) this.open();
+    if (this.ready) this.post({ type: 'batchResult', panel });
+    else this.pendingBatchResult = true;
+  }
+
+  updateBatchResultLine(update: LineUpdate): void {
+    if (this.batchResultShown) this.post({ type: 'batchResultLine', ...update });
+  }
+
+  /** The panel again for a webview that loaded again (it is not retained while hidden), or after Show Details. */
+  private flushBatchResult(): void {
+    if (!this.batchResultShown && !this.pendingBatchResult) return;
+    this.pendingBatchResult = false;
+    const panel = this.batchResultShown ? (this.actions.batchPanel() ?? null) : null;
+    this.post({ type: 'batchResult', panel });
+  }
+
   postDrawerUsers(id: string, users: string[]): void {
     this.post({ type: 'drawerUsers', id, users });
   }
@@ -223,6 +252,8 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
         this.ready = false;
         this.restored = false;
         this.selection = [];
+        this.batchResultShown = false;
+        this.pendingBatchResult = false;
         this.firstRunDecision = undefined;
         this.firstRunWaited = false;
         if (this.firstRunTimer) clearTimeout(this.firstRunTimer);
@@ -239,6 +270,7 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
         this.postSnapshot();
         this.flushReveal();
         this.flushDrawer();
+        this.flushBatchResult();
         return;
       case 'firstPaint':
         this.firstPaintEmitter.fire({ ms: Date.now() - this.openedAt, rows: message.rows });
@@ -265,7 +297,23 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
         await this.actions.runRowAction(message.id, message.action);
         return;
       case 'runBatch':
-        await this.actions.runBatch(message.action, message.ids);
+        await this.actions.runBatch(message.action, message.ids, { fromDashboard: true });
+        return;
+      case 'switchBranch':
+        await this.actions.switchBranchIn(message.ids, { fromDashboard: true });
+        return;
+      case 'createBranch':
+        await this.actions.createBranchIn(message.ids, { fromDashboard: true });
+        return;
+      case 'fix':
+        await this.actions.fix(message.id, message.fix);
+        return;
+      case 'retryFailed':
+        await this.actions.retryFailed();
+        return;
+      case 'closeBatchResult':
+        this.batchResultShown = false;
+        this.actions.closeBatchResult();
         return;
       case 'setSelection':
         this.selection = message.ids;

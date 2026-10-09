@@ -2,6 +2,7 @@
 // vscode import.
 
 import { batchTitle } from '../shared/batch';
+import { batchCounts, finishedTitle, needsPanel } from '../shared/batchResult';
 import type { BatchAction, JobResult } from '../shared/model';
 
 export interface BatchSummary {
@@ -9,34 +10,28 @@ export interface BatchSummary {
   text: string;
   /** The notification offers `Show Git Output` */
   showOutput: boolean;
+  /** The notification offers `Show Details`, which opens the result panel (batch-operations: Batch result panel) */
+  showDetails: boolean;
 }
 
-export function progressText(action: BatchAction, done: number, total: number): string {
-  return `${batchTitle(action)}: ${done}/${total}`;
+export interface SummaryOptions {
+  /** The branch of a Switch or Create */
+  branch?: string;
+  /** The batch was started from the dashboard, which shows the result panel itself */
+  fromDashboard?: boolean;
 }
 
-/** Whether a Pull (ff) result counts as up to date rather than updated. */
-function upToDate(result: JobResult): boolean {
-  return result.state === 'ok' && result.detail === 'up to date';
+export function progressText(action: BatchAction, done: number, total: number, branch?: string): string {
+  return `${batchTitle(action, branch)}: ${done}/${total}`;
 }
 
-export function batchSummary(action: BatchAction, elapsedMs: number, results: readonly JobResult[]): BatchSummary {
-  const count = (state: JobResult['state']) => results.filter((r) => r.state === state).length;
-  const ok = results.filter((r) => r.state === 'ok' && !(action === 'pullFf' && upToDate(r))).length;
-  const skipped = count('skipped');
-  const failed = count('failed');
-  // The first count is always shown; the others only when not 0.
-  const parts = [action === 'fetch' ? `✓ ${ok} fetched` : `✓ ${ok} updated`];
-  if (action === 'pullFf') {
-    const level = results.filter(upToDate).length;
-    if (level > 0) parts.push(`= ${level} up to date`);
-  }
-  if (skipped > 0) parts.push(`↷ ${skipped} skipped`);
-  if (failed > 0) parts.push(`✗ ${failed} failed`);
+export function batchSummary(action: BatchAction, elapsedMs: number, results: readonly JobResult[], options: SummaryOptions = {}): BatchSummary {
+  const failed = results.some((r) => r.state === 'failed');
   return {
-    severity: failed > 0 ? 'warning' : 'information',
-    text: `${batchTitle(action)} — finished in ${(elapsedMs / 1000).toFixed(1)} s: ${parts.join(' · ')}`,
-    showOutput: failed > 0,
+    severity: failed ? 'warning' : 'information',
+    text: `${finishedTitle(action, options.branch, elapsedMs)}: ${batchCounts(action, results)}`,
+    showOutput: failed,
+    showDetails: !options.fromDashboard && needsPanel(results),
   };
 }
 

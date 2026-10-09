@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { batchTargets, type BatchTrigger } from '../src/shared/batch';
+import { batchTargets, branchTargets, type BatchTrigger, type BranchTrigger } from '../src/shared/batch';
+import type { BatchPanel } from '../src/shared/batchResult';
 import {
   CHIPS,
   branchCell,
@@ -19,6 +20,7 @@ import type { DrawerData } from '../src/shared/drawer';
 import { compareState, openReviewLabel, reviewDetails, rowReviewCell } from '../src/shared/review';
 import { detailsButtons } from '../src/shared/rowMenu';
 import { layout, rowKey, type GridItem } from './layout';
+import { BatchResult } from './BatchResult';
 import { Drawer } from './Drawer';
 import { BatchButtons, HoverActions, RowMenu, syncClickAction } from './RowActions';
 
@@ -40,10 +42,10 @@ const EMPTY_VIEW: PersistedView = { filter: '', chips: [], selected: [], expande
 
 /**
  * The hints of the action keys (git-operations: Row action keys), then those of the graph, Explorer and Source Control
- * keys, shown before the navigation hints.
+ * keys, `n branch` (batch-operations: Branch keys) and the merge request keys, shown before the navigation hints.
  */
 export const ACTION_HINTS =
-  'f fetch · p pull · P push · b switch · t terminal · . more · g graph · e explorer · s source control · m MR · M MR… · o open MR';
+  'f fetch · p pull · P push · b switch · t terminal · . more · g graph · e explorer · s source control · n branch · m MR · M MR… · o open MR';
 export const KEY_HINTS = '↑↓ move · Space select · / filter · ⏎ details · ? keys';
 
 export const KEY_HELP: readonly [string, string][] = [
@@ -65,7 +67,8 @@ export const KEY_HELP: readonly [string, string][] = [
   ['F', 'Fetch all, or the selected rows'],
   ['p', 'Pull the focused row, or Pull (ff) the selected rows'],
   ['P', 'Push or publish the focused row'],
-  ['b', 'Switch branch in the focused row'],
+  ['b', 'Switch branch in the focused row, or in the selected rows'],
+  ['n', 'Create a branch in the focused row, or in the selected rows'],
   ['t', 'Open a terminal in the focused row'],
   ['.', 'More actions for the focused row'],
   ['g', 'Open the focused row in the graph'],
@@ -110,6 +113,8 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
   /** The Create MR drawer and the user suggestions for it (mr-creation: Create MR drawer) */
   const [drawer, setDrawer] = useState<DrawerData | null>(null);
   const [drawerUsers, setDrawerUsers] = useState<string[]>([]);
+  /** The result panel of the last batch (batch-operations: Batch result panel) */
+  const [batchPanel, setBatchPanel] = useState<BatchPanel | null>(null);
   const focusRequested = useRef(false);
   const filterRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -144,6 +149,17 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
         setDrawerUsers([]);
       } else if (message.type === 'drawerUsers') {
         setDrawerUsers(message.users);
+      } else if (message.type === 'batchResult') {
+        setBatchPanel(message.panel);
+      } else if (message.type === 'batchResultLine') {
+        setBatchPanel((current) =>
+          current && {
+            ...current,
+            counts: message.counts,
+            canRetry: message.canRetry,
+            lines: current.lines.map((line) => (line.id === message.line.id ? message.line : line)),
+          },
+        );
       }
     };
     window.addEventListener('message', onMessage);
@@ -246,6 +262,14 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
     api.postMessage({ type: 'runBatch', action, ids });
   };
 
+  /** Switch or create a branch in the selected rows, the focused row (`n`) or every row; false when there is none. */
+  const runBranch = (trigger: BranchTrigger, focused?: string): boolean => {
+    const targets = branchTargets(trigger, view.selected, allRows.map((r) => r.id), focused);
+    if (!targets || targets.ids.length === 0) return false;
+    api.postMessage({ type: targets.action === 'switch' ? 'switchBranch' : 'createBranch', ids: targets.ids });
+    return true;
+  };
+
   const closeMenu = () => {
     setMenuFor(null);
     focusRequested.current = true;
@@ -298,6 +322,11 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
     if ((e.key === 'f' || e.key === 'p') && view.selected.length > 0) {
       e.preventDefault();
       return runBatch(e.key);
+    }
+    // b with rows selected and n (batch-operations: Branch keys); b alone switches the focused row below.
+    if ((e.key === 'b' && view.selected.length > 0) || e.key === 'n') {
+      if (runBranch(e.key, focusedRow?.id)) e.preventDefault();
+      return;
     }
     if (focusedRow && (e.key === '.' || Object.prototype.hasOwnProperty.call(rowKeys, e.key))) {
       e.preventDefault();
@@ -370,7 +399,7 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
         return;
       }
       const target = e.target as HTMLElement | null;
-      if (target?.closest('input[type="text"], input[type="search"], select, [role="menu"]')) return;
+      if (target?.closest('input[type="text"], input[type="search"], select, [role="menu"], .batch-result')) return;
       onGridKey(e);
     };
     document.addEventListener('keydown', onKey);
@@ -409,7 +438,13 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
   return (
     <div class={drawer ? 'dashboard with-drawer' : 'dashboard'} data-graph={snapshot.graph} data-name-click={snapshot.nameClick} data-first-run-pending={snapshot.firstRunPending}>
       <div class="toolbar" role="toolbar" aria-label="Filters">
-        <BatchButtons selected={view.selected.length} onRun={(action) => runBatch(action === 'fetch' ? 'fetchAll' : 'pullAllFf')} />
+        <BatchButtons
+          selected={view.selected.length}
+          onRun={(action) => {
+            if (action === 'switch' || action === 'createBranch') runBranch(action === 'switch' ? 'switchBranch' : 'createBranch');
+            else runBatch(action === 'fetch' ? 'fetchAll' : 'pullAllFf');
+          }}
+        />
         <input
           ref={filterRef}
           type="search"
@@ -449,6 +484,18 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
           </select>
         </label>
       </div>
+
+      {batchPanel && (
+        <BatchResult
+          panel={batchPanel}
+          onFix={(id, fix) => api.postMessage({ type: 'fix', id, fix })}
+          onRetry={() => api.postMessage({ type: 'retryFailed' })}
+          onClose={() => {
+            setBatchPanel(null);
+            api.postMessage({ type: 'closeBatchResult' });
+          }}
+        />
+      )}
 
       <div class="grid" role="grid" aria-label="Repositories" aria-rowcount={items.length + 1} ref={gridRef}>
         <div class="row header" role="row">

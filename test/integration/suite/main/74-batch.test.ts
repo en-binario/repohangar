@@ -107,7 +107,8 @@ describe('batch operations', () => {
 
       const summary = api.actions.notifications.at(-1);
       assert.match(summary?.text ?? '', /^Pull all \(ff\) — finished in \d+\.\d s: ✓ 1 updated · = \d+ up to date · ↷ \d+ skipped · ✗ 1 failed$/);
-      assert.deepEqual(summary?.buttons, ['Show Git Output']);
+      // Started from a command: the result panel is offered with Show Details (batch-operations: Batch results).
+      assert.deepEqual(summary?.buttons, ['Show Git Output', 'Show Details']);
       await waitFor(() => rowNamed(api, 'notifications')?.job?.detail === 'diverged (↑1 ↓1)' || undefined, 'the skip reason in the row');
     } finally {
       billing.restore();

@@ -106,6 +106,11 @@ export class Registry implements vscode.Disposable {
     return this.entries.get(id)?.repository;
   }
 
+  /** The git dir and common git dir of a repository, once resolved. */
+  gitDirs(id: string): Promise<GitDirs | undefined> {
+    return this.entries.get(id)?.dirs ?? Promise.resolve(undefined);
+  }
+
   /** `repository.status()` for every repository, then a recompute of every row. */
   async refreshAll(): Promise<void> {
     await Promise.all(

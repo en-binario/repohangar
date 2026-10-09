@@ -544,3 +544,79 @@ select {
 .review-button.create {
   font-weight: 600;
 }
+
+/* The batch result panel above the grid (batch-operations: Batch result panel). */
+.batch-result {
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-editorWidget-border, var(--rh-border));
+}
+
+.batch-result-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 6px;
+}
+
+.batch-result-title {
+  font-weight: 600;
+}
+
+.batch-result-counts {
+  color: var(--rh-muted);
+}
+
+.batch-result-lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.batch-result-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.batch-result-text {
+  min-width: 40ch;
+  font-family: var(--vscode-editor-font-family);
+  white-space: pre;
+}
+
+.batch-result-line[data-state='failed'] .batch-result-text {
+  color: var(--vscode-errorForeground);
+}
+
+.batch-result-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.batch-result .fix {
+  padding: 2px 8px;
+  color: var(--vscode-button-secondaryForeground);
+  background: var(--vscode-button-secondaryBackground);
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.batch-result .fix:hover:not(:disabled) {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.batch-result .fix:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.batch-result .fix:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}

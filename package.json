@@ -97,6 +97,16 @@
         "category": "RepoHangar"
       },
       {
+        "command": "repohangar.switchBranch",
+        "title": "Switch Branch in Repositories…",
+        "category": "RepoHangar"
+      },
+      {
+        "command": "repohangar.createBranch",
+        "title": "Create Branch in Repositories…",
+        "category": "RepoHangar"
+      },
+      {
         "command": "repohangar.scm.fetch",
         "title": "Fetch"
       },

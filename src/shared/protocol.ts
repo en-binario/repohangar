@@ -1,6 +1,7 @@
 // Messages between the extension host and the dashboard webview, and the validator for messages from the webview
 // (design D-4). No vscode import.
 
+import { FIX_IDS, type BatchPanel, type FixId, type ResultLine } from './batchResult';
 import { parseEdits, type DrawerData, type DrawerEdits } from './drawer';
 import type { GraphVariant, NameClick } from './graph';
 import {
@@ -41,7 +42,11 @@ export type HostMessage =
   | { type: 'reveal'; id: string }
   /** The Create MR drawer (mr-creation), or null to close it */
   | { type: 'drawer'; data: DrawerData | null }
-  | { type: 'drawerUsers'; id: string; users: string[] };
+  | { type: 'drawerUsers'; id: string; users: string[] }
+  /** The result panel of the last batch, or null to close it (batch-operations: Batch result panel, design D-6) */
+  | { type: 'batchResult'; panel: BatchPanel | null }
+  /** One line of the result panel after a fix button or Retry failed */
+  | { type: 'batchResultLine'; line: ResultLine; counts: string; canRetry: boolean };
 
 export type ViewMessage =
   | { type: 'ready' }
@@ -52,6 +57,13 @@ export type ViewMessage =
   | { type: 'openSettings' }
   | { type: 'runAction'; id: string; action: RowAction }
   | { type: 'runBatch'; action: BatchAction; ids: string[] }
+  /** `b` with rows selected, `n` and the toolbar buttons ⎇ Switch… and ＋ Branch… (batch-operations: Branch batch targets) */
+  | { type: 'switchBranch'; ids: string[] }
+  | { type: 'createBranch'; ids: string[] }
+  /** The result panel: a fix button, Retry failed and Close */
+  | { type: 'fix'; id: string; fix: FixId }
+  | { type: 'retryFailed' }
+  | { type: 'closeBatchResult' }
   /** The selected rows, which the batch commands act on (batch-operations: Batch targets) */
   | { type: 'setSelection'; ids: string[] }
   /** A `Sign in` cell or a first-run button (provider-auth: Sign in to a host) */
@@ -68,12 +80,13 @@ export type ViewMessage =
 
 export const GROUPING_MODES: readonly GroupingMode[] = ['parentFolder', 'workspaceFolder', 'custom', 'none'];
 
+/** The batches the webview runs with `runBatch`; Switch and Create ask for a branch first. */
 export const BATCH_ACTIONS: readonly BatchAction[] = ['fetch', 'pullFf'];
 
 const MAX_STRING = 4096;
 const MAX_IDS = 10_000;
 
-type Field = 'string' | 'count' | 'grouping' | 'rowAction' | 'batchAction' | 'ids' | 'edits' | 'text';
+type Field = 'string' | 'count' | 'grouping' | 'rowAction' | 'batchAction' | 'ids' | 'edits' | 'text' | 'fix';
 
 const SHAPES: Record<ViewMessage['type'], Record<string, Field>> = {
   ready: {},
@@ -84,6 +97,11 @@ const SHAPES: Record<ViewMessage['type'], Record<string, Field>> = {
   openSettings: {},
   runAction: { id: 'string', action: 'rowAction' },
   runBatch: { action: 'batchAction', ids: 'ids' },
+  switchBranch: { ids: 'ids' },
+  createBranch: { ids: 'ids' },
+  fix: { id: 'string', fix: 'fix' },
+  retryFailed: {},
+  closeBatchResult: {},
   setSelection: { ids: 'ids' },
   signIn: { host: 'string' },
   chooseProvider: { host: 'string' },
@@ -107,6 +125,8 @@ function fieldValid(kind: Field, value: unknown): boolean {
       return typeof value === 'string' && (ROW_ACTIONS as readonly string[]).includes(value);
     case 'batchAction':
       return typeof value === 'string' && (BATCH_ACTIONS as readonly string[]).includes(value);
+    case 'fix':
+      return typeof value === 'string' && (FIX_IDS as readonly string[]).includes(value);
     case 'edits':
       return parseEdits(value) !== undefined;
     case 'text':

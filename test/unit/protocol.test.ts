@@ -14,6 +14,11 @@ describe('parseViewMessage', () => {
     [{ type: 'runBatch', action: 'pullFf', ids: ['file:///a', 'file:///b'] }],
     [{ type: 'runBatch', action: 'fetch', ids: [] }],
     [{ type: 'setSelection', ids: ['file:///a'] }],
+    [{ type: 'switchBranch', ids: ['file:///a', 'file:///b'] }],
+    [{ type: 'createBranch', ids: ['file:///a'] }],
+    [{ type: 'fix', id: 'file:///a', fix: 'stashAndPull' }],
+    [{ type: 'retryFailed' }],
+    [{ type: 'closeBatchResult' }],
   ])('accepts %j', (message) => {
     expect(parseViewMessage(message)).toEqual(message);
   });
@@ -35,6 +40,9 @@ describe('parseViewMessage', () => {
     ['an unknown batch action', { type: 'runBatch', action: 'push', ids: ['file:///a'] }],
     ['a non-array ids', { type: 'runBatch', action: 'fetch', ids: 'file:///a' }],
     ['a non-string id in ids', { type: 'runBatch', action: 'fetch', ids: ['file:///a', 7] }],
+    ['a switch run with runBatch, without a branch', { type: 'runBatch', action: 'switch', ids: ['file:///a'] }],
+    ['an unknown fix button', { type: 'fix', id: 'file:///a', fix: 'forcePull' }],
+    ['a fix button without a repository', { type: 'fix', fix: 'openScm' }],
     ['more than 10 000 ids', { type: 'setSelection', ids: Array.from({ length: 10_001 }, (_, i) => `file:///r${i}`) }],
   ])('rejects %s', (_name, message) => {
     expect(parseViewMessage(message)).toBeUndefined();

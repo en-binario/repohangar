@@ -1,13 +1,17 @@
 // dashboard :: Grid key matrix, one test per row, in row order R1–R14, R16–R24 (R15 was removed: 5 and 6 now toggle
-// the Has MR and Pipeline ✗ chips, R23 and R24).
+// the Has MR and Pipeline ✗ chips, R23 and R24). git-operations :: Push key with rows selected, Switch key with no row
+// selected; batch-operations :: n with no row selected and the footer hint `n branch`. The tests that change the
+// fixture run last.
 
+import { join } from 'node:path';
 import { expect, test, type FrameLocator, type Page } from '@playwright/test';
-import { createMainFixture } from '../integration/fixtures/repos';
+import { createMainFixture, git, type Fixture } from '../integration/fixtures/repos';
 import { focusedKey, focusRow, launch, openDashboard, row, type VsCode } from './vscode';
 
 let vscode: VsCode;
 let page: Page;
 let frame: FrameLocator;
+let fixture: Fixture;
 
 const ctrlA = process.platform === 'darwin' ? 'Meta+A' : 'Control+A';
 
@@ -34,7 +38,10 @@ async function reset(focus = 'billing-api'): Promise<void> {
 }
 
 test.beforeAll(async () => {
-  vscode = await launch(createMainFixture());
+  fixture = createMainFixture();
+  // web-shop pushes to its local remote instead of GitHub.
+  git(fixture.repo('frontend/web-shop'), 'remote', 'set-url', '--push', 'origin', join(fixture.remotes, 'web-shop.git'));
+  vscode = await launch(fixture);
   page = vscode.page;
   frame = await openDashboard(page);
 });
@@ -193,7 +200,9 @@ test('shows the key help overlay with ?', async () => {
   }
   // The action keys of git-operations and batch-operations.
   const keys = await help.locator('kbd').allTextContents();
-  for (const k of ['f', 'F', 'p', 'P', 'b', 't', '.']) expect(keys).toContain(k);
+  for (const k of ['f', 'F', 'p', 'P', 'b', 'n', 't', '.']) expect(keys).toContain(k);
+  await expect(help.locator('tr').filter({ has: frame.locator('kbd', { hasText: /^b$/ }) })).toContainText('or in the selected rows');
+  await expect(help.locator('tr').filter({ has: frame.locator('kbd', { hasText: /^n$/ }) })).toContainText('Create a branch in the focused row');
   // The graph, Explorer and Source Control keys.
   for (const k of ['g', 'e', 's']) expect(keys).toContain(k);
   await expect(help.locator('tr').filter({ has: frame.locator('kbd', { hasText: /^g$/ }) })).toContainText('Open the focused row in the graph');
@@ -224,11 +233,11 @@ test('moves from the filter box to the first shown row with ArrowDown', async ()
   expect(await focusedKey(frame)).toBe(await keyOf('auth-service'));
 });
 
-test('shows the action keys, then g graph, e explorer, s source control, m MR, M MR… and o open MR, before the navigation hints in the footer', async () => {
+test('shows the action keys, then g graph, e explorer, s source control, n branch, m MR, M MR… and o open MR, before the navigation hints in the footer', async () => {
   await page.keyboard.press('Space');
   await expect(frame.locator('.footer')).toHaveText(
     '1 selected' +
-      'f fetch · p pull · P push · b switch · t terminal · . more · g graph · e explorer · s source control · m MR · M MR… · o open MR · ↑↓ move · Space select · / filter · ⏎ details · ? keys',
+      'f fetch · p pull · P push · b switch · t terminal · . more · g graph · e explorer · s source control · n branch · m MR · M MR… · o open MR · ↑↓ move · Space select · / filter · ⏎ details · ? keys',
   );
   await expect(frame.locator('.selected-count')).toHaveText('1 selected');
 });
@@ -236,7 +245,7 @@ test('shows the action keys, then g graph, e explorer, s source control, m MR, M
 // mr-creation :: Footer with merge request keys
 test('shows m MR and M MR… before o open MR in the footer while no row is selected', async () => {
   await expect(frame.locator('.selected-count')).toHaveCount(0);
-  await expect(frame.locator('.footer .hints')).toContainText('m MR · M MR… · o open MR · ↑↓ move');
+  await expect(frame.locator('.footer .hints')).toContainText('s source control · n branch · m MR · M MR… · o open MR · ↑↓ move');
 });
 
 test('types j into the filter box', async () => {
@@ -247,3 +256,46 @@ test('types j into the filter box', async () => {
   await expect(frame.locator('input.filter')).toBeFocused();
 });
 
+// git-operations :: Switch key with no row selected
+test("opens VS Code's branch picker for the focused row with b and no row selected", async () => {
+  await focusRow(frame, 'ledger');
+  await page.keyboard.press('b');
+  const picker = page.locator('.quick-input-widget');
+  await expect(picker).toBeVisible();
+  await expect(picker.locator('.quick-input-list .monaco-list-row', { hasText: 'main' }).first()).toBeVisible();
+  // Not RepoHangar's quick pick for a selection.
+  await expect(picker).not.toContainText('Switch branch in');
+  await page.keyboard.press('Escape');
+  await expect(picker).toBeHidden();
+});
+
+// git-operations :: Push key with rows selected
+test('pushes only the focused row with P while rows are selected', async () => {
+  await focusRow(frame, 'billing-api');
+  await page.keyboard.press('Space');
+  await focusRow(frame, 'ledger');
+  await page.keyboard.press('Space');
+  await expect(frame.locator('.selected-count')).toHaveText('2 selected');
+  await expect(row(frame, 'web-shop').locator('[data-col="sync"]')).toHaveText('↑1');
+  await focusRow(frame, 'web-shop');
+  await page.keyboard.press('Shift+P');
+  await expect(row(frame, 'web-shop').locator('[data-col="sync"]')).toHaveText('—', { timeout: 30_000 });
+  await expect(row(frame, 'billing-api').locator('[data-col="sync"]')).toHaveText('↑2');
+  await expect(row(frame, 'ledger').locator('[data-col="sync"]')).toHaveText('↓2');
+});
+
+// batch-operations :: n with no row selected
+test('creates the branch in the focused row only with n and no row selected', async () => {
+  await focusRow(frame, 'ledger');
+  await page.keyboard.press('n');
+  const box = page.locator('.quick-input-widget');
+  await expect(box).toBeVisible();
+  await expect(box).toContainText('Create branch in 1 repository');
+  await page.keyboard.type('feature/ABC-31-refunds');
+  await page.keyboard.press('Enter');
+  await expect(row(frame, 'ledger').locator('[data-col="branch"]')).toHaveText('feature/ABC-31-refunds no upstream', { timeout: 30_000 });
+  expect(git(fixture.repo('backend/ledger'), 'branch', '--show-current').trim()).toBe('feature/ABC-31-refunds');
+  for (const other of ['backend/billing-api', 'backend/notifications', 'frontend/web-shop']) {
+    expect(git(fixture.repo(other), 'branch', '--list', 'feature/ABC-31-refunds')).toBe('');
+  }
+});

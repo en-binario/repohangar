@@ -1,17 +1,23 @@
 // Row actions and batches as the user starts them: the commands, the notifications, the batch progress with Cancel,
-// the terminal, the clipboard and the repository a command acts on (git-operations, batch-operations).
+// the branch quick picks, the batch result panel with its fix buttons and Retry failed, the terminal, the clipboard
+// and the repository a command acts on (git-operations, batch-operations).
 
 import * as vscode from 'vscode';
 import { notListedText, resolveActiveRepository, type CommandArgument } from '../git/activeRepository';
 import type { GitApiAccess } from '../git/api';
+import { invalidNameMessage, suggestBranches, type BranchSnapshot } from '../git/branchBatch';
 import type { GuardNotice } from '../git/guards';
 import type { GitOperations } from '../git/operations';
 import type { Registry } from '../git/registry';
+import { BatchResults, type LineUpdate } from '../jobs/results';
 import { batchSummary, progressText, recentlyFetchedText } from '../jobs/summary';
 import type { BatchRun, Job, JobRunner } from '../jobs/runner';
-import { batchTargets } from '../shared/batch';
-import type { BatchAction, JobAction, RowAction } from '../shared/model';
+import { batchTargets, branchTargets } from '../shared/batch';
+import { needsPanel, type BatchPanel, type FixId } from '../shared/batchResult';
+import { plural } from '../shared/format';
+import type { BatchAction, BatchParams, DirtyChoice, JobAction, JobResult, RowAction } from '../shared/model';
 import type { Notification } from '../integrations/workbench';
+import { vscodeBranchUi, type BranchUi } from './quickInputs';
 
 export type { Notification } from '../integrations/workbench';
 
@@ -37,7 +43,24 @@ export interface ReviewIntegrations {
   createMrEdit(id: string): Promise<void>;
 }
 
+/** Where the result panel is shown: the dashboard (batch-operations: Batch result panel). */
+export interface ResultView {
+  /** Shows the panel, or closes it with null; `open` opens the dashboard first (Show Details) */
+  showBatchResult(panel: BatchPanel | null, open?: boolean): void;
+  updateBatchResultLine(update: LineUpdate): void;
+}
+
+export interface BatchOptions {
+  /** The branch and dirty choice of a Switch or Create */
+  params?: BatchParams;
+  /** Started from the dashboard, which then shows the result panel at once */
+  fromDashboard?: boolean;
+  /** Retry failed: replaces the failed lines of the panel */
+  retry?: boolean;
+}
+
 const SHOW_OUTPUT = 'Show Git Output';
+const SHOW_DETAILS = 'Show Details';
 
 const FAILURE_NAMES: Record<JobAction, string> = {
   fetch: 'Fetch',
@@ -47,6 +70,8 @@ const FAILURE_NAMES: Record<JobAction, string> = {
   publish: 'Publish',
   sync: 'Sync',
   createMr: 'Create MR',
+  switch: 'Switch',
+  createBranch: 'Create branch',
 };
 
 export class Actions implements vscode.Disposable {
@@ -60,6 +85,12 @@ export class Actions implements vscode.Disposable {
   integrations: RowIntegrations | undefined;
   /** Set after construction by the provider layer. */
   review: ReviewIntegrations | undefined;
+  /** Set after construction: the dashboard. */
+  resultView: ResultView | undefined;
+  /** The branch quick picks and input box; the integration tests replace them. */
+  branchUi: BranchUi = vscodeBranchUi;
+  /** The results of the last batch, which the result panel shows. */
+  readonly results = new BatchResults();
 
   constructor(
     private readonly registry: Registry,
@@ -74,6 +105,8 @@ export class Actions implements vscode.Disposable {
       vscode.commands.registerCommand('repohangar.pullFf', (arg?: unknown) => this.onActive(arg, (id) => this.pullFf(id))),
       vscode.commands.registerCommand('repohangar.fetchAll', () => this.runBatchCommand('fetchAll')),
       vscode.commands.registerCommand('repohangar.pullAllFf', () => this.runBatchCommand('pullAllFf')),
+      vscode.commands.registerCommand('repohangar.switchBranch', () => this.runBranchCommand('switchBranch')),
+      vscode.commands.registerCommand('repohangar.createBranch', () => this.runBranchCommand('createBranch')),
     ];
   }
 
@@ -151,30 +184,177 @@ export class Actions implements vscode.Disposable {
     }
   }
 
-  /** Runs a batch on the listed repositories among `ids`, with a progress notification and a summary. */
-  async runBatch(action: BatchAction, ids: readonly string[]): Promise<BatchRun | undefined> {
+  /**
+   * Runs a batch on the listed repositories among `ids`, with a progress notification and a summary; a batch with a
+   * skipped or failed result gets the result panel, shown at once when it was started from the dashboard.
+   */
+  async runBatch(action: BatchAction, ids: readonly string[], options: BatchOptions = {}): Promise<BatchRun | undefined> {
     const listed = ids.filter((id) => this.registry.repository(id));
     if (listed.length === 0) return undefined;
+    const params = options.params ?? {};
     const run = await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Notification, cancellable: true },
       (progress, token) =>
-        this.runner.runBatch(action, listed, (id) => this.operations.batchJob(action, id), {
+        this.runner.runBatch(action, listed, (id) => this.operations.batchJob(action, id, params), {
           token,
-          onProgress: (done, total) => progress.report({ message: progressText(action, done, total) }),
+          onProgress: (done, total) => progress.report({ message: progressText(action, done, total, params.branch) }),
+          retry: options.retry,
         }),
     );
     if (run.kind === 'recent') {
       this.notify('information', recentlyFetchedText(run.seconds), []);
-    } else {
-      const summary = batchSummary(action, run.elapsedMs, run.results);
-      this.notify(summary.severity, summary.text, summary.showOutput ? [SHOW_OUTPUT] : []);
+      return run;
     }
+    if (options.retry) {
+      listed.forEach((id, i) => this.postLine(this.results.replace(id, run.results[i] as JobResult)));
+    } else {
+      this.showResults(action, params, run.elapsedMs, listed, run.results, options.fromDashboard ?? false);
+    }
+    const summary = batchSummary(action, run.elapsedMs, run.results, {
+      branch: params.branch,
+      fromDashboard: options.fromDashboard || options.retry,
+    });
+    const buttons = [...(summary.showOutput ? [SHOW_OUTPUT] : []), ...(summary.showDetails ? [SHOW_DETAILS] : [])];
+    this.notify(summary.severity, summary.text, buttons, (choice) => {
+      if (choice === SHOW_DETAILS) this.resultView?.showBatchResult(this.results.panel() ?? null, true);
+    });
     return run;
+  }
+
+  /** A new batch replaces the result panel; it closes when every result is ok. */
+  private showResults(
+    action: BatchAction,
+    params: BatchParams,
+    elapsedMs: number,
+    ids: readonly string[],
+    results: readonly JobResult[],
+    fromDashboard: boolean,
+  ): void {
+    if (!needsPanel(results)) {
+      this.results.clear();
+      this.resultView?.showBatchResult(null);
+      return;
+    }
+    const entries = ids.map((id, i) => ({ id, name: this.name(id), result: results[i] as JobResult }));
+    const panel = this.results.start(action, params, elapsedMs, entries);
+    this.resultView?.showBatchResult(fromDashboard ? panel : null);
   }
 
   private runBatchCommand(trigger: 'fetchAll' | 'pullAllFf'): Promise<BatchRun | undefined> {
     const { action, ids } = batchTargets(trigger, this.selection(), this.registry.ids());
     return this.runBatch(action, ids);
+  }
+
+  private runBranchCommand(trigger: 'switchBranch' | 'createBranch'): Promise<BatchRun | undefined> {
+    const targets = branchTargets(trigger, this.selection(), this.registry.ids());
+    if (!targets) return Promise.resolve(undefined);
+    return targets.action === 'switch' ? this.switchBranchIn(targets.ids) : this.createBranchIn(targets.ids);
+  }
+
+  /**
+   * Switch branch in repositories (W7): the branch quick pick, the uncommitted changes choice when a target is dirty,
+   * then the batch. Esc in either quick pick cancels with no Git operation.
+   */
+  async switchBranchIn(ids: readonly string[], options: { fromDashboard?: boolean } = {}): Promise<BatchRun | undefined> {
+    const listed = ids.filter((id) => this.registry.repository(id));
+    if (listed.length === 0) return undefined;
+    const snapshots = (await Promise.all(listed.map((id) => this.operations.branchSnapshot(id)))).filter(
+      (s): s is BranchSnapshot => s !== undefined,
+    );
+    const pick = await this.branchUi.pickBranch({
+      title: `Switch branch in ${plural(listed.length, 'repository', 'repositories')}`,
+      targets: listed.length,
+      suggestions: suggestBranches(snapshots),
+    });
+    if (!pick) return undefined;
+    if (pick.kind === 'create') {
+      if (!(await this.operations.validBranchName(listed[0] as string, pick.branch))) {
+        this.notify('warning', invalidNameMessage(pick.branch), []);
+        return undefined;
+      }
+      return this.runBatch('createBranch', listed, { params: { branch: pick.branch }, fromDashboard: options.fromDashboard });
+    }
+    const dirty = snapshots.filter((s) => s.dirtyFiles > 0).length;
+    let dirtyChoice: DirtyChoice = 'skip';
+    if (dirty > 0) {
+      const choice = await this.branchUi.pickDirtyChoice({ title: `${dirty} of ${listed.length} repositories have uncommitted changes` });
+      if (!choice) return undefined;
+      dirtyChoice = choice;
+    }
+    return this.runBatch('switch', listed, { params: { branch: pick.branch, dirtyChoice }, fromDashboard: options.fromDashboard });
+  }
+
+  /**
+   * Create branch in repositories: one name, checked with `git check-ref-format --branch` in the first target before
+   * any repository is touched, then the batch.
+   */
+  async createBranchIn(ids: readonly string[], options: { fromDashboard?: boolean } = {}): Promise<BatchRun | undefined> {
+    const listed = ids.filter((id) => this.registry.repository(id));
+    const first = listed[0];
+    if (first === undefined) return undefined;
+    const name = await this.branchUi.inputBranchName({
+      title: `Create branch in ${plural(listed.length, 'repository', 'repositories')}`,
+      validate: async (text) => ((await this.operations.validBranchName(first, text)) ? undefined : invalidNameMessage(text)),
+    });
+    if (name === undefined) return undefined;
+    return this.runBatch('createBranch', listed, { params: { branch: name }, fromDashboard: options.fromDashboard });
+  }
+
+  /** The result panel shown now, for a dashboard that opens again. */
+  batchPanel(): BatchPanel | undefined {
+    return this.results.panel();
+  }
+
+  /** A fix button of the result panel, on its repository only (batch-operations: Fix button matrix). */
+  async fix(id: string, fix: FixId): Promise<void> {
+    const repository = this.registry.repository(id);
+    const line = this.results.lineOf(id);
+    if (!repository || !line || line.running || !line.fixes.includes(fix)) return;
+    if (fix === 'openScm' || fix === 'showGitOutput') {
+      const command = fix === 'openScm' ? 'repohangar.showInSourceControl' : 'git.showOutput';
+      await this.operations.commands.executeCommand(command, ...(fix === 'openScm' ? [repository.rootUri] : []));
+      return;
+    }
+    const branch = this.results.params.branch ?? '';
+    const [action, job]: [JobAction, Job] =
+      fix === 'stashAndPull'
+        ? ['pullFf', this.operations.stashAndPullFf(id)]
+        : fix === 'pullRebase'
+          ? ['pull', this.operations.pullRebase(id)]
+          : fix === 'publish'
+            ? ['push', this.operations.push(id)]
+            : fix === 'stashAndSwitch'
+              ? ['switch', this.operations.switchBranch(id, branch, 'stash')]
+              : ['createBranch', this.operations.createBranch(id, branch)];
+    this.touch(id);
+    this.postLine(this.results.setRunning(id, true));
+    const finished = await this.runner.run(id, action, job);
+    if (!finished) {
+      this.postLine(this.results.setRunning(id, false));
+      return;
+    }
+    const published = finished.action === 'publish' && finished.result.state === 'ok';
+    this.postLine(this.results.replace(id, published ? { state: 'ok', detail: 'published' } : finished.result));
+    if (published) this.review?.afterPush(id);
+  }
+
+  /** Retry failed: the same batch with the same parameters on the failed repositories only. */
+  async retryFailed(): Promise<BatchRun | undefined> {
+    const action = this.results.action;
+    const ids = this.results.failedIds();
+    if (action === undefined || ids.length === 0) return undefined;
+    for (const id of ids) this.postLine(this.results.setRunning(id, true));
+    const run = await this.runBatch(action, ids, { params: this.results.params, retry: true });
+    if (!run || run.kind === 'recent') for (const id of ids) this.postLine(this.results.setRunning(id, false));
+    return run;
+  }
+
+  closeBatchResult(): void {
+    this.results.clear();
+  }
+
+  private postLine(update: LineUpdate | undefined): void {
+    if (update) this.resultView?.updateBatchResultLine(update);
   }
 
   private async single(id: string, action: JobAction, job: Job): Promise<void> {

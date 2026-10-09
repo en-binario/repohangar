@@ -88,16 +88,20 @@ export class JobRunner {
     return this.execute(id, action, job, undefined);
   }
 
-  /** Runs a job on each repository, reporting progress; a repository that has a job already gets `skipped: busy`. */
+  /**
+   * Runs a job on each repository, reporting progress; a repository that has a job already gets `skipped: busy`.
+   * `retry` is Retry failed of the result panel, which the Fetch all idempotence window does not apply to.
+   */
   async runBatch(
     action: BatchAction,
     ids: readonly string[],
     jobFor: (id: string) => Job,
-    options: { token?: CancellationLike; onProgress?(done: number, total: number): void } = {},
+    options: { token?: CancellationLike; onProgress?(done: number, total: number): void; retry?: boolean } = {},
   ): Promise<BatchRun> {
     const { token, onProgress } = options;
     const start = this.timers.now();
-    if (action === 'fetch' && this.lastFetch && start - this.lastFetch.at < RECENT_FETCH_MS && sameSet(this.lastFetch.ids, ids)) {
+    // Retry failed fetches the failed repositories again, whenever the last fetch was.
+    if (action === 'fetch' && !options.retry && this.lastFetch && start - this.lastFetch.at < RECENT_FETCH_MS && sameSet(this.lastFetch.ids, ids)) {
       return { kind: 'recent', seconds: Math.floor((start - this.lastFetch.at) / 1000) };
     }
     const subscription = token?.onCancellationRequested(() => this.rejectWaiters(token));

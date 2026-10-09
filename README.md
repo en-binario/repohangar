@@ -41,9 +41,37 @@ Rows update as soon as the Git extension sees a change; RepoHangar never polls.
 | `m` | Create the merge request or pull request of the focused row with its profile's defaults |
 | `M` | Open the Create MR drawer for the focused row |
 | `o` | Open the merge request or pull request of the focused row |
+| `b` | Switch branch in the focused row with VS Code's branch picker, or in the selected rows |
+| `n` | Create a branch in the focused row, or in the selected rows |
 
 A click on a repository name reveals it in the Explorer (`repohangar.dashboard.nameClick`); a click on the Changes
 cell shows it in Source Control.
+
+### Switch or create a branch across repositories
+
+Select the repositories of a feature and press `b`, click **⎇ Switch…** in the toolbar or run **RepoHangar: Switch
+Branch in Repositories…** (`repohangar.switchBranch`). One quick pick lists the branches those repositories have, the
+most common first, with where each one is: `local in 2 · remote in 1 (tracking branch will be created)`. A branch only
+on the remote becomes a tracking branch; a repository without the branch is skipped. The list comes from local refs, so
+run **Fetch all** first to see branches that only exist on the server.
+
+When some repositories have uncommitted changes, RepoHangar asks once: **Skip** (the default), **Stash and switch**
+(`git stash push --include-untracked` with the message `RepoHangar: before switching to <branch>`; the stash is kept for
+you to pop) or **Switch anyway** (Git refuses a checkout that would overwrite your changes). `Esc` cancels everything.
+
+To start a feature, press `n`, click **＋ Branch…** or run **RepoHangar: Create Branch in Repositories…**
+(`repohangar.createBranch`) and type the name once: it is checked with `git check-ref-format --branch`, then created
+and checked out from the current HEAD of each repository. Typing a new name in the switch quick pick offers
+`＋ Create "<name>" from current HEAD in all <n>` as well. Without a selection, the commands and toolbar buttons act on
+every repository; `n` acts on the focused row.
+
+### Batch results
+
+When Fetch all, Pull all (ff), Switch or Create ends with a skipped or failed repository, a panel above the grid lists
+every repository with its result, failures first, and a button to fix it: **Stash and pull**, **Pull with rebase**,
+**Publish**, **Open SCM**, **Show Git Output**, **Stash and switch** or **Create branch here**. **Retry failed** runs
+the same batch again on the failed repositories only. A batch started from the Command Palette offers the panel with
+**Show Details** in its summary notification.
 
 ## Merge requests and pull requests
 

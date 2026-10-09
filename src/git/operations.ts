@@ -1,19 +1,23 @@
-// Runs the Git actions of one repository through the built-in Git extension: the Git API for Fetch, Pull and Push,
-// its `git.*` commands with the repository for the others, and the local `git merge --ff-only` of Pull (ff)
-// (git-operations: Row actions, batch-operations: Fast-forward eligibility).
+// Runs the Git actions of one repository through the built-in Git extension: the Git API for Fetch, Pull, Push,
+// checkout and branch creation, its `git.*` commands with the repository for the others, and the local
+// `git merge --ff-only` of Pull (ff) and `git stash push` of a switch or a fix button (git-operations: Row actions,
+// batch-operations: Fast-forward eligibility, Switch branch in repositories, Create branch in repositories).
 
 import * as vscode from 'vscode';
+import { createPlan, PULL_STASH_MESSAGE, switchPlan, type BranchPlan, type BranchSnapshot, type BranchStep } from './branchBatch';
 import { gitErrorMessage } from './errors';
+import { readBranchRefs, stashPush, validBranchName } from './fastPaths';
 import { distinctPaths, ffDecision, ffMergeResult, type FetchOutcome } from './ffEligibility';
+import { nodeFileSystem } from './fsPort';
 import type { Repository } from './git';
 import { fetchGuard, pullGuard, pushGuard, type GuardNotice } from './guards';
 import { runGit } from './process';
 import { IGNORED, UNTRACKED, type Registry } from './registry';
-import { CanceledError, type Job } from '../jobs/runner';
-import type { BatchAction, JobResult, RowData } from '../shared/model';
+import { CanceledError, type Job, type JobContext } from '../jobs/runner';
+import type { BatchAction, BatchParams, DirtyChoice, JobResult, RowData } from '../shared/model';
 
 /** The `git.*` commands a row action runs with the repository as argument. */
-export type GitCommand = 'git.checkout' | 'git.sync' | 'git.stash' | 'git.stashPopLatest' | 'git.cleanAll';
+export type GitCommand = 'git.checkout' | 'git.sync' | 'git.stash' | 'git.stashPopLatest' | 'git.cleanAll' | 'git.pullRebase';
 
 export interface CommandPort {
   executeCommand(command: string, ...args: unknown[]): Thenable<unknown>;
@@ -129,9 +133,112 @@ export class GitOperations {
     };
   }
 
-  /** The job of a batch action. */
-  batchJob(action: BatchAction, id: string): Job {
-    return action === 'fetch' ? this.fetch(id) : this.pullFf(id);
+  /** The job of a batch action, with the batch's parameters for Switch and Create. */
+  batchJob(action: BatchAction, id: string, params: BatchParams = {}): Job {
+    switch (action) {
+      case 'fetch':
+        return this.fetch(id);
+      case 'pullFf':
+        return this.pullFf(id);
+      case 'switch':
+        return this.switchBranch(id, params.branch ?? '', params.dirtyChoice ?? 'skip');
+      case 'createBranch':
+        return this.createBranch(id, params.branch ?? '');
+    }
+  }
+
+  /** What the branch rules read of a repository: its row, its changes and its branches from the local refs. */
+  async branchSnapshot(id: string): Promise<BranchSnapshot | undefined> {
+    const repository = this.registry.repository(id);
+    const [row, dirs] = await Promise.all([this.registry.compute(id), this.registry.gitDirs(id)]);
+    if (!repository || !row) return undefined;
+    const remote = row.remote?.name ?? null;
+    const refs = dirs ? await readBranchRefs(dirs.commonDir, remote, nodeFileSystem) : { local: [], remote: [] };
+    return {
+      operation: row.operation,
+      head: row.head,
+      ...(row.headSha ? { headCommit: row.headSha } : {}),
+      dirtyFiles: dirtyFiles(repository),
+      local: refs.local,
+      remote,
+      remoteBranches: refs.remote,
+    };
+  }
+
+  /** Switch to a branch (batch-operations: Switch eligibility matrix). */
+  switchBranch(id: string, branch: string, dirtyChoice: DirtyChoice): Job {
+    return this.branchJob(id, (snapshot) => switchPlan(snapshot, branch, dirtyChoice));
+  }
+
+  /** Create and check out a branch from the current HEAD (batch-operations: Create eligibility matrix). */
+  createBranch(id: string, branch: string): Job {
+    return this.branchJob(id, (snapshot) => createPlan(snapshot, branch));
+  }
+
+  private branchJob(id: string, plan: (snapshot: BranchSnapshot) => BranchPlan): Job {
+    return async (ctx) => {
+      const repository = this.registry.repository(id);
+      const snapshot = await this.branchSnapshot(id);
+      if (!repository || !snapshot) return gone;
+      const decision = plan(snapshot);
+      if ('result' in decision) return decision.result;
+      await this.runSteps(ctx, repository, decision.steps);
+      return decision.done;
+    };
+  }
+
+  /** Runs the steps in a pool slot, which also shows the job in the row; nothing is forced or discarded. */
+  private async runSteps(ctx: JobContext, repository: Repository, steps: readonly BranchStep[]): Promise<void> {
+    try {
+      await ctx.network(async () => {
+        for (const step of steps) {
+          switch (step.kind) {
+            case 'stash':
+              await stashPush(this.gitPath(), repository.rootUri.fsPath, step.message);
+              break;
+            case 'checkout':
+              await repository.checkout(step.branch);
+              break;
+            case 'track':
+              await repository.createBranch(step.branch, true, step.upstream);
+              await repository.setBranchUpstream(step.branch, step.upstream);
+              break;
+            case 'create':
+              await repository.createBranch(step.branch, true);
+              break;
+          }
+        }
+      });
+    } finally {
+      void repository.status().catch(() => undefined);
+    }
+  }
+
+  /** The fix button Stash and pull: the stash, then the Pull (ff) rules on the repository (Fix button matrix R1). */
+  stashAndPullFf(id: string): Job {
+    return async (ctx) => {
+      const repository = this.registry.repository(id);
+      if (!repository) return gone;
+      await ctx.network(() => stashPush(this.gitPath(), repository.rootUri.fsPath, PULL_STASH_MESSAGE));
+      await repository.status().catch(() => undefined);
+      return this.pullFf(id)(ctx);
+    };
+  }
+
+  /** The fix button Pull with rebase: `git.pullRebase` with the repository (Fix button matrix R2). */
+  pullRebase(id: string): Job {
+    return async (ctx) => {
+      const repository = this.registry.repository(id);
+      if (!repository) return gone;
+      await ctx.network(() => Promise.resolve(this.commands.executeCommand('git.pullRebase', repository.rootUri)), { action: 'pull' });
+      return { state: 'ok', detail: 'pulled with rebase' };
+    };
+  }
+
+  /** Whether `git check-ref-format --branch` accepts a name, run in the repository (design D-4). */
+  async validBranchName(id: string, name: string): Promise<boolean> {
+    const repository = this.registry.repository(id);
+    return repository ? validBranchName(this.gitPath(), repository.rootUri.fsPath, name) : false;
   }
 
   /** Runs a `git.*` command with the repository as argument. */

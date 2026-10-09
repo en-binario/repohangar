@@ -112,3 +112,20 @@ All notable changes to RepoHangar are recorded here. Entries are written and cla
   push, through GitLab's push options; **Connect `<host>`** adds the reviewers afterwards.
 - **Added:** the settings `repohangar.mr.profiles`, `repohangar.mr.rules`, `repohangar.mr.quickCreate`,
   `repohangar.mr.ticketPattern`, `repohangar.mr.typeMap` and `repohangar.gitlab.usePushOptions`.
+- **Added — switch and create a branch across repositories.** `b` with rows selected, the toolbar button `⎇ Switch…`
+  and **RepoHangar: Switch Branch in Repositories…** (`repohangar.switchBranch`) switch the selected repositories, or
+  every repository, to a branch picked from one list ranked by how many repositories have it
+  (`local in 2 · remote in 1 (tracking branch will be created)`). A branch only on the remote becomes a tracking branch,
+  a repository without it is skipped, and repositories with uncommitted changes are skipped, stashed
+  (`RepoHangar: before switching to <branch>`) or switched anyway, as you choose once. `n`, the toolbar button
+  `＋ Branch…` and **RepoHangar: Create Branch in Repositories…** (`repohangar.createBranch`) create and check out one
+  branch name, checked with `git check-ref-format`, from the current HEAD of each repository; the switch list offers
+  `＋ Create "<name>"` too. The Sync cell reads `⟳ switching` or `⟳ creating branch` meanwhile.
+- **Added — batch result panel.** After Fetch all, Pull all (ff), Switch or Create with a skipped or failed repository,
+  a panel above the grid lists every repository with its result and a fix button (**Stash and pull**, **Pull with
+  rebase**, **Publish**, **Open SCM**, **Show Git Output**, **Stash and switch**, **Create branch here**), with **Retry
+  failed** for the failed ones and **Close**. Batches started from the Command Palette add **Show Details** to their
+  summary notification.
+- **Changed:** `b` with rows selected switches the selected repositories instead of only the focused row. Without a
+  selection, `b`, a click on the Branch cell and the `⎇` hover button still switch the focused row with VS Code's
+  branch picker.

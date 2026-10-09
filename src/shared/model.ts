@@ -103,7 +103,7 @@ export type ReviewInfo =
   | { kind: 'pushed'; host: string; number: number; url: string };
 
 /** Actions that run as a job: one at a time per repository, shown in the Sync cell. */
-export type JobAction = 'fetch' | 'pull' | 'pullFf' | 'push' | 'publish' | 'sync' | 'createMr';
+export type JobAction = 'fetch' | 'pull' | 'pullFf' | 'push' | 'publish' | 'sync' | 'createMr' | 'switch' | 'createBranch';
 
 export interface JobResult {
   state: 'ok' | 'skipped' | 'failed';
@@ -167,7 +167,17 @@ export const ROW_ACTIONS: readonly RowAction[] = [
   'createMrEdit',
 ];
 
-export type BatchAction = 'fetch' | 'pullFf';
+export type BatchAction = 'fetch' | 'pullFf' | 'switch' | 'createBranch';
+
+/** What the user chose for the dirty targets of a switch (batch-operations: Uncommitted changes choice). */
+export type DirtyChoice = 'skip' | 'stash' | 'switchAnyway';
+
+/** The parameters of a batch, kept for Retry failed (batch-operations design D-1). */
+export interface BatchParams {
+  /** The branch of a Switch or Create */
+  branch?: string;
+  dirtyChoice?: DirtyChoice;
+}
 
 export interface CommitDetails {
   hash: string;
