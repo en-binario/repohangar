@@ -40,9 +40,13 @@ npm (the versioning standard names `package-lock.json`), TypeScript `strict`, es
 | Extension host | `src/extension.ts` | Node, CommonJS, `vscode` external | `dist/extension.js` |
 | Webview | `webview/main.tsx` | Browser, IIFE, Preact (`jsxImportSource: preact`) | `dist/webview.js`, `dist/webview.css` |
 
-`@vscode/codicons` CSS and font are copied to `dist/codicons/`. Tests: Vitest for `test/unit`; `@vscode/test-electron`
-with Mocha for `test/integration` (the runner VS Code expects); Playwright `_electron.launch` against the VS Code build
-that `@vscode/test-electron` downloads for `test/ui`. Alternatives: `tsc` only, as Git Graph Opener does, cannot bundle
+`@vscode/codicons` CSS and font are copied to `dist/codicons/`. Tests: Vitest for `test/unit` (jsdom for `test/unit/webview`);
+`@vscode/test-electron` with Mocha for `test/integration` (the runner VS Code expects), one VS Code session per fixture
+(`suite/main`, `suite/gitDisabled`, `suite/perf`), each on real repositories built by `test/integration/fixtures`;
+Playwright `_electron.launch` against the VS Code build that `@vscode/test-electron` downloads for `test/ui`. The runner
+deletes `ELECTRON_RUN_AS_NODE`, which leaks in from a VS Code terminal and would start the test VS Code as plain Node.
+Versions are pinned to the ones ReqAnchor uses (TypeScript 5.9.3, Vitest 3.2.7, esbuild 0.28.2) and to the latest
+release of the previous major for Preact (10.29.8) and Mocha (11.8.0), rather than majors released days ago. Alternatives: `tsc` only, as Git Graph Opener does, cannot bundle
 the webview; webpack is slower and heavier for the same result.
 
 `engines.vscode` is `^1.93.0`, the first release with the Source Control Graph that phase 1 needs (D14), so a later
@@ -113,7 +117,8 @@ enablement service disables any extension whose `extensionDependencies` entry is
 (`_isDisabledByExtensionDependency`). RepoHangar therefore declares `supported: false` itself, so the reason shown in
 the Extensions view is the honest one, and the spec states the observable result: no process, no status bar item, no
 commands, and a start once trusted. Dropping the hard dependency to stay active would mean a second code path for
-"no Git API", for a screen that could show nothing. A task updates the `context` in `openspec/config.yaml`; PROPOSAL.md
+"no Git API", for a screen that could show nothing. The Extension Development Host does not apply this to the
+extension under development, so the Restricted Mode UI test installs the packaged VSIX instead. A task updates the `context` in `openspec/config.yaml`; PROPOSAL.md
 §12, kept outside this repository, needs the same correction.
 
 ### D-7. Git dirs and fast paths without processes
@@ -137,6 +142,13 @@ commands, and a start once trusted. Dropping the hard dependency to stay active 
   `repository.state` and re-read the fast paths (a few `stat` calls).
 - One `FileSystemWatcher` per git dir on `{FETCH_HEAD,logs/refs/stash}` (and the common dir when different), for
   changes the Git extension does not report. Watchers are disposed when the repository closes.
+- **Status trigger.** The Git extension re-reads a repository after an outside change only while the window is focused
+  (`whenIdleAndFocused`) and then sleeps 5 s before the next re-read (`updateWhenIdleAndWait`, checked in VS Code
+  1.141), so a commit within 5 s of an earlier change reached the row only after up to ~5 s. RepoHangar therefore also
+  watches `HEAD`, `logs/HEAD`, the operation markers (git dir) and `refs/**`, `packed-refs` (common dir), and calls
+  `repository.status()` 150 ms after the last change while the window is focused, or once when the window regains
+  focus. The index is not watched: `git status` rewrites it, which would loop. Alternative rejected: relying on the
+  Git extension alone, which misses PROPOSAL.md §13's "< 1 s" acceptance criterion.
 - The store emits at most one batch per 100 ms; the dashboard posts it as one `patch`, the status bar recomputes its
   text from the same batch.
 - No interval timer touches Git. The only timer is the webview's 60 s re-render of ages while visible.
@@ -153,7 +165,14 @@ would add a process per row per update.
 false, localResourceRoots: [dist] })`; the webview restores its view from `setState`. After the panel becomes active,
 `workbench.action.pinEditor` pins it; for the startup path (`preserveFocus`), the pin runs on the panel's first
 `onDidChangeViewState` with `active: true`, because the command acts on the active editor. A
-`WebviewPanelSerializer` restores the panel and counts as "restored" for the openOnStartup check.
+`WebviewPanelSerializer` restores the panel and counts as "restored" for the openOnStartup check; so does a dashboard
+tab that VS Code restored but has not revived yet (`TabInputWebview` with the view type). On startup with an editor
+active, the panel opens with `preserveFocus` and that editor is shown again: a panel created in the active group
+becomes its active tab even with `preserveFocus`. Pinned tabs survive **Close All Editors**, as VS Code intends.
+
+The Source Control title button runs `repohangar.scm.openDashboard`, titled **Open RepoHangar** and hidden from the
+command palette, which runs `repohangar.open`: a menu item shows its command's title, and `repohangar.open` is titled
+**Open Dashboard** in the palette.
 
 CSP: `default-src 'none'; script-src 'nonce-<n>'; style-src ${cspSource}; font-src ${cspSource}; img-src
 ${cspSource}`. Provider avatar hosts arrive with the MR column. Preact renders text nodes only; no
@@ -176,9 +195,13 @@ path can post it to the webview. The SSH user (`git@`) is not a secret and stays
 
 ## Risks / Trade-offs
 
-- [`Ctrl+Alt+R` / `Cmd+Alt+R` may collide with a default binding (Reveal in OS uses `Alt+Cmd+R` on macOS when the
-  editor is not focused)] → §10.3 already plans a conflict check before release; task 9.2 runs it against the default
-  keymap on all three platforms and, on a conflict, the key is changed with `/opsx:update` before archive (D11).
+- [`Ctrl+Alt+R` / `Cmd+Alt+R` collides with default bindings] → task 9.2. **Windows (VS Code 1.141, checked
+  2026-10-08):** `ctrl+alt+r` is bound to `workbench.action.terminal.runRecentCommand` (when `terminalFocus && …
+  !accessibilityModeEnabled`) and to `workbench.action.terminal.sendSequence` (when `accessibilityModeEnabled &&
+  terminalFocus`). RepoHangar's binding has no `when` clause, so in a focused terminal it would replace **Run Recent
+  Command**. **macOS and Linux:** not checked yet; Reveal in OS (`revealFileInOS`) is expected on `Cmd+Alt+R` /
+  `Ctrl+Alt+R` when the editor is not focused. Options for D11: add `"when": "!terminalFocus"` (keeps the key, solves
+  Windows only), or choose another key. Decided with `/opsx:update` before archive.
 - [FS watchers inside `.git` may be excluded by `files.watcherExclude` on some setups] → `onDidChange` also re-reads
   the fast paths, and `git fetch` changes refs, which the Git extension reports; the watcher only shortens the delay.
 - [`workbench.action.pinEditor` pins the wrong editor if focus moves between create and pin] → pin only on the panel's
@@ -196,6 +219,6 @@ Not applicable: first release of the extension; nothing to migrate. Git Graph Op
 
 ## Open Questions
 
-- Does VS Code start RepoHangar without a reload when trust is granted, or ask for a reload? The spec scenario assumes
-  it starts; the integration test for "Workspace trusted after opening in Restricted Mode" answers it. If VS Code asks
-  for a reload, the scenario's "without a window reload" is relaxed with `/opsx:update`; the approach and tasks stay.
+- Answered (2026-10-08, VS Code 1.141): VS Code starts RepoHangar without a reload when the workspace is trusted
+  (`test/ui/trust.spec.ts`, packaged VSIX).
+- Open: the keybinding conflict on macOS and Linux, and the D11 decision for all three platforms (Risks, task 9.2).

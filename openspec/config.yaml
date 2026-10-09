@@ -21,8 +21,8 @@ context: |
   temp repos with a bare remote), Playwright driving VS Code (webview UI), GitLab CE 17.10.0 container (nightly).
   Architecture rules: the webview is a pure view, all logic in the extension host, every message validated against the
   protocol schema; modules that hold logic (URL parsing, provider detection, profile resolution, templates, repo-root
-  scan, ff-only eligibility) import nothing from vscode; Workspace Trust Restricted Mode makes the dashboard read-only;
-  tokens never in settings, logs or the webview; no telemetry; destructive actions confirm and are never a batch default.
+  scan, ff-only eligibility) import nothing from vscode; RepoHangar does not run in Restricted Mode (its dependency
+  vscode.git is disabled there); tokens never in settings, logs or the webview; no telemetry; destructive actions confirm and are never a batch default.
   Conventions: setting, command and context key prefix `repohangar.`; Conventional Commits; every commit ends with a
   Co-Authored-By trailer; one CHANGELOG.md (docs/versioning.md).
 

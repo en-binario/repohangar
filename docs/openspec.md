@@ -65,9 +65,9 @@ capability fixes its name and its `## Purpose`.
 | Capability | Behaviour | Proposal | Phase |
 |---|---|---|---|
 | `repo-registry` | Which repositories appear, their remotes (`{host, provider, projectPath}`) and groups | §4.2, §5.1, §6.2 | 1 |
-| `dashboard` | The grid: columns, cell text, special states, filters, groups, keyboard map, row details, reload | §8, §10.2, W2–W3 | 1 |
+| `dashboard` | The grid: columns, cell text, special states, filters, groups, keyboard map, row details, reload, and the read-only local state in its cells (last fetch, stash count, operation in progress) | §8, §10.2, §5.3, W2–W3 | 1 |
 | `status-bar` | The status bar summary and its tooltip | §8.1, W1 | 1 |
-| `git-operations` | Row actions on one repository and the local fast paths (last fetch, stash count, default branch, ff-only) | §5.2, §5.3 | 1 |
+| `git-operations` | Row actions on one repository and the local fast paths for them (default branch, ff-only) | §5.2, §5.3 | 1 |
 | `batch-operations` | Fetch all, Pull all (ff), switch or create a branch across repositories, per-repo results and the summary | §5.3, §11.1 | 1 |
 | `explorer-open-in-git-graph` | Open in Git Graph, or Open in Source Control Graph without it, from every entry point | §9.2, §9.4, D14 | 1 |
 | `explorer-reveal` | Reveal in Explorer, and repositories outside the workspace folders | §9.3, D16 | 1 |

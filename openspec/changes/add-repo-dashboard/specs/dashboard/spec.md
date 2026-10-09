@@ -263,16 +263,32 @@ every 60 seconds while the dashboard is visible.
 
 ### Requirement: Live row updates
 The system SHALL update a row after the repository's `state.onDidChange` fires, or after `FETCH_HEAD` or the stash
-reflog of the repository changes on disk, and MUST NOT poll repository state with a timer.
+reflog of the repository changes on disk. Because the Git extension re-reads a repository after an outside change only
+while the window is focused and at most once every 5 s, the system SHALL also call `repository.status()` when the
+repository's `HEAD`, `logs/HEAD`, refs, `packed-refs` or operation markers change on disk: within 150 ms while the
+window is focused, or when the window is next focused. It MUST NOT poll repository state with a timer.
 
 **Constraints:**
 - From `onDidChange` to the updated row in the webview: < 250 ms, excluding the 150 ms debounce per repository
-- From `git commit` in a terminal to the updated row: < 1 s
+- From `git commit` in a terminal to the updated row, window focused: < 1 s
 - The webview receives at most one update batch per 100 ms
+- Changes to the index or the working tree alone do not trigger a `repository.status()` call; the Git extension
+  reports them
 
-#### Scenario: Commit in an external terminal
-- **GIVEN** the dashboard is open and `billing-api` shows `●1` in Changes and `—` in Sync, level with its upstream
-- **WHEN** the user runs `git commit -am "Add notes"` in `billing-api` from an external terminal
+#### Scenario: Live update trigger matrix
+
+| # | Change on disk | Window focused | `repository.status()` from RepoHangar | Row updated |
+| :--- | :--- | :--- | :--- | :--- |
+| R1 | `HEAD`, `logs/HEAD` or a ref (commit, checkout, fetch, stash) | Yes | **Called once, 150 ms after the last change** | **< 1 s after the change** |
+| R2 | `HEAD`, `logs/HEAD` or a ref | No | **Not called until the window is focused, then called once** | **< 1 s after the window is focused** |
+| R3 | An operation marker (`MERGE_HEAD`, `rebase-merge/`) | Yes | **Called once** | **< 1 s after the change** |
+| R4 | `FETCH_HEAD` only | *Any* | **Not called** | **Fetched cell < 1 s after the change** |
+| R5 | A working tree file or the index only | *Any* | **Not called** | **< 250 ms after the Git extension's `onDidChange`** |
+
+#### Scenario: Commit in a terminal while the window is focused
+- **GIVEN** the dashboard is open, the window is focused, and `billing-api` shows `●1` in Changes and `—` in Sync,
+  level with its upstream
+- **WHEN** the user runs `git commit -am "Add notes"` in `billing-api` from a terminal
 - **THEN** within 1 s the Changes cell of `billing-api` reads `—` and the Sync cell reads `↑1`
 - **AND** RepoHangar started no `git` process on a timer
 

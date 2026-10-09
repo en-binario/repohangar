@@ -1,0 +1,206 @@
+{
+  "name": "repohangar",
+  "displayName": "RepoHangar - Multi-Repo Git Dashboard",
+  "description": "One dashboard for all your Git repositories: fetch, pull and switch branches across repos, open Git Graph, and create GitLab merge requests and GitHub pull requests with saved reviewers, squash and delete-branch defaults.",
+  "version": "0.0.0",
+  "publisher": "enbinario",
+  "author": "Jhon Tapia - enbinario.com",
+  "license": "MIT",
+  "homepage": "https://repohangar.enbinario.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/en-binario/repohangar"
+  },
+  "bugs": {
+    "url": "https://github.com/en-binario/repohangar/issues"
+  },
+  "categories": [
+    "SCM Providers",
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "multi-repo",
+    "multirepo",
+    "multiple repositories",
+    "polyrepo",
+    "microservices",
+    "git",
+    "dashboard",
+    "fetch all",
+    "pull all",
+    "branch",
+    "merge request",
+    "pull request",
+    "gitlab",
+    "github",
+    "git graph"
+  ],
+  "engines": {
+    "vscode": "^1.93.0",
+    "node": ">=20"
+  },
+  "extensionKind": [
+    "workspace"
+  ],
+  "extensionDependencies": [
+    "vscode.git"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "RepoHangar reads Git repositories through the built-in Git extension, which is disabled in Restricted Mode."
+    },
+    "virtualWorkspaces": false
+  },
+  "activationEvents": [
+    "onStartupFinished",
+    "onWebviewPanel:repohangar.dashboard"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "repohangar.open",
+        "title": "Open Dashboard",
+        "category": "RepoHangar",
+        "icon": "$(layout)"
+      },
+      {
+        "command": "repohangar.refresh",
+        "title": "Refresh",
+        "category": "RepoHangar"
+      },
+      {
+        "command": "repohangar.scm.openDashboard",
+        "title": "Open RepoHangar",
+        "icon": "$(layout)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "repohangar.open",
+        "key": "ctrl+alt+r",
+        "mac": "cmd+alt+r"
+      }
+    ],
+    "menus": {
+      "scm/title": [
+        {
+          "command": "repohangar.scm.openDashboard",
+          "group": "navigation",
+          "when": "scmProvider == git"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "repohangar.scm.openDashboard",
+          "when": "false"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "RepoHangar",
+      "properties": {
+        "repohangar.openOnStartup": {
+          "type": "string",
+          "enum": [
+            "never",
+            "multiRepo"
+          ],
+          "enumDescriptions": [
+            "Never open the dashboard at startup.",
+            "Open the dashboard at startup when the workspace has 3 or more Git repositories."
+          ],
+          "default": "never",
+          "description": "Controls whether the RepoHangar dashboard opens when the window starts.",
+          "scope": "window"
+        },
+        "repohangar.groupBy": {
+          "type": "string",
+          "enum": [
+            "parentFolder",
+            "workspaceFolder",
+            "custom",
+            "none"
+          ],
+          "enumDescriptions": [
+            "Group repositories by the folder that contains them.",
+            "Group repositories by the workspace folder that contains them.",
+            "Group repositories by the globs in `#repohangar.groups#`.",
+            "Show all repositories in one list."
+          ],
+          "default": "parentFolder",
+          "markdownDescription": "How the dashboard groups repositories. The dashboard's **Group** menu can override it for one workspace.",
+          "scope": "window"
+        },
+        "repohangar.groups": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "default": {},
+          "markdownDescription": "Custom groups for `#repohangar.groupBy#` `custom`: group name → globs matched against the absolute repository root path (with `/` separators). The first matching group wins; repositories that match none go to `Other`.",
+          "scope": "window"
+        },
+        "repohangar.staleFetchHours": {
+          "type": "number",
+          "minimum": 0,
+          "default": 1,
+          "markdownDescription": "Mark the **Fetched** cell with `⚠` when the last fetch is at least this many hours old. `0` turns the marker off.",
+          "scope": "window"
+        },
+        "repohangar.statusBar.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the RepoHangar summary in the status bar.",
+          "scope": "window"
+        },
+        "repohangar.hosts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "gitlab",
+              "github"
+            ]
+          },
+          "default": {},
+          "markdownDescription": "Hosting provider of self-hosted Git hosts, for example `{ \"git.acme.com\": \"gitlab\" }`. `github.com`, `gitlab.com` and the host of `#github-enterprise.uri#` are detected without it.",
+          "scope": "window"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc -p . --noEmit",
+    "test": "vitest run",
+    "test:integration": "node esbuild.mjs --tests && node out/test/integration/runTest.js",
+    "test:ui": "node esbuild.mjs && playwright test",
+    "package": "vsce package --no-dependencies",
+    "vscode:prepublish": "node esbuild.mjs --production"
+  },
+  "dependencies": {
+    "@vscode/codicons": "0.0.36",
+    "preact": "10.29.8"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.0",
+    "@types/mocha": "10.0.10",
+    "@types/node": "24.19.1",
+    "@types/vscode": "1.93.0",
+    "@vscode/test-electron": "3.1.0",
+    "@vscode/vsce": "4.0.0",
+    "esbuild": "0.28.2",
+    "glob": "11.1.0",
+    "jsdom": "26.1.0",
+    "mocha": "11.8.0",
+    "typescript": "5.9.3",
+    "vitest": "3.2.7"
+  }
+}
