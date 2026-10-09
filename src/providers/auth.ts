@@ -92,7 +92,16 @@ export const vscodeAuthUi: AuthUi = {
   },
   cli(command, args) {
     return new Promise((resolve) => {
-      execFile(command, args, { timeout: CLI_TIMEOUT_MS, windowsHide: true, env: { ...process.env, NO_COLOR: '1' } }, (error, stdout, stderr) => {
+      // No update check, telemetry, prompt or colour from glab and gh while RepoHangar borrows a login.
+      const env = {
+        ...process.env,
+        NO_COLOR: '1',
+        GLAB_CHECK_UPDATE: 'false',
+        GLAB_SEND_TELEMETRY: 'false',
+        GH_NO_UPDATE_NOTIFIER: '1',
+        GH_PROMPT_DISABLED: '1',
+      };
+      execFile(command, args, { timeout: CLI_TIMEOUT_MS, windowsHide: true, env }, (error, stdout, stderr) => {
         resolve(error ? undefined : `${stdout}${stderr}`);
       });
     });

@@ -1,0 +1,22 @@
+# Nightly GitLab compatibility (PROPOSAL.md §14, D20): the GitLab provider cases against GitLab CE 17.10.0.
+name: Nightly GitLab CE 17.10.0
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  gitlab-ce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # The global setup starts gitlab/gitlab-ce:17.10.0-ce.0, creates a root API token, seeds a project with a merge
+      # request, runs test/nightly and removes the container.
+      - run: npm run test:nightly

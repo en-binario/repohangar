@@ -55,7 +55,11 @@ the GitLab version it was computed for. Field names are parsed from the error me
 treated as a failure (back-off), never as a schema reduction.
 
 GitLab selection adds `approvalsRequired` to the proposal's §6.4 list, so the cell can show `given/required`; it is
-optional like the other approval fields (Free has no approval rules).
+optional like the other approval fields (Free has no approval rules). The nightly job showed that GitLab CE 17.10.0
+has neither `approvalsRequired` nor `approvalsLeft` (Premium fields) and reports both for every alias
+(`test/contract/fixtures/git.acme.com/schema-error-ce-17.10.json`, recorded from the container): the first load of a CE
+host costs one retry, after which the reduced selection is remembered and a load costs one request per chunk again.
+Repeated reports of a field already removed are ignored; only a report that removes nothing falls back to REST.
 
 ### D-3. GitHub approvals as `reviewDecision`
 
@@ -161,10 +165,10 @@ uninstalling; `SecretStorage` entries are removed with the extension's secrets.
 ## Open Questions
 
 - Does `glab config get token --host` print the token on `glab` 1.50 and later, or only `glab auth status
-  --show-token`? Partly answered (task 2.3): on `glab` 1.80.4 (Windows), not logged in, `config get token --host`
-  prints nothing and exits 0, `glab auth token` does not exist, and `auth status` says it checks the config file, the
-  OS keyring and the environment, so a keyring login needs the `auth status --show-token` fallback. Logged in with a
-  config-file token, 1.80.4 prints the token for `config get token --host` (exit 0), and `auth status --show-token`
-  prints it on a `✓ Token found: <token>` line, not `Token: <token>`; the parser now reads both forms (unit test *reads
-  the Token found line that glab 1.80 prints*). Not yet verified: a keyring login, and `glab` 1.46 and the latest release
-  (1.121.0). Both commands are tried, so the answer does not change the spec.
+  --show-token`? **Answered** (task 2.3), with a config-file login on glab 1.46.0, 1.80.4 and 1.121.0 (Windows):
+  `config get token --host` prints the token on its first line in all three; 1.80 and 1.121 add update and telemetry
+  notices on stderr, which RepoHangar now turns off (`GLAB_CHECK_UPDATE=false`, `GLAB_SEND_TELEMETRY=false`) and
+  ignores (first line only). `auth status --show-token` labels the token differently in each release: `Token:`
+  (1.46), `Token found:` (1.80), `Token found in configuration file (plaintext):` (1.121); the parser reads any
+  `Token …:` label. A keyring login prints nothing for `config get token`, so the second command is the one that
+  finds it; its label is covered by the same parser. None of this changes the spec.

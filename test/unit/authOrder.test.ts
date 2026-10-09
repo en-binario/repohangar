@@ -142,6 +142,24 @@ describe('glab token from the keyring', () => {
     expect(await glabToken('git.acme.com', t.port)).toBe('glpat-keyring180');
   });
 
+  it('reads the line that glab 1.121 prints for a token in the configuration file', async () => {
+    const t = port({
+      cli: {
+        'glab auth status --hostname git.acme.com --show-token':
+          '  ✓ Token found in configuration file (plaintext): glpat-plain121\n  ! To store this token more securely, run glab auth login --hostname git.acme.com to move it into the operating system keyring.\n',
+      },
+    });
+    expect(await glabToken('git.acme.com', t.port)).toBe('glpat-plain121');
+  });
+
+  it('takes the first line of glab config get token, without the notices after it', async () => {
+    const t = port({
+      cli: { 'glab config get token --host git.acme.com': 'glpat-x1y2\n[glab] Update available: v1.121.0 → v1.122.0.\n' },
+    });
+    expect(await glabToken('git.acme.com', t.port)).toBe('glpat-x1y2');
+    expect(t.runs).toEqual(['glab config get token --host git.acme.com']);
+  });
+
   it('ignores a masked token', async () => {
     const t = port({ cli: { 'glab auth status --hostname git.acme.com --show-token': '  ✓ Token: **************************' } });
     expect(await glabToken('git.acme.com', t.port)).toBeUndefined();

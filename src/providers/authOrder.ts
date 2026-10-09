@@ -69,11 +69,13 @@ async function findGitLab(host: string, port: AuthPort): Promise<FoundCredential
  * --hostname <host> --show-token`, which newer releases need when the token lives in the OS keyring (design D-6).
  */
 export async function glabToken(host: string, port: Pick<AuthPort, 'run'>): Promise<string | undefined> {
-  const configured = (await port.run('glab', ['config', 'get', 'token', '--host', host]))?.trim();
+  // The token is the first line; notices that some releases print after it are not part of it.
+  const configured = (await port.run('glab', ['config', 'get', 'token', '--host', host]))?.trim().split(/\r?\n/)[0]?.trim();
   if (configured && !/\s/.test(configured)) return configured;
   const status = await port.run('glab', ['auth', 'status', '--hostname', host, '--show-token']);
-  // glab 1.80 prints `✓ Token found: <token>`; older releases `✓ Token: <token>`.
-  const match = status ? /Token(?: found)?:\s*(\S+)/.exec(status) : null;
+  // `✓ Token: <token>` (glab 1.46), `✓ Token found: <token>` (1.80),
+  // `✓ Token found in configuration file (plaintext): <token>` (1.121).
+  const match = status ? /\bToken[^:\n]*:\s*(\S+)/.exec(status) : null;
   const token = match?.[1];
   return token && !token.startsWith('*') ? token : undefined;
 }

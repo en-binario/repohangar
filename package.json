@@ -482,7 +482,8 @@
     "test:integration": "node esbuild.mjs --tests && node out/test/integration/runTest.js",
     "test:ui": "node esbuild.mjs && playwright test",
     "package": "vsce package --no-dependencies",
-    "vscode:prepublish": "node esbuild.mjs --production"
+    "vscode:prepublish": "node esbuild.mjs --production",
+    "test:nightly": "vitest run --config vitest.nightly.config.ts"
   },
   "dependencies": {
     "@vscode/codicons": "0.0.36",

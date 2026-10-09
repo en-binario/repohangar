@@ -18,5 +18,5 @@
     "types": ["node", "mocha", "vscode"],
     "noEmit": true
   },
-  "include": ["src", "webview", "test", "esbuild.mjs", "vitest.config.ts", "playwright.config.ts"]
+  "include": ["src", "webview", "test", "esbuild.mjs", "vitest.config.ts", "vitest.nightly.config.ts", "playwright.config.ts"]
 }

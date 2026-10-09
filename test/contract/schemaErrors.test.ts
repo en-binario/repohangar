@@ -110,6 +110,25 @@ describe('Schema error matrix', () => {
     expect(requests).toHaveLength(1);
   });
 
+  it('removes both approval fields in one retry when GitLab CE 17.10.0 reports them for every alias', async () => {
+    // Recorded from gitlab/gitlab-ce:17.10.0-ce.0: CE has neither field, and each alias reports both.
+    const recorded = fixture('git.acme.com', 'schema-error-ce-17.10');
+    server.use(
+      http.post('https://git.acme.com/api/graphql', async ({ request }) => {
+        const { query } = (await request.json()) as Body;
+        if (/\bapprovalsRequired\b/.test(query)) return HttpResponse.json(recorded as Record<string, unknown>);
+        return statusAnswer('gitlab', query, (alias) => (alias === 'r0' ? [{ ...recordedNode('gitlab'), approvalsRequired: undefined, approvalsLeft: undefined }] : []));
+      }),
+    );
+    const two = [...billing, { key: 'no-mr', projectPath: 'payments/billing-api', branch: 'feature/ABC-13-no-mr' }];
+    const answer = await gitlab().reviewStates(two, GL, {});
+    expect(requests).toHaveLength(2);
+    expect(answer.rest).toBeUndefined();
+    expect(answer.selection).toEqual(GITLAB_SELECTION.filter((f) => f !== 'approvalsRequired' && f !== 'approvalsLeft'));
+    expect(cellOf(answer.results.get('billing-api'), 'gitlab')).toBe('!142  ✓ passed');
+    expect(answer.results.get('no-mr')).toEqual({ kind: 'none' });
+  });
+
   it('uses a remembered selection without sending the removed field again', async () => {
     server.use(http.post('https://git.acme.com/api/graphql', async ({ request }) => statusAnswer('gitlab', ((await request.json()) as Body).query)));
     await gitlab().reviewStates(billing, GL, { selection: GITLAB_SELECTION.filter((f) => f !== 'approvalsRequired') });

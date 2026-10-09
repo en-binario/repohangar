@@ -159,11 +159,14 @@ function reduce(selection: Selection, missing: { field: string; type: string }[]
   let next = selection;
   for (const { field, type } of missing) {
     if ((type === 'MergeRequest' && REQUIRED.has(field)) || field === 'mergeRequests' || field === 'nodes') return 'rest';
+    // Every alias reports the same missing field: one already removed is not a new error.
+    if (!next.some((path) => path === field || path.startsWith(`${field}.`) || path.includes(`.${field}.`) || path.endsWith(`.${field}`))) continue;
     const reduced = withoutField(next, OWNERS, type, field);
     if (!reduced) return 'rest';
     next = reduced;
   }
-  return next;
+  // Nothing could be removed: the selection would fail again.
+  return next === selection ? 'rest' : next;
 }
 
 function mapGraphql(project: unknown, selection: Selection): ReviewResult {

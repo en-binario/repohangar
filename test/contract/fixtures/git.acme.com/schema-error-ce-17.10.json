@@ -1,0 +1,88 @@
+{
+  "errors": [
+    {
+      "message": "Field 'approvalsRequired' doesn't exist on type 'MergeRequest'",
+      "locations": [
+        {
+          "line": 1,
+          "column": 208
+        }
+      ],
+      "path": [
+        "query RepoHangarStatus",
+        "r0",
+        "mergeRequests",
+        "nodes",
+        "approvalsRequired"
+      ],
+      "extensions": {
+        "code": "undefinedField",
+        "typeName": "MergeRequest",
+        "fieldName": "approvalsRequired"
+      }
+    },
+    {
+      "message": "Field 'approvalsLeft' doesn't exist on type 'MergeRequest' (Did you mean `approved`?)",
+      "locations": [
+        {
+          "line": 1,
+          "column": 226
+        }
+      ],
+      "path": [
+        "query RepoHangarStatus",
+        "r0",
+        "mergeRequests",
+        "nodes",
+        "approvalsLeft"
+      ],
+      "extensions": {
+        "code": "undefinedField",
+        "typeName": "MergeRequest",
+        "fieldName": "approvalsLeft"
+      }
+    },
+    {
+      "message": "Field 'approvalsRequired' doesn't exist on type 'MergeRequest'",
+      "locations": [
+        {
+          "line": 1,
+          "column": 481
+        }
+      ],
+      "path": [
+        "query RepoHangarStatus",
+        "r1",
+        "mergeRequests",
+        "nodes",
+        "approvalsRequired"
+      ],
+      "extensions": {
+        "code": "undefinedField",
+        "typeName": "MergeRequest",
+        "fieldName": "approvalsRequired"
+      }
+    },
+    {
+      "message": "Field 'approvalsLeft' doesn't exist on type 'MergeRequest' (Did you mean `approved`?)",
+      "locations": [
+        {
+          "line": 1,
+          "column": 499
+        }
+      ],
+      "path": [
+        "query RepoHangarStatus",
+        "r1",
+        "mergeRequests",
+        "nodes",
+        "approvalsLeft"
+      ],
+      "extensions": {
+        "code": "undefinedField",
+        "typeName": "MergeRequest",
+        "fieldName": "approvalsLeft"
+      }
+    }
+  ]
+}

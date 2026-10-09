@@ -144,11 +144,14 @@ function reduce(selection: Selection, missing: { field: string; type: string }[]
   let next = selection;
   for (const { field, type } of missing) {
     if ((type === 'PullRequest' && REQUIRED.has(field)) || field === 'pullRequests' || field === 'nodes') return 'unsupported';
+    // Every alias reports the same missing field: one already removed is not a new error.
+    if (!next.some((path) => path === field || path.startsWith(`${field}.`) || path.includes(`.${field}.`) || path.endsWith(`.${field}`))) continue;
     const reduced = withoutField(next, OWNERS, type, field);
     if (!reduced) return 'unsupported';
     next = reduced;
   }
-  return next;
+  // Nothing could be removed: the selection would fail again.
+  return next === selection ? 'unsupported' : next;
 }
 
 function mapGraphql(repository: unknown, selection: Selection): ReviewResult {
