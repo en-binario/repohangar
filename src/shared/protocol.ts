@@ -1,6 +1,7 @@
 // Messages between the extension host and the dashboard webview, and the validator for messages from the webview
 // (design D-4). No vscode import.
 
+import { parseEdits, type DrawerData, type DrawerEdits } from './drawer';
 import type { GraphVariant, NameClick } from './graph';
 import {
   ROW_ACTIONS,
@@ -37,7 +38,10 @@ export type HostMessage =
   | { type: 'patch'; upserts: RowData[]; removals: string[] }
   | { type: 'details'; id: string; details: RowDetails }
   /** Show in RepoHangar: make the row visible and move the focus to it */
-  | { type: 'reveal'; id: string };
+  | { type: 'reveal'; id: string }
+  /** The Create MR drawer (mr-creation), or null to close it */
+  | { type: 'drawer'; data: DrawerData | null }
+  | { type: 'drawerUsers'; id: string; users: string[] };
 
 export type ViewMessage =
   | { type: 'ready' }
@@ -55,7 +59,12 @@ export type ViewMessage =
   /** The `?` cell (hosting-providers: Host choice for an unknown host) */
   | { type: 'chooseProvider'; host: string }
   | { type: 'skipHost'; host: string }
-  | { type: 'firstRunDone' };
+  | { type: 'firstRunDone' }
+  /** The drawer: another profile or target, Create, Cancel or Esc, and user suggestions */
+  | { type: 'drawerChange'; id: string; profile: string; edits: DrawerEdits }
+  | { type: 'drawerCreate'; id: string; profile: string; edits: DrawerEdits }
+  | { type: 'drawerClose' }
+  | { type: 'drawerSearchUsers'; id: string; text: string };
 
 export const GROUPING_MODES: readonly GroupingMode[] = ['parentFolder', 'workspaceFolder', 'custom', 'none'];
 
@@ -64,7 +73,7 @@ export const BATCH_ACTIONS: readonly BatchAction[] = ['fetch', 'pullFf'];
 const MAX_STRING = 4096;
 const MAX_IDS = 10_000;
 
-type Field = 'string' | 'count' | 'grouping' | 'rowAction' | 'batchAction' | 'ids';
+type Field = 'string' | 'count' | 'grouping' | 'rowAction' | 'batchAction' | 'ids' | 'edits' | 'text';
 
 const SHAPES: Record<ViewMessage['type'], Record<string, Field>> = {
   ready: {},
@@ -80,6 +89,10 @@ const SHAPES: Record<ViewMessage['type'], Record<string, Field>> = {
   chooseProvider: { host: 'string' },
   skipHost: { host: 'string' },
   firstRunDone: {},
+  drawerChange: { id: 'string', profile: 'string', edits: 'edits' },
+  drawerCreate: { id: 'string', profile: 'string', edits: 'edits' },
+  drawerClose: {},
+  drawerSearchUsers: { id: 'string', text: 'text' },
 };
 
 function fieldValid(kind: Field, value: unknown): boolean {
@@ -94,6 +107,10 @@ function fieldValid(kind: Field, value: unknown): boolean {
       return typeof value === 'string' && (ROW_ACTIONS as readonly string[]).includes(value);
     case 'batchAction':
       return typeof value === 'string' && (BATCH_ACTIONS as readonly string[]).includes(value);
+    case 'edits':
+      return parseEdits(value) !== undefined;
+    case 'text':
+      return typeof value === 'string' && value.length <= 256;
     case 'ids':
       return Array.isArray(value) && value.length <= MAX_IDS && value.every((id) => fieldValid('string', id));
   }

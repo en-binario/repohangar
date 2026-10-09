@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { ReviewState } from '../../src/shared/model';
-import { approvalValue, mergeableValue, pipelineValue, reviewCell } from '../../src/shared/review';
+import { approvalValue, mergeableValue, pipelineValue, reviewCell, rowReviewCell } from '../../src/shared/review';
 import { githubReview, gitlabReview, loaded } from './rows';
 
 describe('Pipeline value matrix', () => {
@@ -118,5 +118,24 @@ describe('Mergeable value matrix', () => {
     ['reads an unknown GitHub state as unknown', 'github', ['UNKNOWN'], 'unknown'],
   ])('%s', (_name, provider, values, expected) => {
     for (const value of values) expect(mergeableValue(provider, value)).toBe(expected);
+  });
+});
+
+// mr-creation :: Create button matrix (R1–R5).
+describe('Create button matrix', () => {
+  const onBranch = (name: string) => ({ kind: 'branch', name, upstream: `origin/${name}`, ahead: 0, behind: 0 }) as const;
+  it.each<[string, Parameters<typeof rowReviewCell>[0], string]>([
+    ['R1 offers [Create MR] on GitLab with a commit ahead', { review: loaded(null, 'gitlab'), head: onBranch('fix/login-timeout'), defaultBranch: 'main', aheadOfDefault: 1 }, '[Create MR]'],
+    ['R2 offers [Create PR] on GitHub', { review: loaded(null, 'github'), head: onBranch('feature/ABC-12-notes'), defaultBranch: 'main', aheadOfDefault: 3 }, '[Create PR]'],
+    ['R3 shows a dash on the target branch', { review: loaded(null, 'gitlab'), head: onBranch('main'), defaultBranch: 'main', aheadOfDefault: 0 }, '—'],
+    ['R4 shows a dash with no commit ahead', { review: loaded(null, 'gitlab'), head: onBranch('feature/ABC-12-notes'), defaultBranch: 'main', aheadOfDefault: 0 }, '—'],
+    ['R5 shows the open merge request', { review: loaded(gitlabReview()), head: onBranch('feature/ABC-12-notes'), defaultBranch: 'main', aheadOfDefault: 2 }, '!142'],
+  ])('%s', (_name, row, text) => {
+    expect(rowReviewCell(row, 0).text).toBe(text);
+  });
+
+  it('shows !142 with its tooltip for a merge request created during a push without a token', () => {
+    const cell = reviewCell({ kind: 'pushed', host: 'git.acme.com', number: 142, url: 'https://git.acme.com/payments/billing-api/-/merge_requests/142' }, 0);
+    expect([cell.text, cell.tooltip]).toEqual(['!142', 'Created during the push. Sign in to git.acme.com to see its status.']);
   });
 });

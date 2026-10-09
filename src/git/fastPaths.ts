@@ -63,3 +63,18 @@ export async function readRemoteHead(commonDir: string, remote: string, fs: File
   const prefix = `ref: refs/remotes/${remote}/`;
   return text?.startsWith(prefix) ? text.slice(prefix.length) : null;
 }
+
+/**
+ * The commit of a full ref name (`refs/remotes/origin/main`), loose in the common git dir or in `packed-refs`, or
+ * null. The Git extension's `state.refs` is no longer filled, so the [Create MR] cell reads its target here.
+ */
+export async function readRef(commonDir: string, ref: string, fs: FileSystemPort): Promise<string | null> {
+  const loose = (await fs.readFile(resolve(commonDir, ...ref.split('/'))))?.trim();
+  if (loose && /^[0-9a-f]{40,64}$/.test(loose)) return loose;
+  const packed = await fs.readFile(resolve(commonDir, 'packed-refs'));
+  for (const line of packed?.split('\n') ?? []) {
+    const [sha, name] = line.trim().split(' ');
+    if (name === ref && sha && /^[0-9a-f]{40,64}$/.test(sha)) return sha;
+  }
+  return null;
+}

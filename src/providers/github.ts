@@ -11,7 +11,11 @@ import {
   chunks,
   gqlString,
   missingFields,
+  type CreateInput,
+  type CreateNotice,
+  type CreateOutcome,
   type HostingProvider,
+  type ProjectInfo,
   type ReviewAnswer,
   type ReviewItem,
   type ReviewOptions,
@@ -19,6 +23,7 @@ import {
   type Selection,
   type UserInfo,
 } from './provider';
+import { notFoundNotice } from '../mr/users';
 import { selectionSet, valueAt, withoutField } from './selection';
 
 const ROLLUP = 'commits(last: 1).nodes.commit.statusCheckRollup.state';
@@ -132,6 +137,120 @@ export class GitHubProvider implements HostingProvider {
   compareUrl(projectPath: string, target: string, branch: string): string {
     return `${this.origin}/${projectPath}/compare/${pathSegment(target)}...${pathSegment(branch)}`;
   }
+
+  // ---------------------------------------------------------------------------------------------------------------
+  // Pull request creation (mr-creation: GitHub create requests, Reviewers and assignees, Undo)
+
+  private repoUrl(projectPath: string): string {
+    const [owner, name] = splitProject(projectPath);
+    return `${this.restUrl}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`;
+  }
+
+  async projectInfo(projectPath: string, credential: Credential): Promise<ProjectInfo> {
+    const answer = await this.http.request<Record<string, unknown>>({ url: this.repoUrl(projectPath), credential, headers: this.headers() });
+    const j = answer.json ?? {};
+    const bool = (key: string) => (typeof j[key] === 'boolean' ? { [key]: j[key] } : {});
+    const info: ProjectInfo = {
+      ...(typeof j.default_branch === 'string' ? { defaultBranch: j.default_branch } : {}),
+    };
+    const flags = { ...bool('allow_squash_merge'), ...bool('allow_auto_merge'), ...bool('delete_branch_on_merge') } as Record<string, boolean>;
+    if (flags.allow_squash_merge !== undefined) info.allowSquashMerge = flags.allow_squash_merge;
+    if (flags.allow_auto_merge !== undefined) info.allowAutoMerge = flags.allow_auto_merge;
+    if (flags.delete_branch_on_merge !== undefined) info.deleteBranchOnMerge = flags.delete_branch_on_merge;
+    return info;
+  }
+
+  reviewUrl(projectPath: string, number: number): string {
+    return `${this.origin}/${projectPath}/pull/${number}`;
+  }
+
+  async createReview(input: CreateInput, credential: Credential): Promise<CreateOutcome> {
+    const repo = this.repoUrl(input.projectPath);
+    type Pull = { number?: unknown; html_url?: unknown };
+    let pull: Pull;
+    try {
+      pull = (
+        await this.http.request<Pull>({
+          method: 'POST',
+          url: `${repo}/pulls`,
+          credential,
+          headers: this.headers(),
+          body: { title: input.title, head: input.source, base: input.target, body: input.description, draft: input.draft },
+        })
+      ).json;
+    } catch (error) {
+      if (!(error instanceof HttpError) || (error.kind !== 'status' && error.kind !== 'timeout')) throw error;
+      const message = githubMessage(error);
+      if (error.status === 422 && /already exists/i.test(message)) return { kind: 'exists' };
+      return { kind: 'failed', ...(error.status === undefined ? {} : { status: error.status }), message };
+    }
+    const number = Number(pull.number);
+    const ref = `#${number}`;
+    const notices: CreateNotice[] = [];
+    const applied = { reviewers: [] as string[], assignees: [] as string[], labels: [] as string[] };
+    const follow = async (run: () => Promise<unknown>, ok: () => void, failed: (message: string, status?: number) => void) => {
+      try {
+        await run();
+        ok();
+      } catch (error) {
+        if (!(error instanceof HttpError)) throw error;
+        failed(githubMessage(error), error.status);
+      }
+    };
+    const post = (path: string, body: unknown) => this.http.request({ method: 'POST', url: `${repo}${path}`, credential, headers: this.headers(), body });
+    await Promise.all([
+      input.reviewers.length || input.teams.length
+        ? follow(
+            () => post(`/pulls/${number}/requested_reviewers`, { reviewers: input.reviewers, team_reviewers: input.teams }),
+            () => applied.reviewers.push(...input.reviewers, ...input.teams.map((t) => `team:${t}`)),
+            (message, status) => {
+              const names = [...input.reviewers, ...input.teams.map((t) => `team:${t}`)];
+              if (status === 422 && names.length === 1) notices.push(notFoundNotice('Reviewer', names[0] as string, this.host));
+              else notices.push({ text: `Reviewers were not added to ${ref}: ${message}`, button: 'Open Settings' });
+            },
+          )
+        : undefined,
+      input.assignees.length
+        ? follow(
+            () => post(`/issues/${number}/assignees`, { assignees: input.assignees }),
+            () => applied.assignees.push(...input.assignees),
+            (message) => notices.push({ text: `Assignees were not added to ${ref}: ${message}` }),
+          )
+        : undefined,
+      input.labels.length
+        ? follow(
+            () => post(`/issues/${number}/labels`, { labels: input.labels }),
+            () => applied.labels.push(...input.labels),
+            (message) => notices.push({ text: `Labels were not added to ${ref}: ${message}` }),
+          )
+        : undefined,
+    ]);
+    return {
+      kind: 'created',
+      number,
+      url: typeof pull.html_url === 'string' ? pull.html_url : this.reviewUrl(input.projectPath, number),
+      applied,
+      notices,
+    };
+  }
+
+  async closeReview(projectPath: string, number: number, credential: Credential): Promise<void> {
+    await this.http.request({ method: 'PATCH', url: `${this.repoUrl(projectPath)}/pulls/${number}`, credential, headers: this.headers(), body: { state: 'closed' } });
+  }
+
+  async searchUsers(projectPath: string, text: string, credential: Credential): Promise<string[]> {
+    const answer = await this.http.request<{ login?: unknown }[]>({ url: `${this.repoUrl(projectPath)}/assignees?per_page=100`, credential, headers: this.headers() });
+    const needle = text.toLowerCase();
+    return Array.isArray(answer.json) ? answer.json.map((u) => String(u.login)).filter((l) => l.toLowerCase().includes(needle)) : [];
+  }
+}
+
+/** The most specific message of a GitHub error: `errors[0].message`, else `message`. */
+export function githubMessage(error: HttpError): string {
+  const body = error.body as { message?: unknown; errors?: { message?: unknown }[] } | undefined;
+  const first = Array.isArray(body?.errors) ? body?.errors[0]?.message : undefined;
+  if (typeof first === 'string') return first;
+  return typeof body?.message === 'string' ? body.message : error.message;
 }
 
 /** `owner` and `name` of `owner/name`; a deeper path keeps everything before the last segment as the owner. */

@@ -30,6 +30,11 @@ export interface ReviewIntegrations {
   openPipeline(id: string): Promise<void>;
   /** RepoHangar pushed, published or synced the repository */
   afterPush(id: string): void;
+  /** Create with defaults (`m`, the hover button), the quick input with `"confirm"`, and the drawer (`M`) (mr-creation) */
+  createMr(id: string): Promise<void>;
+  /** [Create MR] in the MR / PR cell: create with defaults whatever `repohangar.mr.quickCreate` says */
+  createMrDirect(id: string): Promise<void>;
+  createMrEdit(id: string): Promise<void>;
 }
 
 const SHOW_OUTPUT = 'Show Git Output';
@@ -41,6 +46,7 @@ const FAILURE_NAMES: Record<JobAction, string> = {
   push: 'Push',
   publish: 'Publish',
   sync: 'Sync',
+  createMr: 'Create MR',
 };
 
 export class Actions implements vscode.Disposable {
@@ -124,6 +130,12 @@ export class Actions implements vscode.Disposable {
         return this.review?.openCompare(id);
       case 'openPipeline':
         return this.review?.openPipeline(id);
+      case 'createMr':
+        return this.review?.createMr(id);
+      case 'createMrDirect':
+        return this.review?.createMrDirect(id);
+      case 'createMrEdit':
+        return this.review?.createMrEdit(id);
     }
   }
 

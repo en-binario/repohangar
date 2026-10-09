@@ -225,6 +225,36 @@ export class ProviderService implements vscode.Disposable {
     this.firstRunEmitter.fire();
   }
 
+  /**
+   * A merge request GitLab reported during a push-options push (mr-creation: Push options): shown as `!<iid>`, not
+   * live, until a credential loads the real state.
+   */
+  storePushed(id: string, branch: string, number: number, url: string): void {
+    const row = this.store.get(id);
+    this.stored.set(storeKey(id, branch), {
+      review: { provider: 'gitlab', number, url, title: '', draft: false, pipeline: null, mergeStatus: null, autoMerge: false, headSha: row?.headSha ?? '' },
+      live: false,
+      headSha: row?.headSha ?? '',
+      fetchedAt: Date.now(),
+    });
+    this.scheduleSave();
+    this.store.redecorate([id]);
+  }
+
+  /** The current user of a host (`@me`, `{me}`): the signed-in account, else `GET /user`; empty when unknown. */
+  async me(host: string): Promise<string> {
+    const known = this.auth.account(host)?.username;
+    if (known) return known;
+    const info = this.hostInfo(host);
+    const credential = await this.auth.credential(host);
+    if (!info || !credential) return '';
+    try {
+      return (await info.provider.currentUser(credential.token)).username;
+    } catch {
+      return '';
+    }
+  }
+
   /** RepoHangar pushed or published a repository (Provider refresh triggers R4). */
   afterPush(id: string): void {
     this.queue.queue(id);
@@ -251,6 +281,9 @@ export class ProviderService implements vscode.Disposable {
     if (key === this.hostedRoots) return;
     this.hostedRoots = key;
     void vscode.commands.executeCommand('setContext', 'repohangar.hostedRoots', roots);
+    // The Source Control menu compares `scmProviderRootUri`, a URI string (add-mr-creation design D-8).
+    const uris = this.store.all().filter((r) => r.provider === 'gitlab' || r.provider === 'github').map((r) => r.id);
+    void vscode.commands.executeCommand('setContext', 'repohangar.hostedRootUris', uris);
   }
 
   /** The value of `repohangar.hostedRoots` (integration tests). */

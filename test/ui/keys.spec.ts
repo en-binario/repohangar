@@ -224,13 +224,19 @@ test('moves from the filter box to the first shown row with ArrowDown', async ()
   expect(await focusedKey(frame)).toBe(await keyOf('auth-service'));
 });
 
-test('shows the action keys, then g graph, e explorer, s source control and o open MR, before the navigation hints in the footer', async () => {
+test('shows the action keys, then g graph, e explorer, s source control, m MR, M MR… and o open MR, before the navigation hints in the footer', async () => {
   await page.keyboard.press('Space');
   await expect(frame.locator('.footer')).toHaveText(
     '1 selected' +
-      'f fetch · p pull · P push · b switch · t terminal · . more · g graph · e explorer · s source control · o open MR · ↑↓ move · Space select · / filter · ⏎ details · ? keys',
+      'f fetch · p pull · P push · b switch · t terminal · . more · g graph · e explorer · s source control · m MR · M MR… · o open MR · ↑↓ move · Space select · / filter · ⏎ details · ? keys',
   );
   await expect(frame.locator('.selected-count')).toHaveText('1 selected');
+});
+
+// mr-creation :: Footer with merge request keys
+test('shows m MR and M MR… before o open MR in the footer while no row is selected', async () => {
+  await expect(frame.locator('.selected-count')).toHaveCount(0);
+  await expect(frame.locator('.footer .hints')).toContainText('m MR · M MR… · o open MR · ↑↓ move');
 });
 
 test('types j into the filter box', async () => {

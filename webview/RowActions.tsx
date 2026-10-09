@@ -55,6 +55,8 @@ export function HoverActions({ row, graph, onAction, onMenu }: HoverProps) {
     ['⇣', 'Pull', () => onAction('pull')],
     ['⇡', push, () => onAction('push')],
     ['⎇', 'Switch Branch…', () => onAction('switchBranch')],
+    // mr-creation: Create entry points (the hover button)
+    ...(row.provider === 'gitlab' || row.provider === 'github' ? [['⤴', 'Create MR', () => onAction('createMr')] as [string, string, () => void]] : []),
     ...(graphName ? [['◈', graphName, () => onAction('graph')] as [string, string, () => void]] : []),
     ['▤', 'Reveal in Explorer', () => onAction('revealInExplorer')],
     ['⋯', 'More Actions…', onMenu],

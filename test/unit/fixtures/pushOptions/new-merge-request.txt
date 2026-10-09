@@ -1,0 +1,6 @@
+remote: 
+remote: View merge request for feature/ABC-21-spike-11498:        
+remote:   http://localhost:8929/payments/billing-api/-/merge_requests/3        
+remote: 
+To http://localhost:8929/payments/billing-api.git
+ * [new branch]      feature/ABC-21-spike-11498 -> feature/ABC-21-spike-11498

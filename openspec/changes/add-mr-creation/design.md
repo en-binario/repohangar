@@ -47,8 +47,10 @@ profile and per key instead (spec `MR profile settings`).
 
 `git rev-list --count refs/remotes/<remote>/<target>..HEAD` and `git log --format=%s --reverse
 refs/remotes/<remote>/<target>..HEAD` run through `src/git/process.ts` (local fast path, §5.3). `{latestRelease}` and
-the drawer's target list come from `repository.state.refs` (remote refs), version-sorted with a natural compare
-(`release/2.10` > `release/2.9`). No fetch runs before creating; the review request already costs one round trip, and a
+the drawer's target list come from `repository.getRefs({ pattern: 'refs/remotes/<remote>/' })` (local
+`git for-each-ref`), version-sorted with a natural compare (`release/2.10` > `release/2.9`). The Git extension no longer
+fills the deprecated `repository.state.refs` (VS Code 1.141), so the `[Create MR]` cell reads the target commit from the
+git dir (`readRef`: the loose ref, else `packed-refs`) and runs `rev-list` only when HEAD or that commit moved. No fetch runs before creating; the review request already costs one round trip, and a
 stale remote-tracking ref can only make "commits ahead" larger, never hide work.
 
 ### D-4. Provider additions
@@ -84,6 +86,33 @@ a new and for an existing merge request, (c) whether `merge_request.assign` acce
 with nothing new prints. If a result differs from the spec, stop and change the spec with `/opsx:update` before
 implementing.
 
+**Spike results** (2026-10-09, `gitlab/gitlab-ce:17.10.0-ce.0`, Git over HTTP, no API token involved):
+
+- (a) Every option of the matrix takes effect in one push: target, title, one-line description, `draft` (title becomes
+  `Draft: …`), both labels (created on the fly), `squash` and `remove_source_branch` (`force_remove_source_branch`).
+- (b) A new and an existing merge request print the same lines, `remote: View merge request for <branch>:` then
+  `remote:   <URL>`; a second push with the same options creates no duplicate. Fixtures:
+  `test/unit/fixtures/pushOptions/new-merge-request.txt`, `existing-merge-request.txt`.
+- (c) `merge_request.assign` accepts a username, but only for a project member; for anyone else GitLab assigns the pusher
+  without a message. RepoHangar cannot read the assignee back without a token, so the result does not report it.
+- (d) A push with nothing new prints only `Everything up-to-date` (`nothing-new.txt`) and creates nothing, as the
+  `GitLab path matrix` R6 assumes. A line feed in an option makes Git refuse the push before it reaches the server
+  (`fatal: push options must not have new line characters`), as `Push option matrix` R5 assumes.
+
+No result contradicts the spec.
+
+**Create requests on CE 17.10.0** (observed while implementing tasks 3.1–3.3, same container, with an API token):
+
+- Two `reviewer_ids` or `assignee_ids` on Free: the merge request is created with the first of each and no error; the
+  answer lists only that one. `Reviewer resolution matrix` R5 (read back from the answer) is the path CE takes; the
+  `400` retry of R6 stays for instances that reject the request instead.
+- A second create for the same source branch: `409` with
+  `["Another open merge request already exists for this source branch: !4"]`, handled as `Existing review matrix` R2.
+- A `target_branch` that does not exist on the remote: CE creates the merge request anyway (no `422`), so
+  `Create failure matrix` R2 is exercised against the recorded answer in the contract test only.
+- The nightly job (`test/nightly/pushOptions.test.ts`) repeats the push-options creation with every option of the
+  matrix, reads the merge request back through the API and adds a reviewer with the Connect `PUT`.
+
 ### D-7. Webview drawer
 
 The drawer is a Preact component on the right of the grid (grid width shrinks, rows stay focusable). The host sends a
@@ -96,16 +125,21 @@ view marks as edited), `drawerSearchUsers` (debounced 300 ms), `drawerCreate` wi
 
 ```jsonc
 "scm/sourceControl": [
-  { "command": "repohangar.mr.create",     "group": "repohangar_mr@1", "when": "scmProvider == git && scmProviderRootUri in repohangar.hostedRoots" },
-  { "command": "repohangar.mr.createEdit", "group": "repohangar_mr@2", "when": "scmProvider == git && scmProviderRootUri in repohangar.hostedRoots" },
-  { "command": "repohangar.mr.open",       "group": "repohangar_mr@3", "when": "scmProvider == git && scmProviderRootUri in repohangar.hostedRoots" }
+  { "command": "repohangar.scm.mr.create",     "group": "0_repohangar_mr@1", "when": "scmProvider == git && scmProviderRootUri in repohangar.hostedRootUris" },
+  { "command": "repohangar.scm.mr.createEdit", "group": "0_repohangar_mr@2", "when": "scmProvider == git && scmProviderRootUri in repohangar.hostedRootUris" },
+  { "command": "repohangar.scm.mr.open",       "group": "0_repohangar_mr@3", "when": "scmProvider == git && scmProviderRootUri in repohangar.hostedRootUris" }
 ],
 "repohangar.explorer": [
-  { "command": "repohangar.mr.create",     "group": "3_mr@1", "when": "resourcePath in repohangar.hostedRoots" },
-  { "command": "repohangar.mr.createEdit", "group": "3_mr@2", "when": "resourcePath in repohangar.hostedRoots" },
-  { "command": "repohangar.mr.open",       "group": "3_mr@3", "when": "resourcePath in repohangar.hostedRoots" }
+  { "command": "repohangar.explorer.mr.create",     "group": "2_repohangar_mr@1", "when": "resourcePath in repohangar.hostedRoots" },
+  { "command": "repohangar.explorer.mr.createEdit", "group": "2_repohangar_mr@2", "when": "resourcePath in repohangar.hostedRoots" },
+  { "command": "repohangar.explorer.mr.open",       "group": "2_repohangar_mr@3", "when": "resourcePath in repohangar.hostedRoots" }
 ]
 ```
+
+The `scm.` and `explorer.` commands run `repohangar.mr.create`, `repohangar.mr.createEdit` and `repohangar.mr.open`
+with the menu's argument; they exist only to carry the menu titles (`Create MR`, `Create MR…`, `Open MR`) and are hidden
+from the Command Palette. The `[Create MR]` cell sends the row action `createMrDirect`, which creates with defaults
+whatever `repohangar.mr.quickCreate` says (`Entry point matrix` R6); `m` and the hover button send `createMr`.
 
 `scmProviderRootUri` is a URI string, so `repohangar.hostedRoots` is published twice: as `fsPath` strings for the
 Explorer and as `rootUri.toString()` strings under `repohangar.hostedRootUris` for the SCM menu (task 5.3 verifies the

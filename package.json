@@ -156,6 +156,40 @@
         "command": "repohangar.signOut",
         "title": "Sign Out of Host…",
         "category": "RepoHangar"
+      },
+      {
+        "command": "repohangar.mr.create",
+        "title": "Create Merge Request (Defaults)",
+        "category": "RepoHangar"
+      },
+      {
+        "command": "repohangar.mr.createEdit",
+        "title": "Create Merge Request…",
+        "category": "RepoHangar"
+      },
+      {
+        "command": "repohangar.scm.mr.create",
+        "title": "Create MR"
+      },
+      {
+        "command": "repohangar.scm.mr.createEdit",
+        "title": "Create MR…"
+      },
+      {
+        "command": "repohangar.scm.mr.open",
+        "title": "Open MR"
+      },
+      {
+        "command": "repohangar.explorer.mr.create",
+        "title": "Create MR"
+      },
+      {
+        "command": "repohangar.explorer.mr.createEdit",
+        "title": "Create MR…"
+      },
+      {
+        "command": "repohangar.explorer.mr.open",
+        "title": "Open MR"
       }
     ],
     "keybindings": [
@@ -175,6 +209,16 @@
         "key": "ctrl+alt+j",
         "mac": "ctrl+cmd+j",
         "when": "!repohangar.gitGraph.installed && config.repohangar.gitGraph.whenMissing == 'sourceControlGraph'"
+      },
+      {
+        "command": "repohangar.mr.create",
+        "key": "ctrl+alt+m",
+        "mac": "ctrl+cmd+m"
+      },
+      {
+        "command": "repohangar.mr.createEdit",
+        "key": "ctrl+alt+shift+m",
+        "mac": "ctrl+cmd+shift+m"
       }
     ],
     "menus": {
@@ -217,9 +261,48 @@
         {
           "command": "repohangar.explorer.pullFf",
           "when": "false"
+        },
+        {
+          "command": "repohangar.scm.mr.create",
+          "when": "false"
+        },
+        {
+          "command": "repohangar.scm.mr.createEdit",
+          "when": "false"
+        },
+        {
+          "command": "repohangar.scm.mr.open",
+          "when": "false"
+        },
+        {
+          "command": "repohangar.explorer.mr.create",
+          "when": "false"
+        },
+        {
+          "command": "repohangar.explorer.mr.createEdit",
+          "when": "false"
+        },
+        {
+          "command": "repohangar.explorer.mr.open",
+          "when": "false"
         }
       ],
       "scm/sourceControl": [
+        {
+          "command": "repohangar.scm.mr.create",
+          "group": "0_repohangar_mr@1",
+          "when": "scmProvider == git && scmProviderRootUri in repohangar.hostedRootUris"
+        },
+        {
+          "command": "repohangar.scm.mr.createEdit",
+          "group": "0_repohangar_mr@2",
+          "when": "scmProvider == git && scmProviderRootUri in repohangar.hostedRootUris"
+        },
+        {
+          "command": "repohangar.scm.mr.open",
+          "group": "0_repohangar_mr@3",
+          "when": "scmProvider == git && scmProviderRootUri in repohangar.hostedRootUris"
+        },
         {
           "command": "repohangar.scm.fetch",
           "group": "repohangar@1",
@@ -270,6 +353,21 @@
         {
           "command": "repohangar.explorer.pullFf",
           "group": "1_repohangar@3"
+        },
+        {
+          "command": "repohangar.explorer.mr.create",
+          "group": "2_repohangar_mr@1",
+          "when": "resourcePath in repohangar.hostedRoots"
+        },
+        {
+          "command": "repohangar.explorer.mr.createEdit",
+          "group": "2_repohangar_mr@2",
+          "when": "resourcePath in repohangar.hostedRoots"
+        },
+        {
+          "command": "repohangar.explorer.mr.open",
+          "group": "2_repohangar_mr@3",
+          "when": "resourcePath in repohangar.hostedRoots"
         }
       ]
     },
@@ -352,6 +450,202 @@
           "minimum": 1,
           "maximum": 60,
           "markdownDescription": "Minutes between merge request status refreshes while the window is focused and a pipeline or check is running. No request is sent while the window is unfocused.",
+          "scope": "window"
+        },
+        "repohangar.mr.profiles": {
+          "type": "object",
+          "default": {
+            "default": {}
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extends": {
+                "type": "string",
+                "description": "Profile whose values this profile takes for the keys it leaves out."
+              },
+              "target": {
+                "type": "string",
+                "description": "Target branch; placeholders allowed, for example {defaultBranch} or release/{latestRelease}."
+              },
+              "reviewers": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Usernames; @me is you; team:<slug> is a GitHub team."
+              },
+              "assignees": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "labels": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "squash": {
+                "type": "boolean"
+              },
+              "deleteSourceBranch": {
+                "type": "boolean"
+              },
+              "draft": {
+                "type": "boolean"
+              },
+              "title": {
+                "type": "string",
+                "description": "Title template: {type}, {ticket}, {branchTitle}, {branch}, {firstCommit}, {repo}, {me}."
+              },
+              "description": {
+                "type": "string",
+                "description": "template:default (the repository template, else the built-in one), template:<name>, or a template."
+              },
+              "pushIfNeeded": {
+                "type": "boolean"
+              },
+              "openAfterCreate": {
+                "type": "string",
+                "enum": [
+                  "notify",
+                  "browser",
+                  "none"
+                ]
+              }
+            }
+          },
+          "markdownDescription": "Merge request profiles: named sets of defaults. A profile without `extends` takes the keys it leaves out from `default`, then from the built-in defaults.",
+          "scope": "window"
+        },
+        "repohangar.mr.rules": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "object",
+            "required": [
+              "profile"
+            ],
+            "properties": {
+              "repo": {
+                "type": "string",
+                "description": "Glob on <host>/<project path>, for example git.acme.com/payments/**"
+              },
+              "branch": {
+                "type": "string",
+                "description": "Glob on the branch name, for example hotfix/**"
+              },
+              "profile": {
+                "type": "string"
+              },
+              "set": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "extends": {
+                    "type": "string",
+                    "description": "Profile whose values this profile takes for the keys it leaves out."
+                  },
+                  "target": {
+                    "type": "string",
+                    "description": "Target branch; placeholders allowed, for example {defaultBranch} or release/{latestRelease}."
+                  },
+                  "reviewers": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Usernames; @me is you; team:<slug> is a GitHub team."
+                  },
+                  "assignees": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "labels": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "squash": {
+                    "type": "boolean"
+                  },
+                  "deleteSourceBranch": {
+                    "type": "boolean"
+                  },
+                  "draft": {
+                    "type": "boolean"
+                  },
+                  "title": {
+                    "type": "string",
+                    "description": "Title template: {type}, {ticket}, {branchTitle}, {branch}, {firstCommit}, {repo}, {me}."
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "template:default (the repository template, else the built-in one), template:<name>, or a template."
+                  },
+                  "pushIfNeeded": {
+                    "type": "boolean"
+                  },
+                  "openAfterCreate": {
+                    "type": "string",
+                    "enum": [
+                      "notify",
+                      "browser",
+                      "none"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "markdownDescription": "Rules that choose a profile per repository and branch; the first match wins.",
+          "scope": "window"
+        },
+        "repohangar.mr.quickCreate": {
+          "type": "string",
+          "enum": [
+            "direct",
+            "confirm"
+          ],
+          "default": "direct",
+          "markdownDescription": "`direct`: `m` and `Ctrl+Alt+M` create the merge request with no dialog. `confirm`: they show one quick input first.",
+          "scope": "window"
+        },
+        "repohangar.mr.ticketPattern": {
+          "type": "string",
+          "default": "[A-Z][A-Z0-9]+-\\d+",
+          "markdownDescription": "Regular expression for the ticket in a branch name (`{ticket}`).",
+          "scope": "window"
+        },
+        "repohangar.mr.typeMap": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {
+            "feature": "feat",
+            "bugfix": "fix",
+            "hotfix": "fix",
+            "chore": "chore"
+          },
+          "markdownDescription": "Branch prefix → `{type}`.",
+          "scope": "window"
+        },
+        "repohangar.gitlab.usePushOptions": {
+          "type": "string",
+          "enum": [
+            "whenNoToken",
+            "always",
+            "never"
+          ],
+          "default": "whenNoToken",
+          "markdownDescription": "When GitLab merge requests are created with push options during `git push` instead of the API: without a token (`whenNoToken`), `always`, or `never`.",
           "scope": "window"
         },
         "repohangar.concurrency": {

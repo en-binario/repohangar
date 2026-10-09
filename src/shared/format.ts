@@ -96,6 +96,7 @@ const RUNNING: Record<JobAction, string> = {
   push: 'pushing',
   publish: 'publishing',
   sync: 'syncing',
+  createMr: 'creating MR',
 };
 
 const ACTION_NAMES: Record<JobAction, string> = {
@@ -105,6 +106,7 @@ const ACTION_NAMES: Record<JobAction, string> = {
   push: 'push',
   publish: 'publish',
   sync: 'sync',
+  createMr: 'create MR',
 };
 
 function capitalize(text: string): string {

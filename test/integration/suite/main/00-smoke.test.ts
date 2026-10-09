@@ -96,6 +96,27 @@ describe('smoke', () => {
     }
   });
 
+  it('declares the merge request settings and commands', async () => {
+    // mr-profiles, mr-creation
+    const config = vscode.workspace.getConfiguration('repohangar');
+    assert.deepEqual(config.get('mr.profiles'), { default: {} });
+    assert.deepEqual(config.get('mr.rules'), []);
+    assert.equal(config.get('mr.quickCreate'), 'direct');
+    assert.equal(config.get('mr.ticketPattern'), '[A-Z][A-Z0-9]+-\\d+');
+    assert.deepEqual(config.get('mr.typeMap'), { feature: 'feat', bugfix: 'fix', hotfix: 'fix', chore: 'chore' });
+    assert.equal(config.get('gitlab.usePushOptions'), 'whenNoToken');
+    const manifest = vscode.extensions.getExtension('enbinario.repohangar')?.packageJSON as {
+      contributes: { commands: { command: string; title: string; category?: string }[] };
+    };
+    const titles = Object.fromEntries(manifest.contributes.commands.map((c) => [c.command, `${c.category}: ${c.title}`]));
+    assert.equal(titles['repohangar.mr.create'], 'RepoHangar: Create Merge Request (Defaults)');
+    assert.equal(titles['repohangar.mr.createEdit'], 'RepoHangar: Create Merge Request…');
+    const registered = await vscode.commands.getCommands(true);
+    for (const id of ['repohangar.mr.create', 'repohangar.mr.createEdit', 'repohangar.scm.mr.create', 'repohangar.explorer.mr.createEdit']) {
+      assert.ok(registered.includes(id), `${id} is registered`);
+    }
+  });
+
   it('does not open the dashboard at startup with openOnStartup never', async () => {
     const api = await ready(14);
     assert.equal(await api.startupCheck, 'notOpened');

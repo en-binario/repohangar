@@ -19,6 +19,8 @@ export interface StoredReview {
   review: ReviewState | null;
   /** The project was not found or cannot be read */
   notFound?: boolean;
+  /** Reported by GitLab during a push-options push; not read through the API (mr-creation: Push options) */
+  live?: false;
   headSha: string;
   /** Epoch ms of the answer */
   fetchedAt: number;
@@ -53,8 +55,11 @@ export function reviewInfo(row: RowData, ctx: InfoContext): ReviewInfo {
   if (!target) return { kind: 'none' };
   const state = ctx.hostState(target.host);
   if (state === 'skipped') return { kind: 'skipped', host: target.host };
-  if (state === 'none') return { kind: 'signIn', host: target.host };
   const stored = ctx.stored(row.id, target.branch);
+  if (state === 'none') {
+    if (stored?.live === false && stored.review) return { kind: 'pushed', host: target.host, number: stored.review.number, url: stored.review.url };
+    return { kind: 'signIn', host: target.host };
+  }
   if (!stored) return { kind: 'loading' };
   if (stored.notFound) return { kind: 'notFound', host: target.host, projectPath: row.hosted.projectPath };
   const stale =

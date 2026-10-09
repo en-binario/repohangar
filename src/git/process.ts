@@ -14,7 +14,8 @@ export const gitProcessLog: GitProcessCall[] = [];
 
 export const GIT_TIMEOUT_MS = 10_000;
 
-export function runGit(gitPath: string, args: readonly string[], cwd: string): Promise<string> {
+/** `timeoutMs` is 10 s unless given (git push with push options uses the fetch timeout). */
+export function runGit(gitPath: string, args: readonly string[], cwd: string, timeoutMs = GIT_TIMEOUT_MS): Promise<string> {
   gitProcessLog.push({ args, cwd, at: Date.now() });
   return new Promise((resolve, reject) => {
     execFile(
@@ -22,7 +23,7 @@ export function runGit(gitPath: string, args: readonly string[], cwd: string): P
       [...args],
       {
         cwd,
-        timeout: GIT_TIMEOUT_MS,
+        timeout: timeoutMs,
         windowsHide: true,
         env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
       },

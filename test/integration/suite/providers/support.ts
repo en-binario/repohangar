@@ -1,9 +1,14 @@
 // Answers for the provider requests of the extension under test, and the interactive parts of sign-in.
 
-import { execFile } from 'node:child_process';
+import { execFile, spawnSync } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import * as vscode from 'vscode';
 import type { TestApi } from '../../../../src/extension';
+import type { QuickCreateChoice, QuickCreateModel } from '../../../../src/mr/service';
 import { vscodeAuthUi, type AuthUi } from '../../../../src/providers/auth';
+import type { RowData } from '../../../../src/shared/model';
+import { recordIntegrations, waitFor } from '../helpers';
 
 export interface SentRequest {
   method: string;
@@ -135,4 +140,151 @@ export function stubAuthUi(api: TestApi, initial: Partial<UiStub> = {}): UiStub 
 function fakeCli(): string {
   // out/test/integration/suite/providers → the repository root
   return join(__dirname, '..', '..', '..', '..', '..', 'test', 'integration', 'fixtures', 'fake-cli.js');
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Merge request creation (add-mr-creation)
+
+export function gitIn(cwd: string, ...args: string[]): string {
+  const result = spawnSync('git', ['-c', 'user.name=Ana Pérez', '-c', 'user.email=ana@acme.test', ...args], {
+    cwd,
+    encoding: 'utf8',
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+  });
+  if (result.status !== 0) throw new Error(`git ${args.join(' ')}: ${result.stderr}`);
+  return result.stdout;
+}
+
+/**
+ * Puts the repository on a new branch from origin/main with `commits` commits; `publish` pushes it with upstream and
+ * `aheadOfUpstream` adds commits after that. Waits until the row shows the branch.
+ */
+export async function onNewBranch(
+  api: TestApi,
+  path: string,
+  branch: string,
+  options: { commits?: number; publish?: boolean; aheadOfUpstream?: number } = {},
+): Promise<RowData> {
+  gitIn(path, 'checkout', '-q', '--no-track', '-B', branch, 'origin/main');
+  const commit = (n: number, tag: string) => {
+    for (let i = 1; i <= n; i++) {
+      writeFileSync(join(path, `${tag}-${i}-${Date.now()}.md`), `${tag} ${i}\n`);
+      gitIn(path, 'add', '.');
+      gitIn(path, 'commit', '-q', '-m', `${tag} change ${i}`);
+    }
+  };
+  commit(options.commits ?? 2, 'feature');
+  if (options.publish) gitIn(path, 'push', '-q', '-u', 'origin', branch);
+  commit(options.aheadOfUpstream ?? 0, 'ahead');
+  const id = api.registry.ids().find((i) => api.registry.repository(i)?.rootUri.fsPath.toLowerCase() === path.toLowerCase()) as string;
+  await api.registry.repository(id)?.status();
+  await api.store.recompute(id);
+  return waitFor(() => {
+    const row = api.store.get(id);
+    return row?.head.kind === 'branch' && row.head.name === branch ? row : undefined;
+  }, `${branch} in the row`);
+}
+
+/** GitLab answers for creation: no open merge request, users, the project, and the create and close requests. */
+export function gitlabCreateRoutes(options: { iid?: number; squashOption?: string } = {}): Route[] {
+  const ids: Record<string, number> = { 'ana.perez': 11, 'luis.gomez': 12, 'carla.ruiz': 13 };
+  const byId = Object.fromEntries(Object.entries(ids).map(([n, id]) => [id, n]));
+  return [
+    users({ 'glpat-x1y2': 'carla.ruiz' }),
+    graphql('git.acme.com', () => []),
+    (url, method) => {
+      if (url.host !== 'git.acme.com' || method !== 'GET' || url.pathname !== '/api/v4/users') return undefined;
+      const name = url.searchParams.get('username') ?? '';
+      return json(ids[name] ? [{ id: ids[name], username: name }] : []);
+    },
+    (url, method) =>
+      url.host === 'git.acme.com' && method === 'GET' && /^\/api\/v4\/projects\/[^/]+$/.test(url.pathname)
+        ? json({ id: 31, default_branch: 'main', squash_option: options.squashOption ?? 'default_off' })
+        : undefined,
+    (url, method, body) => {
+      if (url.host !== 'git.acme.com' || method !== 'POST' || !url.pathname.endsWith('/merge_requests')) return undefined;
+      const b = body as { reviewer_ids?: number[]; assignee_ids?: number[]; labels?: string; title: string };
+      const iid = options.iid ?? 142;
+      return json(
+        {
+          iid,
+          web_url: `https://git.acme.com/payments/billing-api/-/merge_requests/${iid}`,
+          title: b.title,
+          reviewers: (b.reviewer_ids ?? []).map((id) => ({ id, username: byId[id] })),
+          assignees: (b.assignee_ids ?? []).map((id) => ({ id, username: byId[id] })),
+          labels: b.labels ? b.labels.split(',') : [],
+        },
+        201,
+      );
+    },
+    (url, method) => (url.host === 'git.acme.com' && method === 'PUT' && /\/merge_requests\/\d+$/.test(url.pathname) ? json({ state: 'closed' }) : undefined),
+  ];
+}
+
+export interface CreateSession {
+  http: ReturnType<typeof answerHttp>;
+  ui: ReturnType<typeof stubAuthUi>;
+  /** URLs the creation opened in the browser */
+  opened: string[];
+  /** The models the quick create input was shown with; `answers` answers them in order (undefined is Esc) */
+  quickInputs: QuickCreateModel[];
+  answers: (QuickCreateChoice | ((model: QuickCreateModel) => QuickCreateChoice))[];
+  /** A new branch of `options` in the repository, checked out until `finish` */
+  branch(name: string, branch: string, options?: Parameters<typeof onNewBranch>[3]): Promise<RowData>;
+  /** The create requests sent */
+  creates(): SentRequest[];
+  finish(): Promise<void>;
+}
+
+/**
+ * Records the integrations, dismisses every notification, signs in to git.acme.com (unless `signedIn` is false),
+ * answers GitLab's creation requests and replaces the browser and the quick create input.
+ */
+export async function startCreating(api: TestApi, options: { signedIn?: boolean; routes?: Route[] } = {}): Promise<CreateSession> {
+  const stop = recordIntegrations(api);
+  api.notifier.answer = () => undefined;
+  const ui = stubAuthUi(api, { pasted: ['glpat-x1y2'] });
+  const http = answerHttp(api, [...(options.routes ?? []), ...gitlabCreateRoutes()]);
+  if (options.signedIn !== false) await api.providers.auth.signIn('git.acme.com');
+  const opened: string[] = [];
+  api.mr.openUrl = async (url) => opened.push(url);
+  const quickInputs: QuickCreateModel[] = [];
+  const answers: CreateSession['answers'] = [];
+  const previousUi = api.mr.ui;
+  api.mr.ui = {
+    quickCreate: async (model) => {
+      quickInputs.push(model);
+      const answer = answers.shift();
+      return typeof answer === 'function' ? answer(model) : answer;
+    },
+  };
+  const branches: { path: string; branch: string; back: string }[] = [];
+  http.requests.length = 0;
+  return {
+    http,
+    ui,
+    opened,
+    quickInputs,
+    answers,
+    async branch(name, branch, branchOptions) {
+      const path = api.store.all().find((r) => r.name === name)?.path as string;
+      branches.push({ path, branch, back: gitIn(path, 'branch', '--show-current').trim() });
+      return onNewBranch(api, path, branch, branchOptions);
+    },
+    creates: () => http.requests.filter((r) => r.method === 'POST' && r.url.endsWith('/merge_requests')),
+    async finish() {
+      api.mr.ui = previousUi;
+      for (const key of ['mr.profiles', 'mr.quickCreate', 'gitlab.usePushOptions']) {
+        await vscode.workspace.getConfiguration('repohangar').update(key, undefined, vscode.ConfigurationTarget.Global);
+      }
+      await api.providers.signOut('git.acme.com');
+      for (const { path, branch, back } of branches.reverse()) {
+        gitIn(path, 'checkout', '-q', '-f', back);
+        gitIn(path, 'branch', '-q', '-D', branch);
+      }
+      http.restore();
+      ui.restore();
+      stop();
+    },
+  };
 }

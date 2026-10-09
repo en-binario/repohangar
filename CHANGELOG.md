@@ -93,3 +93,22 @@ All notable changes to RepoHangar are recorded here. Entries are written and cla
 - **Added:** the setting `repohangar.providers.refreshMinutes` (`3`).
 - **Changed:** `repohangar.hosts` entries from user and workspace settings now add up, so a host chosen from the
   dashboard also applies in a workspace that sets its own hosts.
+- **Added — MR profiles and rules.** `repohangar.mr.profiles` holds named defaults for new merge requests and pull
+  requests (target, reviewers, assignees, labels, squash, delete source branch, draft, title, description, push and
+  what happens after creating), at user or workspace scope, with `extends`; `repohangar.mr.rules` chooses a profile by
+  repository and branch glob and can override its values. Titles and descriptions take `{type}`, `{ticket}`,
+  `{branchTitle}`, `{commits}`, `{latestRelease}` and other placeholders, and the repository's own merge request or
+  pull request template.
+- **Added — create with defaults.** `m` on a row, **[Create MR]** / **[Create PR]** in the MR / PR cell, the `⤴` hover
+  button and **RepoHangar: Create Merge Request (Defaults)** (`Ctrl+Alt+M`, `Ctrl+Cmd+M` on macOS) create the merge
+  request or pull request of the branch in one step: they open an existing one instead, stop with a fix button when the
+  branch is not ready, push it when needed and report what was applied, with **Undo** for 30 seconds.
+- **Added — the Create MR drawer and quick input.** `M` and **RepoHangar: Create Merge Request…** (`Ctrl+Alt+Shift+M`,
+  `Ctrl+Cmd+Shift+M` on macOS) open a drawer beside the grid with every field of the profile to review before
+  `Ctrl+Enter`; with `repohangar.mr.quickCreate` set to `"confirm"`, create with defaults shows a quick input first.
+- **Added:** **Create MR**, **Create MR…** and **Open MR** in the Source Control Repositories menu and the Explorer
+  **RepoHangar** submenu of GitLab and GitHub repositories.
+- **Added — GitLab merge requests without a token.** A GitLab host without a token gets its merge request during the
+  push, through GitLab's push options; **Connect `<host>`** adds the reviewers afterwards.
+- **Added:** the settings `repohangar.mr.profiles`, `repohangar.mr.rules`, `repohangar.mr.quickCreate`,
+  `repohangar.mr.ticketPattern`, `repohangar.mr.typeMap` and `repohangar.gitlab.usePushOptions`.

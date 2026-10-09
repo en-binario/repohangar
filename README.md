@@ -3,8 +3,8 @@
 See every Git repository in your workspace at a glance, act on all of them at once, and open GitLab merge requests
 or GitHub pull requests with your team's defaults in one keystroke.
 
-> RepoHangar is in early development. This version shows the merge request or pull request of every branch; creating
-> them from the dashboard follows.
+> RepoHangar is in early development. This version shows the merge request or pull request of every branch and creates
+> them with your profiles' defaults; batch creation and auto-merge follow.
 
 ## Dashboard
 
@@ -38,6 +38,8 @@ Rows update as soon as the Git extension sees a change; RepoHangar never polls.
 | `g` | Open the focused row in Git Graph (or the Source Control Graph) |
 | `e` | Reveal the focused row in the Explorer |
 | `s` | Show the focused row in Source Control |
+| `m` | Create the merge request or pull request of the focused row with its profile's defaults |
+| `M` | Open the Create MR drawer for the focused row |
 | `o` | Open the merge request or pull request of the focused row |
 
 A click on a repository name reveals it in the Explorer (`repohangar.dashboard.nameClick`); a click on the Changes
@@ -73,6 +75,102 @@ later.
 
 Tokens are kept only in VS Code's secret storage, per host, and sent only to their own host. They never reach
 settings, logs or the dashboard. A token the host rejects is deleted and RepoHangar asks you to sign in again.
+
+## Creating merge requests and pull requests
+
+Press `m` on a row, click **[Create MR]** (**[Create PR]** on GitHub) in its MR / PR cell or `⤴` in its hover
+buttons, or run **RepoHangar: Create Merge Request (Defaults)** (`Ctrl+Alt+M`, `Ctrl+Cmd+M` on macOS) on the
+repository of the active editor. RepoHangar creates the merge request with the values of the repository's MR profile,
+with no dialog:
+
+1. It asks the host once whether the branch already has one, and opens it instead of creating a duplicate.
+2. It stops, with a button that fixes it, when the branch is not ready: an operation in progress, a detached HEAD, the
+   target branch itself, nothing to merge, or a remote branch with commits you don't have. Uncommitted files only add
+   a warning.
+3. It pushes the branch when it has no upstream or is ahead of it (`"pushIfNeeded": false` stops instead).
+4. It sends every value in the create request and reports what was applied:
+   `Created !142 in billing-api (pushed 2 commits): reviewers ana.perez, luis.gomez · squash · delete branch`, with
+   **Open MR**, **Copy link** and **Undo**. Undo closes the merge request within 30 s and keeps the branch.
+
+The Sync cell shows `⟳ creating MR` while it runs; pressing `m` again does nothing. With `repohangar.mr.quickCreate`
+set to `"confirm"`, `m`, the hover button and `Ctrl+Alt+M` show a quick input first: `Enter` creates with the title you
+typed, and it offers **Edit all fields…**, the other profiles and **Create as draft**.
+
+`M`, **RepoHangar: Create Merge Request…** (`Ctrl+Alt+Shift+M`, `Ctrl+Cmd+Shift+M` on macOS) open the **Create MR
+drawer** beside the grid, every field filled in from the profile: profile, target, title, description, reviewers,
+assignees, labels, squash, delete source branch and draft. `Ctrl+Enter` creates, `Esc` closes it. **Create MR**,
+**Create MR…** and **Open MR** are also in the Source Control Repositories menu and the Explorer **RepoHangar**
+submenu of GitLab and GitHub repositories.
+
+### MR profiles
+
+A profile is a named set of defaults in `repohangar.mr.profiles`, at user scope (yours, every workspace) or workspace
+scope (shared with the team); a workspace profile overrides the user profile of the same name key by key.
+`repohangar.mr.rules` chooses a profile per repository and branch: the first rule whose globs match wins, and its
+`set` overrides values of that profile.
+
+```jsonc
+"repohangar.mr.profiles": {
+  "default": {
+    "target": "{defaultBranch}",
+    "reviewers": ["ana.perez", "luis.gomez"],
+    "assignees": ["@me"],
+    "labels": ["needs-review"],
+    "squash": true,
+    "deleteSourceBranch": true,
+    "draft": false,
+    "title": "{type}: {ticket} {branchTitle}",
+    "description": "template:default",   // the repository's template, else the commit list
+    "pushIfNeeded": true,
+    "openAfterCreate": "notify"           // "notify" | "browser" | "none"
+  },
+  "hotfix": {
+    "extends": "default",
+    "target": "release/{latestRelease}",
+    "reviewers": ["team:sre", "ana.perez"],
+    "labels": ["hotfix"]
+  }
+},
+// Matched against "<host>/<project path>" and the branch; the first match wins.
+"repohangar.mr.rules": [
+  { "branch": "hotfix/**", "profile": "hotfix" },
+  { "repo": "git.acme.com/payments/**", "profile": "default", "set": { "reviewers": ["carla.ruiz"] } },
+  { "repo": "github.com/acme/web-*", "profile": "default", "set": { "labels": ["frontend"] } }
+]
+```
+
+Reviewers and assignees are usernames; `@me` is you on that host, you are never your own reviewer, and `team:<slug>`
+is a GitHub team (left out on GitLab, with a note). A GitLab project that turns squash off or requires it wins over
+the profile, and the drawer says so. GitLab Free keeps one reviewer; RepoHangar reports the ones it could not add.
+
+Titles and descriptions take these placeholders, shown for the branch `feature/ABC-123-add-billing-notes`:
+
+| Placeholder | Value |
+|---|---|
+| `{branch}` | `feature/ABC-123-add-billing-notes` |
+| `{type}` | `feat`, from the branch prefix through `repohangar.mr.typeMap` |
+| `{ticket}` | `ABC-123`, the first match of `repohangar.mr.ticketPattern`; empty without one |
+| `{branchTitle}` | `Add billing notes` |
+| `{firstCommit}` | The subject of the first commit ahead of the target |
+| `{commits}` | The subjects of the commits ahead of the target, one bullet each (at most 30) |
+| `{repo}` | `billing-api` |
+| `{defaultBranch}` | `main` |
+| `{latestRelease}` | The highest `release/*` branch of the remote, by version |
+| `{me}` | Your username on the host |
+
+With exactly one commit ahead and the default title, the commit subject is the title. `template:default` uses the
+repository's own template (`.gitlab/merge_request_templates/Default.md`, `.github/pull_request_template.md`), read from
+the working tree, and `template:<name>` another one of `.gitlab/merge_request_templates/` or
+`.github/PULL_REQUEST_TEMPLATE/`.
+
+### GitLab without a token
+
+When a GitLab host has no token, RepoHangar creates the merge request during the push, with GitLab's push options
+(`repohangar.gitlab.usePushOptions`: `"whenNoToken"` by default, `"always"` or `"never"`). The push runs `git push`
+with your credential helper or SSH key and sets target, title, a one-line description, draft, labels, the first
+assignee, squash and delete source branch. Push options cannot set reviewers, a description with line breaks or more
+than one assignee, and a branch that is already pushed cannot get its merge request that way. The result says what was
+left out and offers **Connect `<host>`**: sign in, and RepoHangar adds the reviewers to that merge request.
 
 ## Git Graph
 
@@ -140,6 +238,12 @@ installed, RepoHangar hides its own Explorer item and offers once to uninstall G
 | `repohangar.explorer.collapseBeforeReveal` | `false` | Collapse the Explorer before Reveal in Explorer |
 | `repohangar.explorer.outsideWorkspace` | `"ask"` | Reveal outside the workspace folders: `ask`, `addToWorkspace`, `newWindow` or `revealInOS` |
 | `repohangar.repositoryScanDepth` | `3` | Folder levels scanned for repository folders below each workspace folder; `0` scans only the folder itself |
+| `repohangar.mr.profiles` | `{ "default": {} }` | MR profiles: named defaults for new merge requests and pull requests |
+| `repohangar.mr.rules` | `[]` | Rules that choose a profile by repository (`<host>/<project path>` glob) and branch glob |
+| `repohangar.mr.quickCreate` | `"direct"` | `direct` creates with defaults; `confirm` shows the quick input first |
+| `repohangar.mr.ticketPattern` | `[A-Z][A-Z0-9]+-\d+` | Regular expression of `{ticket}` in the branch name |
+| `repohangar.mr.typeMap` | `{ "feature": "feat", … }` | Branch prefix → `{type}` |
+| `repohangar.gitlab.usePushOptions` | `"whenNoToken"` | Create GitLab merge requests with push options: `whenNoToken`, `always` or `never` |
 
 ## Workspace Trust
 

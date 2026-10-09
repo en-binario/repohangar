@@ -16,6 +16,7 @@ import { SourceControl } from './integrations/sourceControl';
 import { CommandRunner, Notifier } from './integrations/workbench';
 import { JobRunner } from './jobs/runner';
 import { RepoHangarLog } from './log';
+import { MrService } from './mr/service';
 import { ProviderService } from './providers/service';
 import { RowStore } from './state/store';
 import { Actions, commandArgument } from './ui/actions';
@@ -49,6 +50,7 @@ export interface TestApi {
   legacyOpener: LegacyOpenerGuard;
   migration: { writes: MigrationWrite[]; run(): Promise<MigrationWrite[]>; state: vscode.Memento };
   providers: ProviderService;
+  mr: MrService;
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<TestApi | undefined> {
@@ -85,12 +87,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<TestAp
   const repositoryRoots = new RepositoryRoots(git, registry.onDidChangeRepositories);
   const legacyOpener = new LegacyOpenerGuard(context.globalState, notifier, commands);
   const providers = new ProviderService(context, store, registry, notifier, log);
+  const mr = new MrService(context, store, registry, runner, providers, notifier, log, () => git.current?.git.path ?? 'git', (id, action) =>
+    actions.runRowAction(id, action),
+  commands,
+  );
   actions.review = {
     openReview: (id) => providers.openReview(id),
     copyLink: (id) => providers.copyLink(id),
     openCompare: (id) => providers.openCompare(id),
     openPipeline: (id) => providers.openPipeline(id),
     afterPush: (id) => providers.afterPush(id),
+    createMr: (id) => mr.createWithDefaults(id),
+    createMrDirect: async (id) => void (await mr.runCreate(id, {})),
+    createMrEdit: (id) => mr.openDrawer(id),
   };
   dashboard = new DashboardController(context.extensionUri, store, registry, git, viewState, actions, {
     get variant() {
@@ -108,6 +117,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<TestAp
     firstRunDone: () => providers.firstRunDone(),
   });
   const panel = dashboard;
+  panel.drawer = mr;
+  mr.dashboard = { open: () => panel.open(), postDrawer: (data) => panel.showDrawer(data), postDrawerUsers: (id, users) => panel.postDrawerUsers(id, users) };
+  /** Runs a merge request command on its repository: the argument, else the active repository. */
+  const onRepository = (run: (id: string) => Promise<void>) => async (arg?: unknown) => {
+    const id = await actions.resolveActive(arg);
+    if (id !== undefined) await run(id);
+  };
   const statusBar = new StatusBar(store);
 
   /** The folder or repository root a command acts on: its argument, else the active repository (design D-4). */
@@ -146,6 +162,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<TestAp
     repositoryRoots,
     legacyOpener,
     providers,
+    mr,
     git.onDidChange(() => reg.attach(git.current)),
     vscode.window.registerWebviewPanelSerializer(DASHBOARD_VIEW_TYPE, panel),
     vscode.commands.registerCommand('repohangar.open', () => panel.open()),
@@ -184,6 +201,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<TestAp
     }),
     vscode.commands.registerCommand('repohangar.signIn', () => providers.signInCommand()),
     vscode.commands.registerCommand('repohangar.signOut', () => providers.signOutCommand()),
+    vscode.commands.registerCommand('repohangar.mr.create', onRepository((id) => mr.createWithDefaults(id))),
+    vscode.commands.registerCommand('repohangar.mr.createEdit', onRepository((id) => mr.openDrawer(id))),
+    // The Source Control and Explorer items: the same commands with the menu titles (mr-creation: Merge request menu items).
+    ...(['scm', 'explorer'] as const).flatMap((menu) => [
+      vscode.commands.registerCommand(`repohangar.${menu}.mr.create`, (arg?: unknown) => vscode.commands.executeCommand('repohangar.mr.create', arg)),
+      vscode.commands.registerCommand(`repohangar.${menu}.mr.createEdit`, (arg?: unknown) => vscode.commands.executeCommand('repohangar.mr.createEdit', arg)),
+      vscode.commands.registerCommand(`repohangar.${menu}.mr.open`, (arg?: unknown) => vscode.commands.executeCommand('repohangar.mr.open', arg)),
+    ]),
     vscode.commands.registerCommand('repohangar.explorer.fetch', (arg?: unknown) => vscode.commands.executeCommand('repohangar.fetch', arg)),
     vscode.commands.registerCommand('repohangar.explorer.pullFf', (arg?: unknown) => vscode.commands.executeCommand('repohangar.pullFf', arg)),
   );
@@ -218,6 +243,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<TestAp
     legacyOpener,
     migration: { writes: migrated, run: () => migrateSettings(context.globalState, log), state: context.globalState },
     providers,
+    mr,
   };
 }
 

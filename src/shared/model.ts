@@ -47,6 +47,8 @@ export interface RowData {
   hosted?: HostedRemote;
   /** The target of the compare page from `refs/remotes/<remote>/HEAD` (`main`), or null when unknown */
   defaultBranch?: string | null;
+  /** Commits of HEAD that `refs/remotes/<remote>/<defaultBranch>` lacks, for the [Create MR] button (mr-creation) */
+  aheadOfDefault?: number;
   /** What the MR / PR cell shows (hosting-providers); set by the provider layer */
   review?: ReviewInfo;
 }
@@ -96,10 +98,12 @@ export type ReviewInfo =
   /** The project does not exist or cannot be read: `—` with a tooltip */
   | { kind: 'notFound'; host: string; projectPath: string }
   /** A loaded state: an open review, or null for none; `stale` marks it as not refreshed */
-  | { kind: 'loaded'; provider: 'gitlab' | 'github'; review: ReviewState | null; stale: boolean; fetchedAt: number };
+  | { kind: 'loaded'; provider: 'gitlab' | 'github'; review: ReviewState | null; stale: boolean; fetchedAt: number }
+  /** A merge request GitLab reported during a push-options push, without a token to read it (mr-creation) */
+  | { kind: 'pushed'; host: string; number: number; url: string };
 
 /** Actions that run as a job: one at a time per repository, shown in the Sync cell. */
-export type JobAction = 'fetch' | 'pull' | 'pullFf' | 'push' | 'publish' | 'sync';
+export type JobAction = 'fetch' | 'pull' | 'pullFf' | 'push' | 'publish' | 'sync' | 'createMr';
 
 export interface JobResult {
   state: 'ok' | 'skipped' | 'failed';
@@ -133,7 +137,10 @@ export type RowAction =
   | 'openReview'
   | 'copyReviewLink'
   | 'openCompare'
-  | 'openPipeline';
+  | 'openPipeline'
+  | 'createMr'
+  | 'createMrDirect'
+  | 'createMrEdit';
 
 export const ROW_ACTIONS: readonly RowAction[] = [
   'fetch',
@@ -155,6 +162,9 @@ export const ROW_ACTIONS: readonly RowAction[] = [
   'copyReviewLink',
   'openCompare',
   'openPipeline',
+  'createMr',
+  'createMrDirect',
+  'createMrEdit',
 ];
 
 export type BatchAction = 'fetch' | 'pullFf';

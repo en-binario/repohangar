@@ -114,7 +114,7 @@ export function reviewParts(review: ReviewState): Part[] {
 // ---------------------------------------------------------------------------------------------------------------
 // The MR / PR cell
 
-export type ReviewCellKind = 'review' | 'none' | 'signIn' | 'unknownHost' | 'loading';
+export type ReviewCellKind = 'review' | 'none' | 'signIn' | 'unknownHost' | 'loading' | 'create' | 'pushed';
 
 export interface ReviewCell {
   kind: ReviewCellKind;
@@ -136,9 +136,28 @@ function simple(kind: ReviewCellKind, text: string, label: string, extra: Partia
   return { kind, text, label, parts: [{ text, label }], stale: false, ...extra };
 }
 
+/**
+ * The cell of a row: [Create MR] / [Create PR] in place of `—` when no review is open, HEAD is on a branch other than
+ * the default branch and at least one commit is ahead of it (mr-creation: Create MR button in the MR / PR cell).
+ */
+export function rowReviewCell(row: Pick<RowData, 'review' | 'head' | 'defaultBranch' | 'aheadOfDefault'>, now: number): ReviewCell {
+  const cell = reviewCell(row.review, now);
+  const info = row.review;
+  if (info?.kind !== 'loaded' || info.review || info.stale) return cell;
+  if (row.head.kind !== 'branch' || !row.defaultBranch || row.head.name === row.defaultBranch) return cell;
+  if ((row.aheadOfDefault ?? 0) < 1) return cell;
+  const text = info.provider === 'gitlab' ? '[Create MR]' : '[Create PR]';
+  return simple('create', text, info.provider === 'gitlab' ? 'Create merge request' : 'Create pull request');
+}
+
 export function reviewCell(info: ReviewInfo | undefined, now: number): ReviewCell {
   if (!info) return simple('none', '—', 'No merge request');
   switch (info.kind) {
+    case 'pushed':
+      return simple('pushed', `!${info.number}`, `Merge request ${info.number}`, {
+        tooltip: `Created during the push. Sign in to ${info.host} to see its status.`,
+        host: info.host,
+      });
     case 'none':
       return simple('none', '—', 'No merge request');
     case 'unknownHost':
@@ -275,6 +294,7 @@ export function openReviewPlan(row: Pick<RowData, 'name' | 'provider' | 'head' |
   }
   if (row.head.kind !== 'branch') return { kind: 'notify', text: `${row.name} is not on a branch.` };
   const branch = row.head.name;
+  if (row.review?.kind === 'pushed') return { kind: 'open', url: row.review.url };
   if (row.review?.kind === 'loaded') {
     if (row.review.review) return { kind: 'open', url: row.review.review.url };
     return { kind: 'notify', text: `No open ${reviewNoun(row.provider)} for ${branch} in ${row.name}.` };
@@ -286,7 +306,7 @@ export function openReviewPlan(row: Pick<RowData, 'name' | 'provider' | 'head' |
 export function copyLinkPlan(row: Pick<RowData, 'name' | 'provider' | 'head' | 'hosted' | 'review'>): OpenPlan {
   const plan = openReviewPlan(row, { reviewListUrl: () => '' });
   if (plan.kind === 'notify') return plan;
-  if (row.review?.kind === 'loaded' && row.review.review) return plan;
+  if ((row.review?.kind === 'loaded' && row.review.review) || row.review?.kind === 'pushed') return plan;
   const branch = row.head.kind === 'branch' ? row.head.name : '';
   return { kind: 'notify', text: `No merge request loaded for ${branch} in ${row.name}.` };
 }

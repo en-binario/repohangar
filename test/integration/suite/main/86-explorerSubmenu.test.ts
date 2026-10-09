@@ -31,12 +31,17 @@ describe('Explorer RepoHangar submenu', () => {
     api = await ready(14);
   });
 
-  it('lists Show in RepoHangar, Fetch and Pull (ff) in the RepoHangar submenu', () => {
+  it('lists Show in RepoHangar, Fetch and Pull (ff), then the merge request items of hosted roots, in the RepoHangar submenu', () => {
     assert.deepEqual(manifest.contributes.submenus, [{ id: 'repohangar.explorer', label: 'RepoHangar' }]);
     const titles = Object.fromEntries(manifest.contributes.commands.map((c) => [c.command, c.title]));
     assert.deepEqual(
       (manifest.contributes.menus['repohangar.explorer'] ?? []).map((m) => titles[m.command as string]),
-      ['Show in RepoHangar', 'Fetch', 'Pull (ff)'],
+      ['Show in RepoHangar', 'Fetch', 'Pull (ff)', 'Create MR', 'Create MR…', 'Open MR'],
+    );
+    // mr-creation: Merge request menu items, only on the roots of GitLab and GitHub repositories.
+    assert.deepEqual(
+      (manifest.contributes.menus['repohangar.explorer'] ?? []).slice(3).map((m) => m.when),
+      Array(3).fill('resourcePath in repohangar.hostedRoots'),
     );
     const item = manifest.contributes.menus['explorer/context']?.find((m) => m.submenu === 'repohangar.explorer');
     assert.equal(item?.group, 'navigation@101');

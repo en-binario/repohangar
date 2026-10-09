@@ -10,14 +10,20 @@ import {
   chunks,
   gqlString,
   missingFields,
+  type CreateInput,
+  type CreateNotice,
+  type CreateOutcome,
   type HostingProvider,
+  type ProjectInfo,
   type ReviewAnswer,
   type ReviewItem,
   type ReviewOptions,
   type ReviewResult,
   type Selection,
   type UserInfo,
+  type UserStores,
 } from './provider';
+import { isLimitError, limitNotice, notFoundNotice } from '../mr/users';
 import { selectionSet, valueAt, withoutField } from './selection';
 
 export const GITLAB_SELECTION: Selection = [
@@ -151,6 +157,158 @@ export class GitLabProvider implements HostingProvider {
 
   compareUrl(projectPath: string, target: string, branch: string): string {
     return `${this.origin}/${projectPath}/-/compare/${pathSegment(target)}...${pathSegment(branch)}`;
+  }
+
+  // ---------------------------------------------------------------------------------------------------------------
+  // Merge request creation (mr-creation: GitLab create request, Reviewers and assignees, Undo, Reviewers after
+  // connecting)
+
+  async projectInfo(projectPath: string, credential: Credential): Promise<ProjectInfo> {
+    const answer = await this.http.request<{ default_branch?: unknown; squash_option?: unknown }>({ url: this.project(projectPath), credential });
+    const option = answer.json?.squash_option;
+    return {
+      ...(typeof answer.json?.default_branch === 'string' ? { defaultBranch: answer.json.default_branch } : {}),
+      ...(option === 'never' || option === 'always' || option === 'default_on' || option === 'default_off' ? { squashOption: option } : {}),
+    };
+  }
+
+  reviewUrl(projectPath: string, number: number): string {
+    return `${this.origin}/${projectPath}/-/merge_requests/${number}`;
+  }
+
+  /** GitLab user IDs of usernames, from `GET /users?username=`, kept per host; unknown names are left out. */
+  async userIds(names: readonly string[], credential: Credential, stores: UserStores): Promise<{ ids: Map<string, number>; unknown: string[] }> {
+    const ids = new Map<string, number>();
+    const unknown: string[] = [];
+    for (const name of names) {
+      const cached = stores.userId(this.host, name);
+      if (cached !== undefined) {
+        ids.set(name, cached);
+        continue;
+      }
+      const answer = await this.http.request<{ id?: unknown; username?: unknown }[]>({
+        url: `${this.restUrl}/users?username=${encodeURIComponent(name)}`,
+        credential,
+      });
+      const user = Array.isArray(answer.json) ? answer.json.find((u) => u.username === name) : undefined;
+      if (typeof user?.id === 'number') {
+        ids.set(name, user.id);
+        stores.setUserId(this.host, name, user.id);
+      } else {
+        unknown.push(name);
+      }
+    }
+    return { ids, unknown };
+  }
+
+  async createReview(input: CreateInput, credential: Credential, stores: UserStores): Promise<CreateOutcome> {
+    const notices: CreateNotice[] = [];
+    const single = stores.singleReviewer(this.host);
+    const resolved = await this.userIds([...new Set([...input.reviewers, ...input.assignees])], credential, stores);
+    for (const name of resolved.unknown) {
+      notices.push(notFoundNotice(input.reviewers.includes(name) ? 'Reviewer' : 'Assignee', name, this.host));
+    }
+    const known = (names: string[]) => names.filter((n) => resolved.ids.has(n));
+    let reviewers = known(input.reviewers);
+    let assignees = known(input.assignees);
+    const wantedReviewers = reviewers;
+    const wantedAssignees = assignees;
+    if (single) {
+      reviewers = reviewers.slice(0, 1);
+      assignees = assignees.slice(0, 1);
+    }
+    const body = (r: string[], a: string[]) => ({
+      source_branch: input.source,
+      target_branch: input.target,
+      title: input.draft ? `Draft: ${input.title}` : input.title,
+      description: input.description,
+      squash: input.squash,
+      remove_source_branch: input.deleteSourceBranch,
+      ...(a.length ? { assignee_ids: a.map((n) => resolved.ids.get(n)) } : {}),
+      ...(r.length ? { reviewer_ids: r.map((n) => resolved.ids.get(n)) } : {}),
+      ...(input.labels.length ? { labels: input.labels.join(',') } : {}),
+    });
+    const url = `${this.project(input.projectPath)}/merge_requests`;
+    type Created = { iid?: unknown; web_url?: unknown; reviewers?: { username?: unknown }[]; assignees?: { username?: unknown }[]; labels?: unknown };
+    let created: Created;
+    try {
+      created = (await this.http.request<Created>({ method: 'POST', url, credential, body: body(reviewers, assignees) })).json;
+    } catch (error) {
+      if (!(error instanceof HttpError)) throw error;
+      if (error.kind === 'status' && error.status === 409) {
+        const iid = /!(\d+)/.exec(error.message)?.[1];
+        return iid ? { kind: 'exists', number: Number(iid), url: this.reviewUrl(input.projectPath, Number(iid)) } : { kind: 'exists' };
+      }
+      if (error.kind === 'status' && isLimitError(error.status, error.message) && (reviewers.length > 1 || assignees.length > 1)) {
+        stores.setSingleReviewer(this.host);
+        reviewers = reviewers.slice(0, 1);
+        assignees = assignees.slice(0, 1);
+        created = (await this.http.request<Created>({ method: 'POST', url, credential, body: body(reviewers, assignees) })).json;
+      } else if (error.kind === 'status' || error.kind === 'timeout') {
+        return { kind: 'failed', ...(error.status === undefined ? {} : { status: error.status }), message: error.message };
+      } else {
+        throw error;
+      }
+    }
+    const names = (list: Created['reviewers']) => (Array.isArray(list) ? list.map((u) => String(u.username)) : []);
+    const appliedReviewers = names(created.reviewers);
+    const appliedAssignees = names(created.assignees);
+    const missingReviewers = wantedReviewers.filter((n) => !appliedReviewers.includes(n));
+    const missingAssignees = wantedAssignees.filter((n) => !appliedAssignees.includes(n));
+    if (missingReviewers.length) notices.push(limitNotice('reviewer', appliedReviewers, missingReviewers));
+    if (missingAssignees.length) notices.push(limitNotice('assignee', appliedAssignees, missingAssignees));
+    const number = Number(created.iid);
+    return {
+      kind: 'created',
+      number,
+      url: typeof created.web_url === 'string' ? created.web_url : this.reviewUrl(input.projectPath, number),
+      applied: {
+        reviewers: appliedReviewers,
+        assignees: appliedAssignees,
+        labels: Array.isArray(created.labels) ? created.labels.map(String) : input.labels,
+      },
+      notices,
+    };
+  }
+
+  /** Reviewers and assignees added after a push-options creation (Reviewers after connecting). */
+  async updateReviewers(
+    projectPath: string,
+    iid: number,
+    reviewerNames: string[],
+    assigneeNames: string[],
+    credential: Credential,
+    stores: UserStores,
+  ): Promise<{ notices: CreateNotice[]; reviewers: string[] }> {
+    const resolved = await this.userIds([...new Set([...reviewerNames, ...assigneeNames])], credential, stores);
+    const notices: CreateNotice[] = resolved.unknown.map((n) => notFoundNotice(reviewerNames.includes(n) ? 'Reviewer' : 'Assignee', n, this.host));
+    const reviewers = reviewerNames.filter((n) => resolved.ids.has(n));
+    const assignees = assigneeNames.filter((n) => resolved.ids.has(n));
+    const answer = await this.http.request<{ reviewers?: { username?: unknown }[] }>({
+      method: 'PUT',
+      url: `${this.project(projectPath)}/merge_requests/${iid}`,
+      credential,
+      body: {
+        reviewer_ids: reviewers.map((n) => resolved.ids.get(n)),
+        ...(assignees.length ? { assignee_ids: assignees.map((n) => resolved.ids.get(n)) } : {}),
+      },
+    });
+    const applied = Array.isArray(answer.json?.reviewers) ? answer.json.reviewers.map((u) => String(u.username)) : reviewers;
+    const missing = reviewers.filter((n) => !applied.includes(n));
+    if (missing.length) notices.push(limitNotice('reviewer', applied, missing));
+    return { notices, reviewers: applied };
+  }
+
+  async closeReview(projectPath: string, number: number, credential: Credential): Promise<void> {
+    await this.http.request({ method: 'PUT', url: `${this.project(projectPath)}/merge_requests/${number}`, credential, body: { state_event: 'close' } });
+  }
+
+  async searchUsers(projectPath: string, text: string, credential: Credential): Promise<string[]> {
+    const answer = await this.http.request<{ username?: unknown }[]>({
+      url: `${this.project(projectPath)}/members/all?query=${encodeURIComponent(text)}&per_page=20`,
+      credential,
+    });
+    return Array.isArray(answer.json) ? answer.json.map((u) => String(u.username)) : [];
   }
 }
 

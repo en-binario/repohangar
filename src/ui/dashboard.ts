@@ -7,6 +7,7 @@ import type { GitApiAccess } from '../git/api';
 import type { Registry } from '../git/registry';
 import { dashboardState } from '../shared/format';
 import type { GraphVariant, NameClick } from '../shared/graph';
+import type { DrawerData, DrawerEdits } from '../shared/drawer';
 import type { FirstRunPanel } from '../shared/model';
 import { parseViewMessage, type HostMessage, type Snapshot, type ViewMessage } from '../shared/protocol';
 import type { RowStore } from '../state/store';
@@ -29,6 +30,14 @@ export interface DashboardProviders {
   chooseProvider(host: string): Promise<void>;
   skipHost(host: string): Promise<void>;
   firstRunDone(): Promise<void>;
+}
+
+/** What the dashboard asks of merge request creation (mr-creation: Create MR drawer). */
+export interface DashboardDrawer {
+  drawerChange(id: string, profile: string, edits: DrawerEdits): Promise<void>;
+  drawerCreate(id: string, profile: string, edits: DrawerEdits): Promise<void>;
+  drawerClose(): void;
+  drawerSearchUsers(id: string, text: string): void;
 }
 
 export interface FirstPaint {
@@ -58,6 +67,10 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
   selection: readonly string[] = [];
   /** The row Show in RepoHangar moves the focus to once the webview is ready */
   private pendingReveal: string | undefined;
+  /** The drawer posted once the webview is ready */
+  private pendingDrawer: DrawerData | null | undefined;
+  /** Set after construction by merge request creation. */
+  drawer: DashboardDrawer | undefined;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -145,6 +158,23 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
     }
   }
 
+  /** Opens or closes the Create MR drawer; posted when the webview is ready. */
+  showDrawer(data: DrawerData | null): void {
+    this.pendingDrawer = data;
+    if (this.ready) this.flushDrawer();
+  }
+
+  private flushDrawer(): void {
+    if (this.pendingDrawer === undefined) return;
+    const data = this.pendingDrawer;
+    this.pendingDrawer = undefined;
+    this.post({ type: 'drawer', data });
+  }
+
+  postDrawerUsers(id: string, users: string[]): void {
+    this.post({ type: 'drawerUsers', id, users });
+  }
+
   private flushReveal(): void {
     const id = this.pendingReveal;
     if (id === undefined) return;
@@ -208,6 +238,7 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
         this.ready = true;
         this.postSnapshot();
         this.flushReveal();
+        this.flushDrawer();
         return;
       case 'firstPaint':
         this.firstPaintEmitter.fire({ ms: Date.now() - this.openedAt, rows: message.rows });
@@ -250,6 +281,18 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
         return;
       case 'firstRunDone':
         await this.providers?.firstRunDone();
+        return;
+      case 'drawerChange':
+        await this.drawer?.drawerChange(message.id, message.profile, message.edits);
+        return;
+      case 'drawerCreate':
+        await this.drawer?.drawerCreate(message.id, message.profile, message.edits);
+        return;
+      case 'drawerClose':
+        this.drawer?.drawerClose();
+        return;
+      case 'drawerSearchUsers':
+        this.drawer?.drawerSearchUsers(message.id, message.text);
         return;
     }
   }

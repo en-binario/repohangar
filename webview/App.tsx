@@ -15,9 +15,11 @@ import {
 import { nameClickAction, type GraphVariant } from '../src/shared/graph';
 import type { ChipId, FirstRunButton, FirstRunPanel, GroupingMode, RowAction, RowData, RowDetails } from '../src/shared/model';
 import type { HostMessage, Snapshot, ViewMessage } from '../src/shared/protocol';
-import { compareState, openReviewLabel, reviewCell, reviewDetails } from '../src/shared/review';
+import type { DrawerData } from '../src/shared/drawer';
+import { compareState, openReviewLabel, reviewDetails, rowReviewCell } from '../src/shared/review';
 import { detailsButtons } from '../src/shared/rowMenu';
 import { layout, rowKey, type GridItem } from './layout';
+import { Drawer } from './Drawer';
 import { BatchButtons, HoverActions, RowMenu, syncClickAction } from './RowActions';
 
 export interface VsCodeApi {
@@ -41,7 +43,7 @@ const EMPTY_VIEW: PersistedView = { filter: '', chips: [], selected: [], expande
  * keys, shown before the navigation hints.
  */
 export const ACTION_HINTS =
-  'f fetch · p pull · P push · b switch · t terminal · . more · g graph · e explorer · s source control · o open MR';
+  'f fetch · p pull · P push · b switch · t terminal · . more · g graph · e explorer · s source control · m MR · M MR… · o open MR';
 export const KEY_HINTS = '↑↓ move · Space select · / filter · ⏎ details · ? keys';
 
 export const KEY_HELP: readonly [string, string][] = [
@@ -69,6 +71,8 @@ export const KEY_HELP: readonly [string, string][] = [
   ['g', 'Open the focused row in the graph'],
   ['e', 'Reveal the focused row in the Explorer'],
   ['s', 'Show the focused row in Source Control'],
+  ['m', 'Create the merge request of the focused row with its MR profile'],
+  ['M', 'Create the merge request of the focused row in the drawer'],
   ['o', 'Open the merge request or pull request of the focused row'],
 ];
 
@@ -103,6 +107,9 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
   const [menuFor, setMenuFor] = useState<string | null>(null);
   /** The row Show in RepoHangar asked to focus, until the grid shows it */
   const [revealId, setRevealId] = useState<string | null>(null);
+  /** The Create MR drawer and the user suggestions for it (mr-creation: Create MR drawer) */
+  const [drawer, setDrawer] = useState<DrawerData | null>(null);
+  const [drawerUsers, setDrawerUsers] = useState<string[]>([]);
   const focusRequested = useRef(false);
   const filterRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -132,6 +139,11 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
         setDetails((current) => new Map(current).set(message.id, message.details));
       } else if (message.type === 'reveal') {
         setRevealId(message.id);
+      } else if (message.type === 'drawer') {
+        setDrawer(message.data);
+        setDrawerUsers([]);
+      } else if (message.type === 'drawerUsers') {
+        setDrawerUsers(message.users);
       }
     };
     window.addEventListener('message', onMessage);
@@ -272,7 +284,13 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
       e: 'revealInExplorer',
       s: 'showInSourceControl',
       o: 'openReview',
+      M: 'createMrEdit',
     };
+    // m with rows selected is left to merge requests for a selection (roadmap phase 3).
+    if (e.key === 'm' && view.selected.length === 0 && focusedRow) {
+      e.preventDefault();
+      return runAction(focusedRow.id, 'createMr');
+    }
     if (e.key === 'F') {
       e.preventDefault();
       return runBatch('fetchAll');
@@ -389,7 +407,7 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
   const chipActive = (id: ChipId | 'all') => (id === 'all' ? view.chips.length === 0 : view.chips.includes(id));
 
   return (
-    <div class="dashboard" data-graph={snapshot.graph} data-name-click={snapshot.nameClick} data-first-run-pending={snapshot.firstRunPending}>
+    <div class={drawer ? 'dashboard with-drawer' : 'dashboard'} data-graph={snapshot.graph} data-name-click={snapshot.nameClick} data-first-run-pending={snapshot.firstRunPending}>
       <div class="toolbar" role="toolbar" aria-label="Filters">
         <BatchButtons selected={view.selected.length} onRun={(action) => runBatch(action === 'fetch' ? 'fetchAll' : 'pullAllFf')} />
         <input
@@ -497,6 +515,8 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
         {view.selected.length > 0 && <span class="selected-count">{`${view.selected.length} selected`}</span>}
         <span class="hints">{`${ACTION_HINTS} · ${KEY_HINTS}`}</span>
       </div>
+
+      {drawer && <Drawer data={drawer} users={drawerUsers} post={(m) => api.postMessage(m)} onClose={() => setDrawer(null)} />}
 
       {helpOpen && (
         <div class="help" role="dialog" aria-label="Keyboard shortcuts">
@@ -691,7 +711,26 @@ function ReviewCellView(props: {
   onSignIn(host: string): void;
   onChooseProvider(host: string): void;
 }) {
-  const cell = reviewCell(props.row.review, props.now);
+  const cell = rowReviewCell(props.row, props.now);
+  if (cell.kind === 'create' || cell.kind === 'pushed') {
+    const action: RowAction = cell.kind === 'create' ? 'createMrDirect' : 'openReview';
+    return (
+      <button
+        type="button"
+        class={cell.kind === 'create' ? 'review-button create' : 'review-ref'}
+        tabIndex={-1}
+        aria-label={cell.label}
+        title={cell.tooltip ?? cell.label}
+        data-review={cell.kind}
+        onClick={(e) => {
+          e.stopPropagation();
+          props.onAction(action);
+        }}
+      >
+        {cell.text}
+      </button>
+    );
+  }
   if ((cell.kind === 'signIn' || cell.kind === 'unknownHost') && cell.host) {
     const host = cell.host;
     const run = cell.kind === 'signIn' ? () => props.onSignIn(host) : () => props.onChooseProvider(host);

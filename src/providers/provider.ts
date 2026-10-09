@@ -39,7 +39,7 @@ export interface UserInfo {
   username: string;
 }
 
-export interface HostingProvider {
+export interface HostingProvider extends ReviewWriter {
   readonly kind: HostedProvider;
   /** The remote host, lower-cased, without port */
   readonly host: string;
@@ -112,4 +112,68 @@ export function missingFields(errors: unknown): { field: string; type: string }[
     if (match) out.push({ field: match[1] as string, type: match[2] as string });
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Merge request creation (mr-creation; add-mr-creation design D-4)
+
+export interface ProjectInfo {
+  defaultBranch?: string;
+  /** GitLab `squash_option` */
+  squashOption?: 'never' | 'always' | 'default_on' | 'default_off';
+  /** GitHub repository settings */
+  allowSquashMerge?: boolean;
+  allowAutoMerge?: boolean;
+  deleteBranchOnMerge?: boolean;
+}
+
+export interface CreateInput {
+  projectPath: string;
+  source: string;
+  target: string;
+  title: string;
+  description: string;
+  draft: boolean;
+  squash: boolean;
+  deleteSourceBranch: boolean;
+  /** Usernames, `@me` already replaced and the author removed */
+  reviewers: string[];
+  /** GitHub team slugs */
+  teams: string[];
+  assignees: string[];
+  labels: string[];
+}
+
+/** Where GitLab user IDs and single-reviewer hosts are kept (`globalState`). */
+export interface UserStores {
+  userId(host: string, name: string): number | undefined;
+  setUserId(host: string, name: string, id: number): void;
+  singleReviewer(host: string): boolean;
+  setSingleReviewer(host: string): void;
+}
+
+export interface CreateNotice {
+  text: string;
+  button?: 'Open Settings' | 'Sign In…';
+}
+
+export type CreateOutcome =
+  | {
+      kind: 'created';
+      number: number;
+      url: string;
+      applied: { reviewers: string[]; assignees: string[]; labels: string[] };
+      notices: CreateNotice[];
+    }
+  /** The provider answered that the branch already has an open review; `number` when the answer names it */
+  | { kind: 'exists'; number?: number; url?: string }
+  | { kind: 'failed'; status?: number; message: string };
+
+export interface ReviewWriter {
+  projectInfo(projectPath: string, credential: Credential): Promise<ProjectInfo>;
+  createReview(input: CreateInput, credential: Credential, stores: UserStores): Promise<CreateOutcome>;
+  closeReview(projectPath: string, number: number, credential: Credential): Promise<void>;
+  /** Usernames that match the text, for the drawer's suggestions */
+  searchUsers(projectPath: string, text: string, credential: Credential): Promise<string[]>;
+  reviewUrl(projectPath: string, number: number): string;
 }

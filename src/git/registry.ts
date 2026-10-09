@@ -4,7 +4,7 @@
 import { basename } from 'node:path';
 import * as vscode from 'vscode';
 import type { API, Repository } from './git';
-import { readLastFetch, readOperation, readRemoteHead, readStashCount } from './fastPaths';
+import { readLastFetch, readOperation, readRef, readRemoteHead, readStashCount } from './fastPaths';
 import { nodeFileSystem } from './fsPort';
 import { resolveGitDirs, type GitDirs } from './gitDirs';
 import { assignGroup } from './groups';
@@ -25,6 +25,7 @@ const GIT_DIR_FILES = 'HEAD,logs/HEAD,MERGE_HEAD,CHERRY_PICK_HEAD,REVERT_HEAD,re
 /** Files in the common git dir: refs (branches, remotes, stash) and the last fetch. Never the index (D-8). */
 const COMMON_DIR_FILES = 'refs/**,packed-refs,FETCH_HEAD,logs/refs/stash';
 const STATUS_DEBOUNCE_MS = 150;
+/** RefType.RemoteHead of the Git API (a const enum that cannot be imported) */
 
 interface Entry {
   repository: Repository;
@@ -47,6 +48,8 @@ export class Registry implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
   private readonly apiDisposables: vscode.Disposable[] = [];
   private readonly detailsCache = new Map<string, { head: string; details: RowDetails }>();
+  /** Commits ahead of the default branch per repository, by HEAD and target commit */
+  private readonly aheadCache = new Map<string, { key: string; count: number | undefined }>();
   private readonly countEmitter = new vscode.EventEmitter<void>();
   /** Fires when a repository is added or removed. */
   readonly onDidChangeRepositories = this.countEmitter.event;
@@ -214,9 +217,38 @@ export class Registry implements vscode.Disposable {
       stashes,
       lastFetch,
       ...(HEAD?.commit ? { headSha: HEAD.commit } : {}),
+      ...(await this.aheadOfDefault(id, repository, dirs?.commonDir, chosen?.name, defaultBranch)),
       ...(parsed?.hosted ? { hosted: { host: parsed.host, projectPath: parsed.projectPath, webUrl: parsed.webUrl } } : {}),
       defaultBranch,
     };
+  }
+
+  /**
+   * Commits of HEAD that `<remote>/<default branch>` lacks (`git rev-list --count`, local, no network), for the
+   * [Create MR] button; computed again only when HEAD or the target commit moved.
+   */
+  private async aheadOfDefault(
+    id: string,
+    repository: Repository,
+    commonDir: string | undefined,
+    remote: string | undefined,
+    branch: string | null,
+  ): Promise<{ aheadOfDefault?: number }> {
+    const head = repository.state.HEAD?.commit;
+    if (!commonDir || !remote || !branch || !head) return {};
+    const target = await readRef(commonDir, `refs/remotes/${remote}/${branch}`, nodeFileSystem);
+    if (!target) return {};
+    const key = `${head}:${target}`;
+    const cached = this.aheadCache.get(id);
+    if (cached?.key === key) return cached.count === undefined ? {} : { aheadOfDefault: cached.count };
+    let count: number | undefined;
+    try {
+      count = Number((await runGit(this.api?.git.path ?? 'git', ['rev-list', '--count', `${target}..${head}`], repository.rootUri.fsPath)).trim());
+    } catch {
+      count = undefined;
+    }
+    this.aheadCache.set(id, { key, count: Number.isFinite(count) ? count : undefined });
+    return count === undefined || !Number.isFinite(count) ? {} : { aheadOfDefault: count };
   }
 
   private add(repository: Repository): void {
@@ -308,6 +340,7 @@ export class Registry implements vscode.Disposable {
     for (const d of entry.disposables) d.dispose();
     this.entries.delete(id);
     this.detailsCache.delete(id);
+    this.aheadCache.delete(id);
     this.store.remove(id);
     this.countEmitter.fire();
   }
