@@ -38,7 +38,7 @@ Rows update as soon as the Git extension sees a change; RepoHangar never polls.
 | `g` | Open the focused row in Git Graph (or the Source Control Graph) |
 | `e` | Reveal the focused row in the Explorer |
 | `s` | Show the focused row in Source Control |
-| `m` | Create the merge request or pull request of the focused row with its profile's defaults |
+| `m` | Create the merge request or pull request of the focused row with its profile's defaults, or one per selected row, linked to each other |
 | `M` | Open the Create MR drawer for the focused row |
 | `o` | Open the merge request or pull request of the focused row |
 | `b` | Switch branch in the focused row with VS Code's branch picker, or in the selected rows |
@@ -130,6 +130,28 @@ assignees, labels, squash, delete source branch and draft. `Ctrl+Enter` creates,
 **Create MR…** and **Open MR** are also in the Source Control Repositories menu and the Explorer **RepoHangar**
 submenu of GitLab and GitHub repositories.
 
+### Merge requests for several repositories
+
+Select the repositories of a feature (filter by its ticket and press `Ctrl+A`) and press `m`, click **⤴ Create MRs (3)**
+in the toolbar, or run **RepoHangar: Create Merge Request (Defaults)** while the dashboard has rows selected. RepoHangar
+creates one merge request or pull request per repository, in parallel and with no dialog, each with the profile its own
+rules choose and its own checks: a repository that is not ready is skipped with its reason, and the others go on. With
+`repohangar.mr.quickCreate` set to `"confirm"`, one quick pick lists them all first.
+
+When they are created, each description gets a **Related:** section that links the others, on GitLab and GitHub alike:
+
+```text
+Related:
+- ledger !143 https://git.acme.com/payments/ledger/-/merge_requests/143
+- web-shop #311 https://github.com/acme/web-shop/pull/311
+```
+
+It goes where the description has `{related}`, else at the end, between hidden markers, so creating the set again
+replaces it instead of adding a second one. A review that already existed is linked too; one created on GitLab without
+a token is not. The result panel lists every repository (`✓ billing-api  !142  git.acme.com/payments/billing-api
+(pushed 2)`) with **Open ↗**, **Copy all links**, **Retry failed** for the ones that failed, which links all of them
+again, and **Close**.
+
 ### MR profiles
 
 A profile is a named set of defaults in `repohangar.mr.profiles`, at user scope (yours, every workspace) or workspace
@@ -185,6 +207,7 @@ Titles and descriptions take these placeholders, shown for the branch `feature/A
 | `{defaultBranch}` | `main` |
 | `{latestRelease}` | The highest `release/*` branch of the remote, by version |
 | `{me}` | Your username on the host |
+| `{related}` | The links to the other merge requests created with it (see *Merge requests for several repositories*); empty for one repository |
 
 With exactly one commit ahead and the default title, the commit subject is the title. `template:default` uses the
 repository's own template (`.gitlab/merge_request_templates/Default.md`, `.github/pull_request_template.md`), read from

@@ -74,7 +74,7 @@ export const KEY_HELP: readonly [string, string][] = [
   ['g', 'Open the focused row in the graph'],
   ['e', 'Reveal the focused row in the Explorer'],
   ['s', 'Show the focused row in Source Control'],
-  ['m', 'Create the merge request of the focused row with its MR profile'],
+  ['m', 'Create the merge request of the focused row with its MR profile, or one per selected row'],
   ['M', 'Create the merge request of the focused row in the drawer'],
   ['o', 'Open the merge request or pull request of the focused row'],
 ];
@@ -262,6 +262,12 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
     api.postMessage({ type: 'runBatch', action, ids });
   };
 
+  /** One merge request per selected row that is still listed. */
+  const createMrs = () => {
+    const ids = view.selected.filter((id) => rows.has(id));
+    if (ids.length > 0) api.postMessage({ type: 'createMrs', ids });
+  };
+
   /** Switch or create a branch in the selected rows, the focused row (`n`) or every row; false when there is none. */
   const runBranch = (trigger: BranchTrigger, focused?: string): boolean => {
     const targets = branchTargets(trigger, view.selected, allRows.map((r) => r.id), focused);
@@ -310,8 +316,12 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
       o: 'openReview',
       M: 'createMrEdit',
     };
-    // m with rows selected is left to merge requests for a selection (roadmap phase 3).
-    if (e.key === 'm' && view.selected.length === 0 && focusedRow) {
+    // m with rows selected creates one merge request per selected row (mr-creation: Create merge requests on a selection).
+    if (e.key === 'm' && view.selected.length > 0) {
+      e.preventDefault();
+      return createMrs();
+    }
+    if (e.key === 'm' && focusedRow) {
       e.preventDefault();
       return runAction(focusedRow.id, 'createMr');
     }
@@ -441,7 +451,8 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
         <BatchButtons
           selected={view.selected.length}
           onRun={(action) => {
-            if (action === 'switch' || action === 'createBranch') runBranch(action === 'switch' ? 'switchBranch' : 'createBranch');
+            if (action === 'createMr') createMrs();
+            else if (action === 'switch' || action === 'createBranch') runBranch(action === 'switch' ? 'switchBranch' : 'createBranch');
             else runBatch(action === 'fetch' ? 'fetchAll' : 'pullAllFf');
           }}
         />
@@ -490,6 +501,7 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
           panel={batchPanel}
           onFix={(id, fix) => api.postMessage({ type: 'fix', id, fix })}
           onRetry={() => api.postMessage({ type: 'retryFailed' })}
+          onCopyLinks={() => api.postMessage({ type: 'copyAllLinks' })}
           onClose={() => {
             setBatchPanel(null);
             api.postMessage({ type: 'closeBatchResult' });

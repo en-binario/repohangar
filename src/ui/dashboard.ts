@@ -86,7 +86,16 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
     private readonly viewState: ViewState,
     private readonly actions: Pick<
       Actions,
-      'runRowAction' | 'runBatch' | 'switchBranchIn' | 'createBranchIn' | 'fix' | 'retryFailed' | 'closeBatchResult' | 'batchPanel'
+      | 'runRowAction'
+      | 'runBatch'
+      | 'switchBranchIn'
+      | 'createBranchIn'
+      | 'createMrsIn'
+      | 'fix'
+      | 'retryFailed'
+      | 'copyAllLinks'
+      | 'closeBatchResult'
+      | 'batchPanel'
     >,
     private readonly graph: { readonly variant: GraphVariant; readonly onDidChange: vscode.Event<void> },
     private readonly providers?: DashboardProviders,
@@ -308,8 +317,14 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
       case 'fix':
         await this.actions.fix(message.id, message.fix);
         return;
+      case 'createMrs':
+        await this.actions.createMrsIn(message.ids);
+        return;
       case 'retryFailed':
         await this.actions.retryFailed();
+        return;
+      case 'copyAllLinks':
+        await this.actions.copyAllLinks();
         return;
       case 'closeBatchResult':
         this.batchResultShown = false;

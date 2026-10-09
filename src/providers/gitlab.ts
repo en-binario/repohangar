@@ -64,7 +64,7 @@ export class GitLabProvider implements HostingProvider {
 
   async reviewStates(items: readonly ReviewItem[], credential: Credential, options: ReviewOptions): Promise<ReviewAnswer> {
     if (options.rest) return this.rest(items, credential);
-    let selection = options.selection ?? GITLAB_SELECTION;
+    let selection: Selection = [...(options.selection ?? GITLAB_SELECTION), ...(options.description ? ['description'] : [])];
     let changed = false;
     let requests = 0;
     const results = new Map<string, ReviewResult>();
@@ -303,6 +303,10 @@ export class GitLabProvider implements HostingProvider {
     await this.http.request({ method: 'PUT', url: `${this.project(projectPath)}/merge_requests/${number}`, credential, body: { state_event: 'close' } });
   }
 
+  async updateDescription(projectPath: string, number: number, description: string, credential: Credential): Promise<void> {
+    await this.http.request({ method: 'PUT', url: `${this.project(projectPath)}/merge_requests/${number}`, credential, body: { description } });
+  }
+
   async searchUsers(projectPath: string, text: string, credential: Credential): Promise<string[]> {
     const answer = await this.http.request<{ username?: unknown }[]>({
       url: `${this.project(projectPath)}/members/all?query=${encodeURIComponent(text)}&per_page=20`,
@@ -345,6 +349,7 @@ function mapGraphql(project: unknown, selection: Selection): ReviewResult {
     mergeStatus: has('detailedMergeStatus') ? ((mr.detailedMergeStatus as string | null | undefined) ?? null) : null,
     autoMerge: mr.autoMergeEnabled === true,
     headSha: typeof mr.diffHeadSha === 'string' ? mr.diffHeadSha : '',
+    ...(has('description') ? { description: typeof mr.description === 'string' ? mr.description : '' } : {}),
   };
   return { kind: 'review', review };
 }
@@ -363,6 +368,7 @@ function mapRest(mr: Record<string, unknown>): ReviewState {
     mergeStatus: typeof mr.detailed_merge_status === 'string' ? mr.detailed_merge_status.toUpperCase() : null,
     autoMerge: mr.merge_when_pipeline_succeeds === true,
     headSha: typeof mr.sha === 'string' ? mr.sha : '',
+    description: typeof mr.description === 'string' ? mr.description : '',
   };
 }
 

@@ -62,6 +62,8 @@ export interface ReviewOptions {
   selection?: Selection;
   /** Use the REST fallback (GitLab) */
   rest?: boolean;
+  /** Also read the description (GitLab `description`, GitHub `body`): the review check before creating only */
+  description?: boolean;
 }
 
 export const CHUNK_SIZE = 50;
@@ -173,6 +175,11 @@ export interface ReviewWriter {
   projectInfo(projectPath: string, credential: Credential): Promise<ProjectInfo>;
   createReview(input: CreateInput, credential: Credential, stores: UserStores): Promise<CreateOutcome>;
   closeReview(projectPath: string, number: number, credential: Credential): Promise<void>;
+  /**
+   * Replaces the description: GitLab `PUT …/merge_requests/<iid>` with `description`, GitHub `PATCH …/pulls/<number>`
+   * with `body` (mr-creation: Related links); throws an `HttpError` when the host refuses it.
+   */
+  updateDescription(projectPath: string, number: number, description: string, credential: Credential): Promise<void>;
   /** Usernames that match the text, for the drawer's suggestions */
   searchUsers(projectPath: string, text: string, credential: Credential): Promise<string[]>;
   reviewUrl(projectPath: string, number: number): string;

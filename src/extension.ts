@@ -119,6 +119,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<TestAp
   const panel = dashboard;
   panel.drawer = mr;
   actions.resultView = panel;
+  actions.mrBatch = mr.mrBatch;
   mr.dashboard = { open: () => panel.open(), postDrawer: (data) => panel.showDrawer(data), postDrawerUsers: (id, users) => panel.postDrawerUsers(id, users) };
   /** Runs a merge request command on its repository: the argument, else the active repository. */
   const onRepository = (run: (id: string) => Promise<void>) => async (arg?: unknown) => {
@@ -202,7 +203,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<TestAp
     }),
     vscode.commands.registerCommand('repohangar.signIn', () => providers.signInCommand()),
     vscode.commands.registerCommand('repohangar.signOut', () => providers.signOutCommand()),
-    vscode.commands.registerCommand('repohangar.mr.create', onRepository((id) => mr.createWithDefaults(id))),
+    // With no argument, a selection in the active dashboard creates one per selected row (add-multi-repo-mrs D-4);
+    // from an editor the selection is not visible, so the active repository is used.
+    vscode.commands.registerCommand('repohangar.mr.create', async (arg?: unknown) => {
+      if (arg === undefined && panel.current?.active && panel.selection.length > 0) {
+        await actions.createMrsIn(panel.selection);
+        return;
+      }
+      await onRepository((id) => mr.createWithDefaults(id))(arg);
+    }),
     vscode.commands.registerCommand('repohangar.mr.createEdit', onRepository((id) => mr.openDrawer(id))),
     // The Source Control and Explorer items: the same commands with the menu titles (mr-creation: Merge request menu items).
     ...(['scm', 'explorer'] as const).flatMap((menu) => [

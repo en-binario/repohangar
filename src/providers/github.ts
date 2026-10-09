@@ -73,7 +73,7 @@ export class GitHubProvider implements HostingProvider {
   }
 
   async reviewStates(items: readonly ReviewItem[], credential: Credential, options: ReviewOptions): Promise<ReviewAnswer> {
-    let selection = options.selection ?? GITHUB_SELECTION;
+    let selection: Selection = [...(options.selection ?? GITHUB_SELECTION), ...(options.description ? ['body'] : [])];
     let changed = false;
     let requests = 0;
     const results = new Map<string, ReviewResult>();
@@ -238,6 +238,10 @@ export class GitHubProvider implements HostingProvider {
     await this.http.request({ method: 'PATCH', url: `${this.repoUrl(projectPath)}/pulls/${number}`, credential, headers: this.headers(), body: { state: 'closed' } });
   }
 
+  async updateDescription(projectPath: string, number: number, description: string, credential: Credential): Promise<void> {
+    await this.http.request({ method: 'PATCH', url: `${this.repoUrl(projectPath)}/pulls/${number}`, credential, headers: this.headers(), body: { body: description } });
+  }
+
   async searchUsers(projectPath: string, text: string, credential: Credential): Promise<string[]> {
     const answer = await this.http.request<{ login?: unknown }[]>({ url: `${this.repoUrl(projectPath)}/assignees?per_page=100`, credential, headers: this.headers() });
     const needle = text.toLowerCase();
@@ -290,6 +294,7 @@ function mapGraphql(repository: unknown, selection: Selection): ReviewResult {
     mergeStatus: has('mergeable') ? ((pr.mergeable as string | null | undefined) ?? null) : null,
     autoMerge: has('autoMergeRequest.mergeMethod') && pr.autoMergeRequest !== null && pr.autoMergeRequest !== undefined,
     headSha: typeof pr.headRefOid === 'string' ? pr.headRefOid : '',
+    ...(has('body') ? { description: typeof pr.body === 'string' ? pr.body : '' } : {}),
   };
   return { kind: 'review', review };
 }

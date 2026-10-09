@@ -6,9 +6,29 @@ import { compareNames } from './format';
 import type { BatchAction, JobResult } from './model';
 
 /** The fix buttons of a result line, a closed set the host validates (design D-6). */
-export type FixId = 'stashAndPull' | 'pullRebase' | 'publish' | 'openScm' | 'showGitOutput' | 'stashAndSwitch' | 'createBranchHere';
+export type FixId =
+  | 'stashAndPull'
+  | 'pullRebase'
+  | 'publish'
+  | 'openScm'
+  | 'showGitOutput'
+  | 'stashAndSwitch'
+  | 'createBranchHere'
+  /** Merge request lines: sign in to the host, then create again; open the review */
+  | 'signIn'
+  | 'openReview';
 
-export const FIX_IDS: readonly FixId[] = ['stashAndPull', 'pullRebase', 'publish', 'openScm', 'showGitOutput', 'stashAndSwitch', 'createBranchHere'];
+export const FIX_IDS: readonly FixId[] = [
+  'stashAndPull',
+  'pullRebase',
+  'publish',
+  'openScm',
+  'showGitOutput',
+  'stashAndSwitch',
+  'createBranchHere',
+  'signIn',
+  'openReview',
+];
 
 export const FIX_LABELS: Record<FixId, string> = {
   stashAndPull: 'Stash and pull',
@@ -18,6 +38,8 @@ export const FIX_LABELS: Record<FixId, string> = {
   showGitOutput: 'Show Git Output',
   stashAndSwitch: 'Stash and switch',
   createBranchHere: 'Create branch here',
+  signIn: 'Sign In…',
+  openReview: 'Open ↗',
 };
 
 export interface ResultLine {
@@ -41,6 +63,10 @@ export interface BatchPanel {
   lines: ResultLine[];
   /** At least one line is `failed` */
   canRetry: boolean;
+  /** Merge requests: `Related links added to all 3 descriptions.` */
+  note?: string;
+  /** Merge requests: at least one review exists, so Copy all links is offered */
+  links?: boolean;
 }
 
 /** Whether a Pull (ff) result counts as up to date rather than updated. */
@@ -48,17 +74,32 @@ function upToDate(result: JobResult): boolean {
   return result.state === 'ok' && result.detail === 'up to date';
 }
 
-const OK_COUNTS: Record<BatchAction, string> = { fetch: 'fetched', pullFf: 'updated', switch: 'switched', createBranch: 'created' };
+const OK_COUNTS: Record<BatchAction, string> = {
+  fetch: 'fetched',
+  pullFf: 'updated',
+  switch: 'switched',
+  createBranch: 'created',
+  createMr: 'created',
+};
+
+/** Whether a merge request result found the review open already. */
+function existed(result: JobResult): boolean {
+  return result.state === 'ok' && result.detail === 'already existed';
+}
 
 /** The counts of a batch, leaving out every count of 0 except the first (batch-operations: Batch results). */
 export function batchCounts(action: BatchAction, results: readonly JobResult[]): string {
-  const ok = results.filter((r) => r.state === 'ok' && !(action === 'pullFf' && upToDate(r))).length;
+  const ok = results.filter((r) => r.state === 'ok' && !(action === 'pullFf' && upToDate(r)) && !(action === 'createMr' && existed(r))).length;
   const skipped = results.filter((r) => r.state === 'skipped').length;
   const failed = results.filter((r) => r.state === 'failed').length;
   const parts = [`✓ ${ok} ${OK_COUNTS[action]}`];
   if (action === 'pullFf') {
     const level = results.filter(upToDate).length;
     if (level > 0) parts.push(`= ${level} up to date`);
+  }
+  if (action === 'createMr') {
+    const found = results.filter(existed).length;
+    if (found > 0) parts.push(`= ${found} already existed`);
   }
   if (skipped > 0) parts.push(`↷ ${skipped} skipped`);
   if (failed > 0) parts.push(`✗ ${failed} failed`);
@@ -83,6 +124,7 @@ function lineDetail(action: BatchAction, result: JobResult, branch: string | und
     case 'switch':
       return `switched to ${branch ?? ''}`;
     case 'createBranch':
+    case 'createMr':
       return 'created';
   }
 }
@@ -91,13 +133,17 @@ function lineDetail(action: BatchAction, result: JobResult, branch: string | und
 export function fixButtons(action: BatchAction, result: JobResult, branch: string | undefined): FixId[] {
   const detail = result.detail ?? '';
   if (result.state === 'ok') return [];
-  if (result.state === 'failed') return action === 'fetch' || action === 'pullFf' ? ['showGitOutput'] : [];
+  if (result.state === 'failed') {
+    if (action === 'fetch' || action === 'pullFf') return ['showGitOutput'];
+    return action === 'createMr' && detail.startsWith('push failed: ') ? ['showGitOutput'] : [];
+  }
   if (detail.endsWith(' in progress') && action !== 'fetch') return ['openScm'];
   if (action === 'pullFf') {
     if (detail.startsWith('dirty (')) return ['stashAndPull'];
     if (detail.startsWith('diverged (')) return ['pullRebase', 'openScm'];
     if (detail === 'no upstream') return ['publish'];
   }
+  if (action === 'createMr' && detail.includes('not signed in to ')) return ['signIn'];
   if (action === 'switch') {
     if (detail.startsWith('dirty (')) return ['stashAndSwitch'];
     if (branch !== undefined && detail === `no branch ${branch}`) return ['createBranchHere'];
@@ -105,13 +151,24 @@ export function fixButtons(action: BatchAction, result: JobResult, branch: strin
   return [];
 }
 
-export function resultLine(action: BatchAction, branch: string | undefined, id: string, name: string, result: JobResult): ResultLine {
+/**
+ * One line of the panel. `detail` replaces the detail of the result (a merge request line); `review` adds Open ↗ in
+ * front of the fix buttons.
+ */
+export function resultLine(
+  action: BatchAction,
+  branch: string | undefined,
+  id: string,
+  name: string,
+  result: JobResult,
+  extras: { detail?: string; review?: boolean } = {},
+): ResultLine {
   return {
     id,
     name,
     state: result.state,
-    text: `${ICONS[result.state]} ${name}  ${lineDetail(action, result, branch)}`,
-    fixes: fixButtons(action, result, branch),
+    text: `${ICONS[result.state]} ${name}  ${extras.detail ?? lineDetail(action, result, branch)}`,
+    fixes: [...(extras.review ? (['openReview'] as FixId[]) : []), ...fixButtons(action, result, branch)],
   };
 }
 

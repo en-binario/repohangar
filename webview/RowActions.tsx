@@ -26,17 +26,31 @@ export function syncClickAction(row: RowData): RowAction | undefined {
   return undefined;
 }
 
-const TOOLBAR_BATCHES: readonly BatchAction[] = ['fetch', 'pullFf', 'switch', 'createBranch'];
+const TOOLBAR_BATCHES: readonly BatchAction[] = ['fetch', 'pullFf', 'switch', 'createBranch', 'createMr'];
 
-/** Fetch all, Pull all (ff), ⎇ Switch… and ＋ Branch…, with the number of selected rows they act on. */
+/**
+ * Fetch all, Pull all (ff), ⎇ Switch…, ＋ Branch… and ⤴ Create MRs, with the number of selected rows they act on;
+ * ⤴ Create MRs needs a selection.
+ */
 export function BatchButtons({ selected, onRun }: { selected: number; onRun(action: BatchAction): void }) {
   return (
     <div class="batch-buttons">
-      {TOOLBAR_BATCHES.map((action) => (
-        <button type="button" key={action} class="batch" data-batch={action} onClick={() => onRun(action)}>
-          {toolbarLabel(action, selected)}
-        </button>
-      ))}
+      {TOOLBAR_BATCHES.map((action) => {
+        const disabled = action === 'createMr' && selected === 0;
+        return (
+          <button
+            type="button"
+            key={action}
+            class="batch"
+            data-batch={action}
+            disabled={disabled}
+            title={disabled ? 'Select the repositories first' : undefined}
+            onClick={() => onRun(action)}
+          >
+            {toolbarLabel(action, selected)}
+          </button>
+        );
+      })}
     </div>
   );
 }

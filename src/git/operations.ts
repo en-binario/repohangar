@@ -133,8 +133,8 @@ export class GitOperations {
     };
   }
 
-  /** The job of a batch action, with the batch's parameters for Switch and Create. */
-  batchJob(action: BatchAction, id: string, params: BatchParams = {}): Job {
+  /** The job of a Git batch action, with the batch's parameters for Switch and Create (merge requests: `MrService`). */
+  batchJob(action: Exclude<BatchAction, 'createMr'>, id: string, params: BatchParams = {}): Job {
     switch (action) {
       case 'fetch':
         return this.fetch(id);

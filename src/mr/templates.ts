@@ -20,6 +20,8 @@ export interface TemplateContext {
   me: string;
   ticketPattern?: string;
   typeMap?: Readonly<Record<string, string>>;
+  /** What `{related}` renders as: the empty section markers in a selection batch, else nothing */
+  related?: string;
 }
 
 export function ticketOf(branch: string, pattern = DEFAULT_TICKET_PATTERN): string {
@@ -86,6 +88,7 @@ export function placeholders(ctx: TemplateContext): Record<string, string> {
     defaultBranch: ctx.defaultBranch,
     latestRelease: latestRelease(ctx.remoteBranches) ?? '',
     me: ctx.me,
+    related: ctx.related ?? '',
   };
 }
 
@@ -97,7 +100,7 @@ export function render(template: string, values: Record<string, string>): string
 /** The title: the single-commit rule, else the rendered template with spaces collapsed and a leading `: ` removed. */
 export function renderTitle(template: string, ctx: TemplateContext, titleExplicit: boolean): string {
   if (ctx.commits.length === 1 && !titleExplicit) return ctx.commits[0] as string;
-  return render(template, placeholders(ctx)).replace(/\s+/g, ' ').trim().replace(/^:\s*/, '');
+  return render(template, placeholders({ ...ctx, related: '' })).replace(/\s+/g, ' ').trim().replace(/^:\s*/, '');
 }
 
 export type TargetResult = { ok: true; target: string } | { ok: false; error: string };
@@ -154,7 +157,8 @@ export async function renderDescription(
 ): Promise<{ text: string; note?: string }> {
   const values = placeholders(ctx);
   const match = /^template:(.+)$/.exec(description.trim());
-  if (!match) return { text: render(description, values) };
+  // `{related}` rendered as nothing leaves no trailing line (mr-profiles: Related placeholder).
+  if (!match) return { text: description.includes('{related}') ? render(description, values).replace(/\s+$/, '') : render(description, values) };
   const name = match[1] as string;
   const own = await repositoryTemplate(provider, name, root, files);
   if (own === undefined) {

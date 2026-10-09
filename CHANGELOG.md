@@ -129,3 +129,9 @@ All notable changes to RepoHangar are recorded here. Entries are written and cla
 - **Changed:** `b` with rows selected switches the selected repositories instead of only the focused row. Without a
   selection, `b`, a click on the Branch cell and the `⎇` hover button still switch the focused row with VS Code's
   branch picker.
+- **Added — merge requests for several repositories.** `m` with rows selected, the toolbar button `⤴ Create MRs (3)`
+  and **RepoHangar: Create Merge Request (Defaults)** while the dashboard has rows selected create one merge request or
+  pull request per repository, in parallel, each with its own profile and checks; one that is not ready is skipped
+  with its reason. Each description then gets a `Related:` section linking the others, at `{related}` (a new
+  placeholder) or at the end, replaced rather than repeated when the set is created again. A result panel lists every
+  repository with **Open ↗**, **Copy all links** and **Retry failed**.

@@ -10,6 +10,7 @@ import type { CreateNotice, HostedProvider, HostingProvider, ProjectInfo, UserSt
 import { postGuards, preGuards, pushPlan, type GuardButton, type UsePushOptions } from './guards';
 import { applySquashPolicy, resolveValues, type ExplicitProfile, type ProfileValues } from './profiles';
 import { pushArguments, reportedMergeRequest } from './pushOptions';
+import { EMPTY_RELATED } from './related';
 import { createdText, existingText, pushedText, type Applied } from './result';
 import { chooseRule, missingProfileText, type Rule } from './rules';
 import { renderDescription, renderTarget, renderTitle, type TemplateContext, type TemplateFiles } from './templates';
@@ -53,6 +54,11 @@ export interface CreateOptions {
   edits?: Partial<ProfileValues>;
   /** A profile chosen in the drawer or the quick input instead of the rules' */
   profile?: string;
+  /**
+   * Part of a selection batch (add-multi-repo-mrs design D-1): `{related}` keeps the related-links section's place, and
+   * an existing review comes with its description, which the related links are merged into.
+   */
+  batch?: boolean;
 }
 
 /** A stop: a guard, a profile error or a failure, with its fix button. */
@@ -94,6 +100,8 @@ export interface Existing {
   ref: string;
   url: string;
   text: string;
+  /** The review's current description, read by the review check of a batch */
+  description?: string;
 }
 
 export interface Created {
@@ -108,6 +116,8 @@ export interface Created {
   url: string;
   pushed: number;
   text: string;
+  /** The description sent with the create request */
+  description: string;
   notices: CreateNotice[];
   openAfterCreate: ProfileValues['openAfterCreate'];
   warning?: { text: string; button: GuardButton };
@@ -123,6 +133,8 @@ export interface Pushed {
   number: number;
   url: string;
   text: string;
+  /** Commits the push sent */
+  pushed: number;
   reviewers: string[];
   /** Assignees after the first, which push options could not set */
   assignees: string[];
@@ -164,7 +176,7 @@ export class CreateFlow {
 
     // Existing review opens instead (API path only: push options need no token).
     if (pre.path === 'api' && credential) {
-      const existing = await this.existing(provider, credential, row.hosted.projectPath, branch, row.name);
+      const existing = await this.existing(provider, credential, row.hosted.projectPath, branch, row.name, options.batch);
       if (existing) return existing;
     }
 
@@ -198,6 +210,7 @@ export class CreateFlow {
       me,
       ...(settings.ticketPattern ? { ticketPattern: settings.ticketPattern } : {}),
       ...(settings.typeMap ? { typeMap: settings.typeMap } : {}),
+      related: options.batch ? EMPTY_RELATED : '',
     };
     const target = renderTarget(values.target, ctx, remote, chosen.profile);
     if (!target.ok) return stop(target.error);
@@ -248,24 +261,63 @@ export class CreateFlow {
     };
   }
 
-  /** The review check before creating: an open review of the branch, or undefined. */
-  private async existing(provider: HostingProvider, credential: Credential, projectPath: string, branch: string, repo: string): Promise<Existing | undefined> {
-    const answer = await provider.reviewStates([{ key: 'self', projectPath, branch }], credential, {}).catch(() => undefined);
+  /** The review check before creating: an open review of the branch, or undefined; in a batch with its description. */
+  private async existing(
+    provider: HostingProvider,
+    credential: Credential,
+    projectPath: string,
+    branch: string,
+    repo: string,
+    description = false,
+  ): Promise<Existing | undefined> {
+    const answer = await provider.reviewStates([{ key: 'self', projectPath, branch }], credential, description ? { description } : {}).catch(() => undefined);
     const result = answer?.results.get('self');
     if (result?.kind !== 'review') return undefined;
     const ref = reference(result.review);
-    return { kind: 'exists', ref, url: result.review.url, text: existingText(ref, branch, repo) };
+    return {
+      kind: 'exists',
+      ref,
+      url: result.review.url,
+      text: existingText(ref, branch, repo),
+      ...(result.review.description === undefined ? {} : { description: result.review.description }),
+    };
+  }
+
+  /**
+   * The target a creation would use, from the settings and local refs only (no request): the detail of the
+   * confirmation before a selection.
+   */
+  async previewTarget(id: string): Promise<string | undefined> {
+    const row = this.port.row(id);
+    if (!row?.hosted || row.head.kind !== 'branch') return undefined;
+    const settings = this.port.settings();
+    const chosen = chooseRule(settings.rules, `${row.hosted.host}/${row.hosted.projectPath}`, row.head.name);
+    const resolved = resolveValues({ profiles: settings.profiles, profile: chosen.profile, set: chosen.set });
+    if (!resolved.ok) return undefined;
+    const remote = row.remote?.name ?? 'origin';
+    const ctx: TemplateContext = {
+      branch: row.head.name,
+      repo: row.name,
+      defaultBranch: row.defaultBranch ?? 'main',
+      commits: [],
+      remoteBranches: await this.port.git.remoteBranches(id, remote),
+      me: '',
+      ...(settings.ticketPattern ? { ticketPattern: settings.ticketPattern } : {}),
+      ...(settings.typeMap ? { typeMap: settings.typeMap } : {}),
+    };
+    const target = renderTarget(resolved.values.target, ctx, remote, chosen.profile);
+    return target.ok ? target.target : undefined;
   }
 
   /** Prepares, pushes when needed and creates (create with defaults, the quick input, the drawer's Create). */
   async create(id: string, options: CreateOptions = {}): Promise<FlowOutcome> {
     const prepared = await this.prepare(id, options);
     if (prepared.kind !== 'prepared') return prepared;
-    return this.send(prepared);
+    return this.send(prepared, options.batch);
   }
 
   /** Pushes and creates a prepared merge request, with the values as prepared (the drawer's edits included). */
-  async send(p: Prepared): Promise<FlowOutcome> {
+  async send(p: Prepared, batch = false): Promise<FlowOutcome> {
     const row = this.port.row(p.id);
     if (!row || row.head.kind !== 'branch' || !row.hosted) return stop('The repository is no longer listed.');
     if (p.path === 'pushOptions') return this.sendWithPushOptions(p, row);
@@ -304,7 +356,9 @@ export class CreateFlow {
       this.port.stores,
     );
     if (outcome.kind === 'exists') {
-      const found = outcome.url && outcome.number !== undefined ? undefined : await this.existing(provider, credential, p.projectPath, p.branch, p.repo);
+      // A batch needs the review's description for its related links.
+      const known = outcome.url && outcome.number !== undefined && !batch;
+      const found = known ? undefined : await this.existing(provider, credential, p.projectPath, p.branch, p.repo, batch);
       if (found) return found;
       const ref = p.provider === 'gitlab' ? `!${outcome.number}` : `#${outcome.number}`;
       return { kind: 'exists', ref, url: outcome.url ?? '', text: existingText(ref, p.branch, p.repo) };
@@ -331,6 +385,7 @@ export class CreateFlow {
       url: outcome.url,
       pushed,
       text: createdText(ref, p.repo, pushed, applied),
+      description: p.description,
       notices: [...users.notices, ...outcome.notices],
       openAfterCreate: p.values.openAfterCreate,
       ...(p.warning ? { warning: p.warning } : {}),
@@ -370,6 +425,7 @@ export class CreateFlow {
       number: reported.iid,
       url: reported.url,
       text: pushedText(pushed, ref, p.branch, p.repo, reviewers, descriptionLeftOut),
+      pushed,
       reviewers,
       assignees,
       ...(p.warning ? { warning: p.warning } : {}),

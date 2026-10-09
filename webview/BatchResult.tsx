@@ -7,10 +7,11 @@ interface Props {
   panel: BatchPanel;
   onFix(id: string, fix: FixId): void;
   onRetry(): void;
+  onCopyLinks(): void;
   onClose(): void;
 }
 
-export function BatchResult({ panel, onFix, onRetry, onClose }: Props) {
+export function BatchResult({ panel, onFix, onRetry, onCopyLinks, onClose }: Props) {
   return (
     <div class="batch-result" role="region" aria-label={panel.title} data-batch-result={panel.kind}>
       <div class="batch-result-head">
@@ -29,7 +30,13 @@ export function BatchResult({ panel, onFix, onRetry, onClose }: Props) {
           </li>
         ))}
       </ul>
+      {panel.note && <p class="batch-result-note">{panel.note}</p>}
       <div class="batch-result-buttons">
+        {panel.links && (
+          <button type="button" class="fix" data-button="copyAllLinks" onClick={onCopyLinks}>
+            Copy all links
+          </button>
+        )}
         {panel.canRetry && (
           <button type="button" class="fix" data-button="retryFailed" onClick={onRetry}>
             Retry failed

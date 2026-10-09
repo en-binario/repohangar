@@ -43,6 +43,8 @@ export function toolbarLabel(action: BatchAction, selectedCount: number): string
       return `⎇ Switch…${count}`;
     case 'createBranch':
       return `＋ Branch…${count}`;
+    case 'createMr':
+      return `⤴ Create MRs${count}`;
   }
 }
 
@@ -57,6 +59,8 @@ export function batchTitle(action: BatchAction, branch = ''): string {
       return `Switch to ${branch}`;
     case 'createBranch':
       return `Create branch ${branch}`;
+    case 'createMr':
+      return 'Create MRs';
   }
 }
 

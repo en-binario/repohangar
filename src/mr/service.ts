@@ -1,5 +1,6 @@
 // Merge request creation in the extension host (mr-creation): the create flow's port, the create job, the result and
-// its buttons, Undo, the push-options result and Connect, the quick create input and the drawer.
+// its buttons, Undo, the push-options result and Connect, the quick create input, the drawer, and merge requests for
+// a selection with their related links.
 
 import { execFile } from 'node:child_process';
 import { readdir } from 'node:fs/promises';
@@ -9,18 +10,22 @@ import type { Repository } from '../git/git';
 import { gitProcessLog, runGit } from '../git/process';
 import type { Registry } from '../git/registry';
 import type { CommandRunner, Notifier } from '../integrations/workbench';
-import type { JobRunner } from '../jobs/runner';
+import type { PanelView } from '../jobs/results';
+import type { Job, JobRunner } from '../jobs/runner';
 import type { RepoHangarLog } from '../log';
 import { GitLabProvider } from '../providers/gitlab';
-import type { ProjectInfo, UserStores } from '../providers/provider';
+import type { HostedProvider, ProjectInfo, UserStores } from '../providers/provider';
 import type { ProviderService } from '../providers/service';
 import type { DrawerData, DrawerEdits } from '../shared/drawer';
 import { plural } from '../shared/format';
 import type { RowData } from '../shared/model';
 import type { RowStore } from '../state/store';
+import type { MrBatch } from '../ui/actions';
 import { CreateFlow, type CreateOptions, type FlowOutcome, type MrSettings, type Prepared, type Stop } from './create';
 import type { UsePushOptions } from './guards';
+import { batchEntry, confirmDetail, entryDetail, mrPanelTitle, relatedNote, writeRelatedLinks, type MrBatchEntry } from './multi';
 import { mergeScopes, type ProfileValues, type RawProfiles } from './profiles';
+import { allLinks } from './related';
 import { closedText, resultPlan, undoExpiredText, UNDO_WINDOW_MS } from './result';
 import { readRules } from './rules';
 import { DEFAULT_TICKET_PATTERN, DEFAULT_TYPE_MAP } from './templates';
@@ -44,9 +49,32 @@ export type QuickCreateChoice =
   | { kind: 'draft'; title: string }
   | undefined;
 
+/** The confirmation before a selection (mr-creation: Create merge requests on a selection). */
+export interface BatchConfirmModel {
+  /** `Create merge requests in 3 repositories` */
+  title: string;
+  /** `Create 3` */
+  label: string;
+  /** `billing-api main ← feature/ABC-12-notes · …` */
+  detail: string;
+}
+
 export interface MrUi {
   quickCreate(model: QuickCreateModel): Promise<QuickCreateChoice>;
 }
+
+/** The confirmation before a selection, replaced by the integration tests. */
+export interface MrBatchUi {
+  /** True when the user picks the Create item; false on Esc */
+  confirmBatch(model: BatchConfirmModel): Promise<boolean>;
+}
+
+export const vscodeMrBatchUi: MrBatchUi = {
+  async confirmBatch(model) {
+    const chosen = await vscode.window.showQuickPick([{ label: model.label, detail: model.detail }], { title: model.title, matchOnDetail: false });
+    return chosen !== undefined;
+  },
+};
 
 export const vscodeMrUi: MrUi = {
   quickCreate(model) {
@@ -92,11 +120,34 @@ export interface MrDashboard {
 export class MrService implements vscode.Disposable {
   readonly flow: CreateFlow;
   ui: MrUi = vscodeMrUi;
+  batchUi: MrBatchUi = vscodeMrBatchUi;
   /** Replaced by the tests to answer the drawer without a webview. */
   dashboard: MrDashboard | undefined;
   private readonly projectInfos = new Map<string, { info: ProjectInfo | undefined; at: number }>();
   private drawer: { id: string; profile: string; edits: DrawerEdits } | undefined;
   private searchTimer: ReturnType<typeof setTimeout> | undefined;
+  /** The last selection batch, one entry per repository: its lines, Retry failed and the related links. */
+  private readonly batchEntries = new Map<string, MrBatchEntry>();
+  /** What the dashboard's batches ask of merge request creation (`Actions.mrBatch`). */
+  readonly mrBatch: MrBatch = {
+    confirm: (ids) => this.confirmBatch(ids),
+    job: (id) => this.batchJob(id),
+    finish: (ids) => this.finishBatch(ids),
+    openReview: async (id) => {
+      const url = this.batchEntries.get(id)?.review?.url;
+      if (url) await this.openUrl(url);
+    },
+    copyAllLinks: async (ids) => {
+      const reviews = ids.flatMap((id) => this.batchEntries.get(id)?.review ?? []);
+      if (reviews.length) await this.writeClipboard(allLinks(reviews));
+    },
+    signIn: async (id) => {
+      const host = this.store.get(id)?.hosted?.host;
+      return host ? this.providers.auth.signIn(host) : false;
+    },
+  };
+  /** Writes the clipboard (integration tests record it instead). */
+  writeClipboard: (text: string) => Promise<unknown> = (text) => Promise.resolve(vscode.env.clipboard.writeText(text));
   /** The clock of the Undo window (integration tests move it). */
   now: () => number = () => Date.now();
   /** Opens a review in the browser (integration tests record it instead). */
@@ -356,6 +407,88 @@ export class MrService implements vscode.Disposable {
   }
 
   // -------------------------------------------------------------------------------------------------------------
+  // Merge requests for a selection (mr-creation: Create merge requests on a selection, Related links)
+
+  /** With `repohangar.mr.quickCreate` `"confirm"`, one quick pick for the whole selection; no request is sent before it. */
+  private async confirmBatch(ids: readonly string[]): Promise<boolean> {
+    const mode = vscode.workspace.getConfiguration('repohangar').get<string>('mr.quickCreate', 'direct');
+    if (mode !== 'confirm') return true;
+    const items = await Promise.all(
+      ids.map(async (id) => {
+        const row = this.store.get(id);
+        const branch = row?.head.kind === 'branch' ? row.head.name : 'detached';
+        return { repo: row?.name ?? id, target: (await this.flow.previewTarget(id)) ?? row?.defaultBranch ?? 'main', branch };
+      }),
+    );
+    return this.batchUi.confirmBatch({
+      title: `Create merge requests in ${plural(ids.length, 'repository', 'repositories')}`,
+      label: `Create ${ids.length}`,
+      detail: confirmDetail(items),
+    });
+  }
+
+  /** One repository of a selection: the single-repository flow with the batch flag, as its job (design D-1). */
+  private batchJob(id: string): Job {
+    return async (ctx) => {
+      this.batchEntries.delete(id);
+      const outcome = await ctx.network(() => this.flow.create(id, { batch: true }));
+      if (outcome.kind === 'created') this.providers.afterPush(id);
+      if (outcome.kind === 'pushed') this.providers.storePushed(id, outcome.branch, outcome.number, outcome.url);
+      const row = this.store.get(id);
+      const entry = batchEntry(outcome, {
+        name: row?.name ?? id,
+        provider: (row?.provider === 'github' ? 'github' : 'gitlab') as HostedProvider,
+        host: row?.hosted?.host ?? '',
+        projectPath: row?.hosted?.projectPath ?? '',
+      });
+      this.batchEntries.set(id, entry);
+      return entry.result;
+    };
+  }
+
+  /**
+   * The related links of the batch (design D-3): one description update per review that has a credential, when the
+   * batch has at least two, in parallel; then what each line and the panel show.
+   */
+  private async finishBatch(ids: readonly string[]): Promise<PanelView> {
+    const entries = new Map(ids.flatMap((id) => {
+      const entry = this.batchEntries.get(id);
+      return entry ? [[id, entry] as const] : [];
+    }));
+    const { links, total } = await writeRelatedLinks(entries, {
+      credential: (host) => this.providers.auth.credential(host),
+      writer: (id, review) => {
+        const webUrl = this.store.get(id)?.hosted?.webUrl;
+        return webUrl ? this.providers.factory.get(review.provider, review.host, new URL(webUrl).origin) : undefined;
+      },
+      concurrency: concurrency(),
+    });
+    for (const [id, link] of links) {
+      if (link.kind === 'failed') this.log.info(`The related links of ${this.store.get(id)?.name ?? id} were not added: ${link.reason}`);
+    }
+    const lines = new Map(
+      ids.map((id) => {
+        const entry = this.batchEntries.get(id);
+        const detail = entry && entryDetail(entry, links.get(id) ?? { kind: 'none' });
+        return [id, { ...(detail === undefined ? {} : { detail }), review: entry?.review !== undefined }] as const;
+      }),
+    );
+    const added = [...links.values()].filter((l) => l.kind === 'added').length;
+    const note = relatedNote(added, total);
+    const branches = ids.map((id) => {
+      const head = this.store.get(id)?.head;
+      return head?.kind === 'branch' ? head.name : undefined;
+    });
+    return {
+      title: mrPanelTitle(branches),
+      ...(note === undefined ? {} : { note }),
+      links: ids.some((id) => this.batchEntries.get(id)?.review !== undefined),
+      lines,
+    };
+  }
+
+
+  // -------------------------------------------------------------------------------------------------------------
   // The drawer (mr-creation: Create MR drawer)
 
   async openDrawer(id: string, options: { profile?: string; edits?: DrawerEdits } = {}): Promise<void> {
@@ -492,3 +625,9 @@ export function drawerData(p: Prepared, row: RowData | undefined, edits: DrawerE
   };
 }
 
+
+/** `repohangar.concurrency` (default 6), the job pool's limit, for the description updates of a batch. */
+function concurrency(): number {
+  const value = vscode.workspace.getConfiguration('repohangar').get<number>('concurrency', 6);
+  return Number.isFinite(value) ? Math.min(32, Math.max(1, Math.floor(value))) : 6;
+}

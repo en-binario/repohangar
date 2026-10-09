@@ -46,3 +46,21 @@ describe('progressText', () => {
     expect(progressText('switch', 1, 3, 'feature/ABC-12-notes')).toBe('Switch to feature/ABC-12-notes: 1/3');
   });
 });
+
+// mr-creation :: Merge request summary matrix (a selection batch runs from the dashboard)
+const created = (ref: string): JobResult => ({ state: 'ok', detail: `created ${ref}` });
+const existed: JobResult = { state: 'ok', detail: 'already existed' };
+const mrCases: [string, number, JobResult[], BatchSummary][] = [
+  ['R1 counts the merge requests created', 4300, [created('!142'), created('!143'), created('#311')],
+    { severity: 'information', text: 'Create MRs — finished in 4.3 s: ✓ 3 created', showOutput: false, showDetails: false }],
+  ['R2 counts the reviews that already existed apart, and the skips', 5000, [created('!142'), created('#311'), existed, { state: 'skipped', detail: 'on main' }],
+    { severity: 'information', text: 'Create MRs — finished in 5.0 s: ✓ 2 created · = 1 already existed · ↷ 1 skipped', showOutput: false, showDetails: false }],
+  ['R3 reports a failure as a warning with Show Git Output', 6100, [created('!142'), created('#311'), { state: 'failed', detail: 'push failed: Permission denied (publickey)' }],
+    { severity: 'warning', text: 'Create MRs — finished in 6.1 s: ✓ 2 created · ✗ 1 failed', showOutput: true, showDetails: false }],
+];
+
+describe('batchSummary for merge requests', () => {
+  it.each(mrCases)('%s', (_name, ms, results, summary) => {
+    expect(batchSummary('createMr', ms, results, { fromDashboard: true })).toEqual(summary);
+  });
+});

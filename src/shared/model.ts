@@ -81,6 +81,8 @@ export interface ReviewState {
   mergeStatus: string | null;
   autoMerge: boolean;
   headSha: string;
+  /** GitLab `description` or GitHub `body`, read only by the review check before creating (add-multi-repo-mrs D-2) */
+  description?: string;
 }
 
 /** The state of a row's MR / PR cell (hosting-providers: Batched review status, Review state cache). */
@@ -167,7 +169,7 @@ export const ROW_ACTIONS: readonly RowAction[] = [
   'createMrEdit',
 ];
 
-export type BatchAction = 'fetch' | 'pullFf' | 'switch' | 'createBranch';
+export type BatchAction = 'fetch' | 'pullFf' | 'switch' | 'createBranch' | 'createMr';
 
 /** What the user chose for the dirty targets of a switch (batch-operations: Uncommitted changes choice). */
 export type DirtyChoice = 'skip' | 'stash' | 'switchAnyway';

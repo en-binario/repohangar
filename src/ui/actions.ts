@@ -9,7 +9,7 @@ import { invalidNameMessage, suggestBranches, type BranchSnapshot } from '../git
 import type { GuardNotice } from '../git/guards';
 import type { GitOperations } from '../git/operations';
 import type { Registry } from '../git/registry';
-import { BatchResults, type LineUpdate } from '../jobs/results';
+import { BatchResults, type LineUpdate, type PanelView } from '../jobs/results';
 import { batchSummary, progressText, recentlyFetchedText } from '../jobs/summary';
 import type { BatchRun, Job, JobRunner } from '../jobs/runner';
 import { batchTargets, branchTargets } from '../shared/batch';
@@ -48,6 +48,20 @@ export interface ResultView {
   /** Shows the panel, or closes it with null; `open` opens the dashboard first (Show Details) */
   showBatchResult(panel: BatchPanel | null, open?: boolean): void;
   updateBatchResultLine(update: LineUpdate): void;
+}
+
+/** Merge requests for a selection (mr-creation: Create merge requests on a selection); set by `MrService`. */
+export interface MrBatch {
+  /** The confirmation of `repohangar.mr.quickCreate` `"confirm"`; true in `"direct"` mode, false when dismissed */
+  confirm(ids: readonly string[]): Promise<boolean>;
+  /** The single-repository flow with the batch flag, as the repository's job (design D-1) */
+  job(id: string): Job;
+  /** After the jobs: the related links of every review of the batch (D-3), and what the panel shows */
+  finish(ids: readonly string[]): Promise<PanelView>;
+  openReview(id: string): Promise<void>;
+  copyAllLinks(ids: readonly string[]): Promise<void>;
+  /** Sign In… of a line; true when the user signed in */
+  signIn(id: string): Promise<boolean>;
 }
 
 export interface BatchOptions {
@@ -91,6 +105,8 @@ export class Actions implements vscode.Disposable {
   branchUi: BranchUi = vscodeBranchUi;
   /** The results of the last batch, which the result panel shows. */
   readonly results = new BatchResults();
+  /** Set after construction by merge request creation. */
+  mrBatch: MrBatch | undefined;
 
   constructor(
     private readonly registry: Registry,
@@ -192,10 +208,13 @@ export class Actions implements vscode.Disposable {
     const listed = ids.filter((id) => this.registry.repository(id));
     if (listed.length === 0) return undefined;
     const params = options.params ?? {};
+    const mrBatch = this.mrBatch;
+    if (action === 'createMr' && !mrBatch) return undefined;
+    const jobFor = (id: string): Job => (action === 'createMr' ? (mrBatch as MrBatch).job(id) : this.operations.batchJob(action, id, params));
     const run = await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Notification, cancellable: true },
       (progress, token) =>
-        this.runner.runBatch(action, listed, (id) => this.operations.batchJob(action, id, params), {
+        this.runner.runBatch(action, listed, jobFor, {
           token,
           onProgress: (done, total) => progress.report({ message: progressText(action, done, total, params.branch) }),
           retry: options.retry,
@@ -205,7 +224,9 @@ export class Actions implements vscode.Disposable {
       this.notify('information', recentlyFetchedText(run.seconds), []);
       return run;
     }
-    if (options.retry) {
+    if (action === 'createMr') {
+      await this.showMrResults(listed, run.results, run.elapsedMs, options.retry ?? false);
+    } else if (options.retry) {
       listed.forEach((id, i) => this.postLine(this.results.replace(id, run.results[i] as JobResult)));
     } else {
       this.showResults(action, params, run.elapsedMs, listed, run.results, options.fromDashboard ?? false);
@@ -219,6 +240,36 @@ export class Actions implements vscode.Disposable {
       if (choice === SHOW_DETAILS) this.resultView?.showBatchResult(this.results.panel() ?? null, true);
     });
     return run;
+  }
+
+  /**
+   * The merge request panel (mr-creation: Merge request result panel), always shown: the related links are written
+   * first, so every line says what they did; after Retry failed, every line of the batch is shown again.
+   */
+  private async showMrResults(ids: readonly string[], results: readonly JobResult[], elapsedMs: number, retry: boolean): Promise<void> {
+    const mrBatch = this.mrBatch as MrBatch;
+    if (retry) {
+      ids.forEach((id, i) => this.results.replace(id, results[i] as JobResult));
+      this.results.apply(await mrBatch.finish(this.results.ids()));
+    } else {
+      const view = await mrBatch.finish(ids);
+      const entries = ids.map((id, i) => ({ id, name: this.name(id), result: results[i] as JobResult }));
+      this.results.start('createMr', {}, elapsedMs, entries, view);
+    }
+    this.resultView?.showBatchResult(this.results.panel() ?? null);
+  }
+
+  /** `m` with rows selected, the toolbar button and `repohangar.mr.create` with a selection (design D-4). */
+  async createMrsIn(ids: readonly string[]): Promise<BatchRun | undefined> {
+    const listed = ids.filter((id) => this.registry.repository(id));
+    if (listed.length === 0 || !this.mrBatch || !(await this.mrBatch.confirm(listed))) return undefined;
+    for (const id of listed) this.touch(id);
+    return this.runBatch('createMr', listed, { fromDashboard: true });
+  }
+
+  /** Copy all links of the merge request panel. */
+  async copyAllLinks(): Promise<void> {
+    if (this.results.action === 'createMr') await this.mrBatch?.copyAllLinks(this.results.ids());
   }
 
   /** A new batch replaces the result panel; it closes when every result is ok. */
@@ -315,6 +366,12 @@ export class Actions implements vscode.Disposable {
       await this.operations.commands.executeCommand(command, ...(fix === 'openScm' ? [repository.rootUri] : []));
       return;
     }
+    if (fix === 'openReview') return this.mrBatch?.openReview(id);
+    if (fix === 'signIn') {
+      // A sign-in creates that repository's review again, then links the batch (Retry failed merge requests).
+      if (await this.mrBatch?.signIn(id)) await this.rerun([id]);
+      return;
+    }
     const branch = this.results.params.branch ?? '';
     const [action, job]: [JobAction, Job] =
       fix === 'stashAndPull'
@@ -339,9 +396,12 @@ export class Actions implements vscode.Disposable {
   }
 
   /** Retry failed: the same batch with the same parameters on the failed repositories only. */
-  async retryFailed(): Promise<BatchRun | undefined> {
+  retryFailed(): Promise<BatchRun | undefined> {
+    return this.rerun(this.results.failedIds());
+  }
+
+  private async rerun(ids: readonly string[]): Promise<BatchRun | undefined> {
     const action = this.results.action;
-    const ids = this.results.failedIds();
     if (action === undefined || ids.length === 0) return undefined;
     for (const id of ids) this.postLine(this.results.setRunning(id, true));
     const run = await this.runBatch(action, ids, { params: this.results.params, retry: true });

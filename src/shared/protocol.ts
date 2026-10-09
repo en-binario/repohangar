@@ -60,9 +60,12 @@ export type ViewMessage =
   /** `b` with rows selected, `n` and the toolbar buttons ⎇ Switch… and ＋ Branch… (batch-operations: Branch batch targets) */
   | { type: 'switchBranch'; ids: string[] }
   | { type: 'createBranch'; ids: string[] }
-  /** The result panel: a fix button, Retry failed and Close */
+  /** `m` with rows selected and the toolbar button ⤴ Create MRs (mr-creation: Create merge requests on a selection) */
+  | { type: 'createMrs'; ids: string[] }
+  /** The result panel: a fix button, Retry failed, Copy all links and Close */
   | { type: 'fix'; id: string; fix: FixId }
   | { type: 'retryFailed' }
+  | { type: 'copyAllLinks' }
   | { type: 'closeBatchResult' }
   /** The selected rows, which the batch commands act on (batch-operations: Batch targets) */
   | { type: 'setSelection'; ids: string[] }
@@ -100,7 +103,9 @@ const SHAPES: Record<ViewMessage['type'], Record<string, Field>> = {
   switchBranch: { ids: 'ids' },
   createBranch: { ids: 'ids' },
   fix: { id: 'string', fix: 'fix' },
+  createMrs: { ids: 'ids' },
   retryFailed: {},
+  copyAllLinks: {},
   closeBatchResult: {},
   setSelection: { ids: 'ids' },
   signIn: { host: 'string' },
