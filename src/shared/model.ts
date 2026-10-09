@@ -39,7 +39,56 @@ export interface RowData {
   stashes: number;
   /** Epoch ms of the newest FETCH_HEAD, or null when never fetched */
   lastFetch: number | null;
+  /** The running or last finished job (git-operations design D-2) */
+  job?: RowJob;
 }
+
+/** Actions that run as a job: one at a time per repository, shown in the Sync cell. */
+export type JobAction = 'fetch' | 'pull' | 'pullFf' | 'push' | 'publish' | 'sync';
+
+export interface JobResult {
+  state: 'ok' | 'skipped' | 'failed';
+  /** The reason of a skip, the message of a failure, or what an ok did (`up to date`) */
+  detail?: string;
+}
+
+export interface RowJob {
+  action: JobAction;
+  state: 'running' | JobResult['state'];
+  detail?: string;
+}
+
+/** Actions on one row, sent by the webview (git-operations design D-3). Push and Publish share `push`. */
+export type RowAction =
+  | 'fetch'
+  | 'pull'
+  | 'push'
+  | 'sync'
+  | 'switchBranch'
+  | 'terminal'
+  | 'stash'
+  | 'stashPop'
+  | 'discardAll'
+  | 'revealInOS'
+  | 'copyPath'
+  | 'copyBranch';
+
+export const ROW_ACTIONS: readonly RowAction[] = [
+  'fetch',
+  'pull',
+  'push',
+  'sync',
+  'switchBranch',
+  'terminal',
+  'stash',
+  'stashPop',
+  'discardAll',
+  'revealInOS',
+  'copyPath',
+  'copyBranch',
+];
+
+export type BatchAction = 'fetch' | 'pullFf';
 
 export interface CommitDetails {
   hash: string;

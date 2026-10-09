@@ -40,6 +40,8 @@ body {
 
 .filter:focus,
 .chip:focus,
+.batch:focus,
+.menu-item:focus,
 .cell:focus,
 select:focus {
   outline: 1px solid var(--vscode-focusBorder);
@@ -85,6 +87,7 @@ select {
 }
 
 .row {
+  position: relative;
   display: grid;
   grid-template-columns: 28px minmax(160px, 1.4fr) minmax(160px, 1.6fr) 90px minmax(120px, 1fr) 90px;
   align-items: center;
@@ -185,6 +188,115 @@ select {
 
 .help td {
   padding: 2px 12px 2px 0;
+}
+
+.batch-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.batch {
+  padding: 2px 10px;
+  color: var(--vscode-button-secondaryForeground);
+  background: var(--vscode-button-secondaryBackground);
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.batch:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.cell.clickable {
+  cursor: pointer;
+}
+
+.cell[data-job='failed'] .symbol {
+  color: var(--vscode-errorForeground);
+}
+
+.cell[data-job='running'] .symbol,
+.cell[data-job='skipped'] .symbol {
+  color: var(--rh-muted);
+}
+
+/* Hover buttons sit over the last cells, so the grid columns do not change (design D-6). */
+.cell.actions {
+  position: absolute;
+  top: 0;
+  right: 4px;
+  bottom: 0;
+  z-index: 1;
+  padding: 0;
+  overflow: visible;
+}
+
+.row-actions {
+  display: none;
+  gap: 2px;
+  align-items: center;
+  height: 100%;
+  background: var(--vscode-list-hoverBackground, var(--vscode-editor-background));
+}
+
+.row.repo:hover .row-actions,
+.row.repo.focused .row-actions {
+  display: flex;
+}
+
+.row-action {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 4px;
+  color: var(--vscode-icon-foreground, var(--vscode-foreground));
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.row-action:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.row-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 4;
+  min-width: 220px;
+  padding: 4px 0;
+  color: var(--vscode-menu-foreground);
+  background: var(--vscode-menu-background);
+  border: 1px solid var(--vscode-menu-border, var(--rh-border));
+  box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+}
+
+.menu-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 3px 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.menu-item:focus,
+.menu-item:hover {
+  color: var(--vscode-menu-selectionForeground);
+  background: var(--vscode-menu-selectionBackground);
+}
+
+.menu-item[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.menu-separator {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--vscode-menu-separatorBackground, var(--rh-border));
 }
 
 @media (prefers-reduced-motion: reduce) {

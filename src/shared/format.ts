@@ -5,17 +5,19 @@ import type {
   ChipId,
   DashboardState,
   GitApiState,
+  JobAction,
   Operation,
   Provider,
   RowData,
   RowDetails,
+  RowJob,
 } from './model';
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
-function plural(n: number, one: string, many: string): string {
+export function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
@@ -86,11 +88,63 @@ export function syncCell(row: RowData): CellText {
   return { text: parts.map((p) => p.text).join(' '), label: parts.map((p) => p.label).join(', ') };
 }
 
+const RUNNING: Record<JobAction, string> = {
+  fetch: 'fetching',
+  pull: 'pulling',
+  pullFf: 'pulling',
+  push: 'pushing',
+  publish: 'publishing',
+  sync: 'syncing',
+};
+
+const ACTION_NAMES: Record<JobAction, string> = {
+  fetch: 'fetch',
+  pull: 'pull',
+  pullFf: 'pull',
+  push: 'push',
+  publish: 'publish',
+  sync: 'sync',
+};
+
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+export interface JobCell extends CellText {
+  /** The message of a failure */
+  tooltip?: string;
+}
+
+/** The job text of the Sync cell (git-operations: Job state in the row); null leaves the cell to the sync state. */
+export function jobCell(job: RowJob | undefined): JobCell | null {
+  if (!job) return null;
+  const name = ACTION_NAMES[job.action];
+  switch (job.state) {
+    case 'running':
+      return { text: `⟳ ${RUNNING[job.action]}`, label: capitalize(RUNNING[job.action]) };
+    case 'skipped':
+      return { text: `↷ ${job.detail ?? 'skipped'}`, label: `Skipped: ${job.detail ?? name}` };
+    case 'failed':
+      return {
+        text: `✗ ${name} failed`,
+        label: `${capitalize(name)} failed${job.detail ? `: ${job.detail}` : ''}`,
+        ...(job.detail ? { tooltip: job.detail } : {}),
+      };
+    case 'ok':
+      return null;
+  }
+}
+
+/** The Sync cell as shown: the job while it runs or after a skip or failure, else the sync state. */
+export function shownSyncCell(row: RowData): JobCell {
+  return jobCell(row.job) ?? syncCell(row);
+}
+
 export interface ChangesCell extends CellText {
   segments: CellText[];
 }
 
-export function isDirty(row: RowData): boolean {
+export function isDirty(row: Pick<RowData, 'counts'>): boolean {
   const c = row.counts;
   return c.conflicts + c.unstaged + c.staged + c.untracked > 0;
 }

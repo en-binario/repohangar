@@ -17,3 +17,27 @@ All notable changes to RepoHangar are recorded here. Entries are written and cla
 - **Added:** **RepoHangar: Refresh** (`repohangar.refresh`) re-reads every repository.
 - **Added:** the settings `repohangar.openOnStartup`, `repohangar.groupBy`, `repohangar.groups`,
   `repohangar.staleFetchHours`, `repohangar.statusBar.enabled` and `repohangar.hosts`.
+- **Added — row actions in the dashboard.** On the focused row, `f` fetches, `p` pulls, `P` pushes (or publishes a
+  branch without upstream), `b` switches branch with VS Code's branch picker and `t` opens a terminal in the
+  repository. A click on the Branch cell switches branch, on the Fetched cell fetches, and on the Sync cell pulls,
+  pushes, publishes or syncs depending on what it shows. Push and Pull refuse a detached HEAD, a rebase or merge in
+  progress, or a push behind the remote branch, and say why (with **Pull** when you are behind). The Sync cell shows
+  `⟳ fetching` while an action runs and `↷ <reason>` or `✗ fetch failed` afterwards; a failure shows a notification
+  with **Show Git Output**.
+- **Added — hover buttons and the `⋯` menu.** Hovering a row shows **Fetch**, **Pull**, **Push** or **Publish**,
+  **Switch Branch…** and **More Actions…**. The `⋯` menu (also `.`) has **Open terminal**, **Stash changes**, **Pop
+  latest stash**, **Discard all changes…** (with VS Code's confirmation), **Reveal in File Explorer**, **Copy path** and
+  **Copy branch name**, and works with `↑` `↓` `Enter` `Esc`.
+- **Added — Fetch all and Pull all (ff).** **RepoHangar: Fetch All** (`repohangar.fetchAll`, `F`, toolbar
+  `⟳ Fetch all`) and **RepoHangar: Pull All (Fast-Forward Only)** (`repohangar.pullAllFf`, toolbar `⇣ Pull all (ff)`)
+  run on every repository, or on the selected rows (`⟳ Fetch (3)`); `f` and `p` with rows selected do the same. Pull
+  (ff) only fast-forwards a clean branch that is behind and not ahead, and skips every other repository with its
+  reason (`dirty (3 files)`, `diverged (↑1 ↓1)`, `detached HEAD`, …); nothing is forced, stashed, merged or rebased. A
+  progress notification with **Cancel** and a summary such as `Pull all (ff) — finished in 6.2 s: ✓ 9 updated ·
+  ↷ 4 skipped · ✗ 1 failed` follow each batch.
+- **Added:** **RepoHangar: Fetch Repository** (`repohangar.fetch`) and **RepoHangar: Pull (Fast-Forward Only)**
+  (`repohangar.pullFf`) act on the repository of the active editor, the one selected in Source Control, or one you
+  pick.
+- **Added:** **Fetch** in the context menu of the Source Control Repositories view.
+- **Added:** the settings `repohangar.concurrency` (how many repositories a batch fetches at once, default `6`) and
+  `repohangar.fetchTimeoutSeconds` (when a fetch counts as failed, default `60`).

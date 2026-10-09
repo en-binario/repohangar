@@ -1,6 +1,7 @@
-// Per-repository row snapshots with a debounce per repository and coalesced batches (design D-8). No vscode import.
+// Per-repository row snapshots with a debounce per repository and coalesced batches (design D-8), and the job shown in
+// each row (git-operations design D-2). No vscode import.
 
-import type { RowData } from '../shared/model';
+import type { RowData, RowJob } from '../shared/model';
 
 export interface StoreBatch {
   upserts: RowData[];
@@ -29,6 +30,8 @@ export class RowStore {
   private readonly rows = new Map<string, RowData>();
   private readonly debounces = new Map<string, unknown>();
   private readonly generations = new Map<string, number>();
+  /** The job of each row, and the Git state of the row when a finished job was first shown with it */
+  private readonly jobs = new Map<string, { job: RowJob; gitKey: string | null }>();
   private readonly listeners = new Set<(batch: StoreBatch) => void>();
   private pendingUpserts = new Map<string, RowData>();
   private pendingRemovals = new Set<string>();
@@ -79,6 +82,37 @@ export class RowStore {
     // A newer computation or a removal replaced this one.
     if (this.generations.get(id) !== generation) return;
     if (!row) return;
+    this.put(id, this.withJob(id, row));
+  }
+
+  /**
+   * Shows a job in a row. A running job stays until the next job; a finished one until the next job or until the Git
+   * state of the row differs from the state computed right after the job ended.
+   */
+  setJob(id: string, job: RowJob): void {
+    const row = this.rows.get(id);
+    if (!row) return;
+    this.jobs.set(id, { job, gitKey: null });
+    this.put(id, { ...row, job });
+    if (job.state !== 'running') void this.recompute(id);
+  }
+
+  private withJob(id: string, row: RowData): RowData {
+    const entry = this.jobs.get(id);
+    if (!entry) return row;
+    if (entry.job.state !== 'running') {
+      const key = gitKey(row);
+      if (entry.gitKey === null) {
+        entry.gitKey = key;
+      } else if (entry.gitKey !== key) {
+        this.jobs.delete(id);
+        return row;
+      }
+    }
+    return { ...row, job: entry.job };
+  }
+
+  private put(id: string, row: RowData): void {
     this.rows.set(id, row);
     this.pendingRemovals.delete(id);
     this.pendingUpserts.set(id, row);
@@ -90,6 +124,7 @@ export class RowStore {
     const debounce = this.debounces.get(id);
     if (debounce !== undefined) this.timers.clearTimeout(debounce);
     this.debounces.delete(id);
+    this.jobs.delete(id);
     if (!this.rows.delete(id)) return;
     this.pendingUpserts.delete(id);
     this.pendingRemovals.add(id);
@@ -117,4 +152,9 @@ export class RowStore {
     if (batch.upserts.length === 0 && batch.removals.length === 0) return;
     for (const listener of this.listeners) listener(batch);
   }
+}
+
+/** The Git part of a row: what a job's result depends on, without the last fetch time. */
+function gitKey(row: RowData): string {
+  return JSON.stringify([row.head, row.operation, row.counts, row.stashes, row.remote]);
 }

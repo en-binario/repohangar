@@ -24,7 +24,7 @@ describe('dashboard webview ages', () => {
       grouping: 'none',
       collapsed: [],
       staleFetchHours: 1,
-      isMac: false,
+      platform: 'win32',
     };
     await act(() => {
       window.dispatchEvent(new MessageEvent('message', { data: snapshot }));

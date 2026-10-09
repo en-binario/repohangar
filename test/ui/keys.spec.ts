@@ -186,6 +186,9 @@ test('shows the key help overlay with ?', async () => {
   for (const k of ['↑ ↓ / j k', 'Space', 'Ctrl+A', '/', 'Enter', '1', '2', '3', '4', '7', 'Esc', '?']) {
     await expect(help.locator('kbd', { hasText: k }).first()).toBeVisible();
   }
+  // The action keys of git-operations and batch-operations.
+  const keys = await help.locator('kbd').allTextContents();
+  for (const k of ['f', 'F', 'p', 'P', 'b', 't', '.']) expect(keys).toContain(k);
   await page.keyboard.press('Escape');
 });
 
@@ -209,6 +212,14 @@ test('moves from the filter box to the first shown row with ArrowDown', async ()
   await frame.locator('input.filter').focus();
   await page.keyboard.press('ArrowDown');
   expect(await focusedKey(frame)).toBe(await keyOf('auth-service'));
+});
+
+test('shows the action keys before the navigation hints in the footer', async () => {
+  await page.keyboard.press('Space');
+  await expect(frame.locator('.footer')).toHaveText(
+    '1 selected' + 'f fetch · p pull · P push · b switch · t terminal · . more · ↑↓ move · Space select · / filter · ⏎ details · ? keys',
+  );
+  await expect(frame.locator('.selected-count')).toHaveText('1 selected');
 });
 
 test('types j into the filter box', async () => {

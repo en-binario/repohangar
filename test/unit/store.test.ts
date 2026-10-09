@@ -61,6 +61,24 @@ describe('RowStore', () => {
     expect(store.get('a')).toBeUndefined();
   });
 
+  it('shows a job in the row and keeps a finished job until the Git state changes', async () => {
+    let behind = 2;
+    const store = new RowStore(
+      async (id) => row({ id, head: { kind: 'branch', name: 'main', upstream: 'origin/main', ahead: 0, behind } }),
+      timers,
+    );
+    await store.recompute('a');
+    store.setJob('a', { action: 'pull', state: 'running' });
+    expect(store.get('a')?.job).toEqual({ action: 'pull', state: 'running' });
+    store.setJob('a', { action: 'pull', state: 'skipped', detail: 'dirty (3 files)' });
+    await vi.advanceTimersByTimeAsync(0);
+    await store.recompute('a');
+    expect(store.get('a')?.job?.state).toBe('skipped');
+    behind = 0;
+    await store.recompute('a');
+    expect(store.get('a')?.job).toBeUndefined();
+  });
+
   it('reports removals', async () => {
     const store = new RowStore(async (id) => row({ id }), timers);
     const batches: StoreBatch[] = [];

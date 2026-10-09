@@ -1,7 +1,7 @@
 // Launches VS Code with RepoHangar under development on a fixture workspace, for the Playwright UI tests.
 
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { _electron as electron, expect, type ElectronApplication, type FrameLocator, type Page } from '@playwright/test';
@@ -34,10 +34,18 @@ function installVsix(executablePath: string, extensionsDir: string, env: Record<
 /**
  * Launches VS Code on the fixture. By default RepoHangar runs from this folder as the extension under development;
  * `installed: true` installs the packaged VSIX instead, which VS Code subjects to Workspace Trust like any user install.
+ * `settings` are written to the user settings before the launch.
  */
-export async function launch(fixture: Fixture, options: { trusted?: boolean; installed?: boolean } = {}): Promise<VsCode> {
+export async function launch(
+  fixture: Fixture,
+  options: { trusted?: boolean; installed?: boolean; settings?: Record<string, unknown> } = {},
+): Promise<VsCode> {
   const executablePath = await downloadAndUnzipVSCode(process.env.VSCODE_VERSION ?? 'stable');
   const profile = mkdtempSync(join(tmpdir(), 'repohangar-ui-'));
+  if (options.settings) {
+    mkdirSync(join(profile, 'user-data', 'User'), { recursive: true });
+    writeFileSync(join(profile, 'user-data', 'User', 'settings.json'), JSON.stringify(options.settings, null, 2));
+  }
   const env = { ...process.env } as Record<string, string>;
   delete env.ELECTRON_RUN_AS_NODE;
   if (options.installed) installVsix(executablePath, join(profile, 'extensions'), env);
@@ -95,4 +103,9 @@ export async function focusedKey(frame: FrameLocator): Promise<string | null> {
 export async function focusRow(frame: FrameLocator, repo: string): Promise<void> {
   await row(frame, repo).locator('[data-col="repository"]').click();
   await row(frame, repo).locator('[data-col="repository"]').focus();
+}
+
+/** The VS Code notification toast that contains `text`. */
+export function notification(page: Page, text: string) {
+  return page.locator('.notification-toast', { hasText: text });
 }

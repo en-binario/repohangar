@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { batchTargets, type BatchTrigger } from '../src/shared/batch';
 import {
   CHIPS,
   branchCell,
@@ -8,12 +9,13 @@ import {
   emptyStateText,
   fetchedCell,
   repositoryCell,
-  syncCell,
+  shownSyncCell,
   type CellText,
 } from '../src/shared/format';
-import type { ChipId, GroupingMode, RowData, RowDetails } from '../src/shared/model';
+import type { ChipId, GroupingMode, RowAction, RowData, RowDetails } from '../src/shared/model';
 import type { HostMessage, Snapshot, ViewMessage } from '../src/shared/protocol';
 import { layout, rowKey, type GridItem } from './layout';
+import { BatchButtons, HoverActions, RowMenu, syncClickAction } from './RowActions';
 
 export interface VsCodeApi {
   postMessage(message: ViewMessage): void;
@@ -31,6 +33,8 @@ export interface PersistedView {
 
 const EMPTY_VIEW: PersistedView = { filter: '', chips: [], selected: [], expanded: [], focus: null };
 
+/** The hints of the action keys (git-operations: Row action keys), shown before the navigation hints. */
+export const ACTION_HINTS = 'f fetch · p pull · P push · b switch · t terminal · . more';
 export const KEY_HINTS = '↑↓ move · Space select · / filter · ⏎ details · ? keys';
 
 export const KEY_HELP: readonly [string, string][] = [
@@ -46,6 +50,13 @@ export const KEY_HELP: readonly [string, string][] = [
   ['7', 'No upstream'],
   ['Esc', 'Clear the filter, then the selection'],
   ['?', 'Show this help'],
+  ['f', 'Fetch the focused row, or the selected rows'],
+  ['F', 'Fetch all, or the selected rows'],
+  ['p', 'Pull the focused row, or Pull (ff) the selected rows'],
+  ['P', 'Push or publish the focused row'],
+  ['b', 'Switch branch in the focused row'],
+  ['t', 'Open a terminal in the focused row'],
+  ['.', 'More actions for the focused row'],
 ];
 
 const GROUP_OPTIONS: readonly [GroupingMode, string][] = [
@@ -75,6 +86,8 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
   const [view, setView] = useState<PersistedView>(() => readView(api));
   const [now, setNow] = useState(initialNow ?? Date.now());
   const [helpOpen, setHelpOpen] = useState(false);
+  /** The row whose more-actions menu is open */
+  const [menuFor, setMenuFor] = useState<string | null>(null);
   const focusRequested = useRef(false);
   const filterRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -124,6 +137,9 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
 
   useEffect(() => api.setState(view), [api, view]);
 
+  // The host runs the batch commands on the selected rows.
+  useEffect(() => api.postMessage({ type: 'setSelection', ids: view.selected }), [api, view.selected]);
+
   const allRows = useMemo(() => [...rows.values()], [rows]);
   const items = useMemo(
     () => (snapshot ? layout(allRows, snapshot.grouping, snapshot.collapsed, view.filter, view.chips) : []),
@@ -168,10 +184,9 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
     update({ chips });
   };
 
-  const toggleSelected = (id: string) => {
-    const selected = view.selected.includes(id) ? view.selected.filter((s) => s !== id) : [...view.selected, id];
-    update({ selected });
-  };
+  // From the latest state: two quick presses of Space can arrive before a render.
+  const toggleSelected = (id: string) =>
+    setView((v) => ({ ...v, selected: v.selected.includes(id) ? v.selected.filter((s) => s !== id) : [...v.selected, id] }));
 
   const toggleExpanded = (id: string) => {
     if (view.expanded.includes(id)) return update({ expanded: view.expanded.filter((e) => e !== id) });
@@ -180,6 +195,19 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
   };
 
   const toggleGroup = (name: string) => api.postMessage({ type: 'toggleGroup', group: name });
+
+  const runAction = (id: string, action: RowAction) => api.postMessage({ type: 'runAction', id, action });
+
+  const runBatch = (trigger: BatchTrigger) => {
+    const { action, ids } = batchTargets(trigger, view.selected, allRows.map((r) => r.id));
+    api.postMessage({ type: 'runBatch', action, ids });
+  };
+
+  const closeMenu = () => {
+    setMenuFor(null);
+    focusRequested.current = true;
+    update({ focus: focusKey });
+  };
 
   const activate = (item: GridItem | undefined, key: 'Enter' | ' ') => {
     if (!item) return;
@@ -194,13 +222,29 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
 
   const onGridKey = (e: KeyboardEvent) => {
     const index = items.findIndex((i) => i.key === focusKey);
-    const ctrl = snapshot?.isMac ? e.metaKey : e.ctrlKey;
+    const ctrl = snapshot?.platform === 'darwin' ? e.metaKey : e.ctrlKey;
     if (ctrl && e.key.toLowerCase() === 'a') {
       e.preventDefault();
       const shown = items.flatMap((i) => (i.kind === 'row' ? [i.row.id] : []));
       return update({ selected: [...new Set([...view.selected, ...shown])] });
     }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const item = items[index];
+    const focusedRow = item?.kind === 'row' ? item.row : undefined;
+    const rowKeys: Record<string, RowAction> = { f: 'fetch', p: 'pull', P: 'push', b: 'switchBranch', t: 'terminal' };
+    if (e.key === 'F') {
+      e.preventDefault();
+      return runBatch('fetchAll');
+    }
+    if ((e.key === 'f' || e.key === 'p') && view.selected.length > 0) {
+      e.preventDefault();
+      return runBatch(e.key);
+    }
+    if (focusedRow && (e.key === '.' || Object.prototype.hasOwnProperty.call(rowKeys, e.key))) {
+      e.preventDefault();
+      if (e.key === '.') return setMenuFor(focusedRow.id);
+      return runAction(focusedRow.id, rowKeys[e.key] as RowAction);
+    }
     switch (e.key) {
       case 'ArrowDown':
       case 'j':
@@ -267,7 +311,7 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
         return;
       }
       const target = e.target as HTMLElement | null;
-      if (target?.closest('input[type="text"], input[type="search"], select')) return;
+      if (target?.closest('input[type="text"], input[type="search"], select, [role="menu"]')) return;
       onGridKey(e);
     };
     document.addEventListener('keydown', onKey);
@@ -296,6 +340,7 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
   return (
     <div class="dashboard">
       <div class="toolbar" role="toolbar" aria-label="Filters">
+        <BatchButtons selected={view.selected.length} onRun={(action) => runBatch(action === 'fetch' ? 'fetchAll' : 'pullAllFf')} />
         <input
           ref={filterRef}
           type="search"
@@ -373,8 +418,20 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
               details={details.get(item.row.id)}
               now={now}
               staleFetchHours={snapshot.staleFetchHours}
+              platform={snapshot.platform}
+              menuOpen={menuFor === item.row.id}
               onFocus={() => update({ focus: item.key })}
               onToggleSelected={() => toggleSelected(item.row.id)}
+              onAction={(action) => runAction(item.row.id, action)}
+              onMenu={() => {
+                update({ focus: item.key });
+                setMenuFor(item.row.id);
+              }}
+              onMenuChoose={(action) => {
+                closeMenu();
+                runAction(item.row.id, action);
+              }}
+              onMenuClose={closeMenu}
             />
           ),
         )}
@@ -382,7 +439,7 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
 
       <div class="footer">
         {view.selected.length > 0 && <span class="selected-count">{`${view.selected.length} selected`}</span>}
-        <span class="hints">{KEY_HINTS}</span>
+        <span class="hints">{`${ACTION_HINTS} · ${KEY_HINTS}`}</span>
       </div>
 
       {helpOpen && (
@@ -416,15 +473,22 @@ interface RowViewProps {
   details: RowDetails | undefined;
   now: number;
   staleFetchHours: number;
+  platform: string;
+  menuOpen: boolean;
   onFocus(): void;
   onToggleSelected(): void;
+  onAction(action: RowAction): void;
+  onMenu(): void;
+  onMenuChoose(action: RowAction): void;
+  onMenuClose(): void;
 }
 
 function RowView(props: RowViewProps) {
   const { row } = props;
   const repo = repositoryCell(row);
   const branch = branchCell(row);
-  const sync = syncCell(row);
+  const sync = shownSyncCell(row);
+  const syncAction = syncClickAction(row);
   const changes = changesCell(row);
   const fetched = fetchedCell(row.lastFetch, props.now, props.staleFetchHours);
   return (
@@ -461,7 +525,7 @@ function RowView(props: RowViewProps) {
             </>
           )}
         </span>
-        <span class="cell" role="gridcell" data-col="branch">
+        <span class="cell clickable" role="gridcell" data-col="branch" onClick={() => props.onAction('switchBranch')}>
           <span class="branch-name">{branch.text}</span>
           {branch.badge && (
             <>
@@ -472,8 +536,16 @@ function RowView(props: RowViewProps) {
             </>
           )}
         </span>
-        <span class="cell" role="gridcell" data-col="sync">
-          <Symbol cell={sync} />
+        <span
+          class={syncAction ? 'cell clickable' : 'cell'}
+          role="gridcell"
+          data-col="sync"
+          data-job={row.job?.state}
+          onClick={() => syncAction && props.onAction(syncAction)}
+        >
+          <span class="symbol" role="img" aria-label={sync.label} title={sync.tooltip ?? sync.label}>
+            {sync.text}
+          </span>
         </span>
         <span class="cell" role="gridcell" data-col="changes">
           {changes.segments.length === 0 ? (
@@ -487,13 +559,19 @@ function RowView(props: RowViewProps) {
             ))
           )}
         </span>
-        <span class="cell" role="gridcell" data-col="fetched">
+        <span class="cell clickable" role="gridcell" data-col="fetched" onClick={() => props.onAction('fetch')}>
           {fetched.age}
           {fetched.stale && (
             <>
               {' '}
               <Symbol cell={fetched.stale} />
             </>
+          )}
+        </span>
+        <span class="cell actions" role="gridcell" aria-label="Actions">
+          <HoverActions row={row} onAction={props.onAction} onMenu={props.onMenu} />
+          {props.menuOpen && (
+            <RowMenu row={row} platform={props.platform} onChoose={props.onMenuChoose} onClose={props.onMenuClose} />
           )}
         </span>
       </div>

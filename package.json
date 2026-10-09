@@ -75,6 +75,30 @@
         "command": "repohangar.scm.openDashboard",
         "title": "Open RepoHangar",
         "icon": "$(layout)"
+      },
+      {
+        "command": "repohangar.fetch",
+        "title": "Fetch Repository",
+        "category": "RepoHangar"
+      },
+      {
+        "command": "repohangar.fetchAll",
+        "title": "Fetch All",
+        "category": "RepoHangar"
+      },
+      {
+        "command": "repohangar.pullFf",
+        "title": "Pull (Fast-Forward Only)",
+        "category": "RepoHangar"
+      },
+      {
+        "command": "repohangar.pullAllFf",
+        "title": "Pull All (Fast-Forward Only)",
+        "category": "RepoHangar"
+      },
+      {
+        "command": "repohangar.scm.fetch",
+        "title": "Fetch"
       }
     ],
     "keybindings": [
@@ -96,6 +120,17 @@
         {
           "command": "repohangar.scm.openDashboard",
           "when": "false"
+        },
+        {
+          "command": "repohangar.scm.fetch",
+          "when": "false"
+        }
+      ],
+      "scm/sourceControl": [
+        {
+          "command": "repohangar.scm.fetch",
+          "group": "repohangar",
+          "when": "scmProvider == git"
         }
       ]
     },
@@ -170,6 +205,22 @@
           },
           "default": {},
           "markdownDescription": "Hosting provider of self-hosted Git hosts, for example `{ \"git.acme.com\": \"gitlab\" }`. `github.com`, `gitlab.com` and the host of `#github-enterprise.uri#` are detected without it.",
+          "scope": "window"
+        },
+        "repohangar.concurrency": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32,
+          "default": 6,
+          "markdownDescription": "How many repositories **Fetch all** and **Pull all (ff)** fetch at the same time.",
+          "scope": "window"
+        },
+        "repohangar.fetchTimeoutSeconds": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 600,
+          "default": 60,
+          "markdownDescription": "Seconds after which RepoHangar stops waiting for the fetch of one repository and records it as failed.",
           "scope": "window"
         }
       }

@@ -17,8 +17,8 @@ import type { RowStore } from '../state/store';
 import type { ViewState } from '../ui/viewState';
 
 // Status values of the Git API (git.d.ts `Status`), which is a const enum and cannot be imported.
-const UNTRACKED = 7;
-const IGNORED = 8;
+export const UNTRACKED = 7;
+export const IGNORED = 8;
 
 /** Files in the repository's own git dir whose change means HEAD or an operation changed. */
 const GIT_DIR_FILES = 'HEAD,logs/HEAD,MERGE_HEAD,CHERRY_PICK_HEAD,REVERT_HEAD,rebase-merge/**,rebase-apply/**,FETCH_HEAD';

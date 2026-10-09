@@ -32,7 +32,7 @@ describe('dashboard webview escaping', () => {
       grouping: 'none',
       collapsed: [],
       staleFetchHours: 1,
-      isMac: false,
+      platform: 'win32',
     };
     await act(() => {
       window.dispatchEvent(new MessageEvent('message', { data: snapshot }));

@@ -8,6 +8,7 @@ import type { Registry } from '../git/registry';
 import { dashboardState } from '../shared/format';
 import { parseViewMessage, type HostMessage, type Snapshot, type ViewMessage } from '../shared/protocol';
 import type { RowStore } from '../state/store';
+import type { Actions } from './actions';
 import type { ViewState } from './viewState';
 
 export const DASHBOARD_VIEW_TYPE = 'repohangar.dashboard';
@@ -30,6 +31,8 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
   /** Every message posted to the webview while `recordMessages` is true (integration tests). */
   readonly postedMessages: HostMessage[] = [];
   recordMessages = false;
+  /** The rows selected in the dashboard, as the webview last reported them; empty while it is closed. */
+  selection: readonly string[] = [];
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -37,6 +40,7 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
     private readonly registry: Registry,
     private readonly git: GitApiAccess,
     private readonly viewState: ViewState,
+    private readonly actions: Pick<Actions, 'runRowAction' | 'runBatch'>,
   ) {
     this.disposables.push(
       this.firstPaintEmitter,
@@ -128,6 +132,7 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
         this.panel = undefined;
         this.ready = false;
         this.restored = false;
+        this.selection = [];
       }),
     ];
     pin();
@@ -157,6 +162,16 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
       case 'openSettings':
         await vscode.commands.executeCommand('workbench.action.openSettings', 'git.enabled');
         return;
+      // The actions ignore ids that are not listed repositories.
+      case 'runAction':
+        await this.actions.runRowAction(message.id, message.action);
+        return;
+      case 'runBatch':
+        await this.actions.runBatch(message.action, message.ids);
+        return;
+      case 'setSelection':
+        this.selection = message.ids;
+        return;
     }
   }
 
@@ -172,7 +187,7 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
       grouping: this.viewState.grouping,
       collapsed: this.viewState.collapsed,
       staleFetchHours: vscode.workspace.getConfiguration('repohangar').get<number>('staleFetchHours', 1),
-      isMac: process.platform === 'darwin',
+      platform: process.platform,
     };
   }
 

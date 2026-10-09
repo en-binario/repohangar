@@ -74,3 +74,42 @@ export function dashboardTabs(): vscode.Tab[] {
 export async function setConfig(key: string, value: unknown): Promise<void> {
   await vscode.workspace.getConfiguration().update(key, value, vscode.ConfigurationTarget.Global);
 }
+
+export type GitMethod = 'fetch' | 'pull' | 'push';
+
+export interface GitCallRecorder {
+  calls: { name: string; method: GitMethod; args: unknown[] }[];
+  commands: { command: string; args: unknown[] }[];
+  restore(): void;
+}
+
+/**
+ * Records the Git API calls of every repository and the commands RepoHangar runs; `passThrough` methods still run,
+ * after `delayMs`.
+ */
+export function recordGitCalls(api: TestApi, passThrough: GitMethod[] = [], delayMs = 0): GitCallRecorder {
+  const recorder: GitCallRecorder = { calls: [], commands: [], restore: () => undefined };
+  const restores: (() => void)[] = [];
+  for (const id of api.registry.ids()) {
+    const repository = api.registry.repository(id) as Repository;
+    const name = api.store.get(id)?.name ?? id;
+    for (const method of ['fetch', 'pull', 'push'] as const) {
+      const original = repository[method] as (...args: unknown[]) => Promise<void>;
+      (repository as unknown as Record<string, unknown>)[method] = async (...args: unknown[]) => {
+        recorder.calls.push({ name, method, args });
+        if (delayMs) await new Promise((r) => setTimeout(r, delayMs));
+        if (passThrough.includes(method)) await original.apply(repository, args);
+      };
+      restores.push(() => delete (repository as unknown as Record<string, unknown>)[method]);
+    }
+  }
+  const commands = api.operations.commands;
+  api.operations.commands = {
+    executeCommand: async (command: string, ...args: unknown[]) => {
+      recorder.commands.push({ command, args });
+    },
+  };
+  restores.push(() => (api.operations.commands = commands));
+  recorder.restore = () => restores.forEach((r) => r());
+  return recorder;
+}

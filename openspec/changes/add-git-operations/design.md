@@ -43,9 +43,9 @@ webview/RowActions.tsx     hover buttons, ⋯ menu, job badge in the Sync cell, 
 ### D-2. Job state travels in the row
 
 `RowData` gains `job?: { action, state: 'running' | 'ok' | 'skipped' | 'failed', detail?: string }`. The runner sets
-it through `RowStore.setJob(id, job)`, which emits a patch like any row change. The registry clears a finished job
-when the Git part of the row changes (a hash of the Git fields, not the job), so a stale `↷ dirty` disappears once the
-repository is cleaned. Alternative rejected: a separate `jobUpdate` message stream, which would need its own ordering
+it through `RowStore.setJob(id, job)`, which emits a patch like any row change. The store clears a finished job when
+the Git part of the row changes (a hash of the Git fields without the last fetch time, compared with the row computed
+right after the job ended), so a stale `↷ dirty` disappears once the repository is cleaned. Alternative rejected: a separate `jobUpdate` message stream, which would need its own ordering
 with patches.
 
 ### D-3. Protocol
@@ -54,7 +54,9 @@ View → host gains `runAction { id, action }` (action: `fetch`, `pull`, `push`,
 `stash`, `stashPop`, `discardAll`, `revealInOS`, `copyPath`, `copyBranch`) and `runBatch { action: 'fetch' |
 'pullFf', ids: string[] }`, both validated like the existing messages (known action, ids that are strings, at most
 10 000). The host checks again that every id is a listed repository and ignores the others. Push and Publish share
-`push`: the guard decides which one runs.
+`push`: the guard decides which one runs. The webview also sends `setSelection { ids }` whenever the selection
+changes, so `repohangar.fetchAll` and `repohangar.pullAllFf` run from the Command Palette act on the selected rows
+(batch target matrix R2, R5); the host forgets the selection when the panel closes.
 
 ### D-4. Runner
 
@@ -87,6 +89,13 @@ batch use Pull (ff): a batch must never merge or rebase (D12).
 - The `⋯` menu is a `role="menu"` popup rendered by the webview: VS Code's `webview/context` menus open only on a right
   click and cannot be opened from a key.
 - Toolbar: `⟳ Fetch all` / `⟳ Fetch (n)` and `⇣ Pull all (ff)` / `⇣ Pull (ff) (n)` before the filter box.
+
+### D-6a. Source Control menu item
+
+A menu item shows its command's title, and `repohangar.fetch` is titled *Fetch Repository* for the Command Palette.
+The **Fetch** item of `scm/sourceControl` is therefore `repohangar.scm.fetch` (title `Fetch`, hidden from the
+palette), which calls `repohangar.fetch` with the Source Control repository, as `repohangar.scm.openDashboard` does
+for the title bar button.
 
 ### D-7. Active repository
 

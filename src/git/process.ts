@@ -26,7 +26,8 @@ export function runGit(gitPath: string, args: readonly string[], cwd: string): P
         windowsHide: true,
         env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
       },
-      (error, stdout) => (error ? reject(error) : resolve(stdout)),
+      // The error carries Git's error output, for the message shown to the user.
+      (error, stdout, stderr) => (error ? reject(Object.assign(error, { stderr })) : resolve(stdout)),
     );
   });
 }
