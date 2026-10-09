@@ -113,13 +113,13 @@ workspace, RepoHangar SHALL start without a window reload once VS Code enables i
 
 ### Requirement: Grid columns
 The system SHALL show the grid with these columns, in this order: a selection checkbox, **Repository**, **Branch**,
-**Sync**, **Changes** and **Fetched**, and SHALL order groups by name and the rows within a group by repository name,
+**Sync**, **Changes**, **Fetched** and **MR / PR** (`hosting-providers`), and SHALL order groups by name and the rows within a group by repository name,
 both case-insensitively.
 
 #### Scenario: Column headers and row order
 - **GIVEN** the group `backend` holds `ledger`, `Billing-api` and `auth-service`
 - **WHEN** the dashboard shows the grid
-- **THEN** the header row reads `Repository`, `Branch`, `Sync`, `Changes`, `Fetched` after the checkbox column
+- **THEN** the header row reads `Repository`, `Branch`, `Sync`, `Changes`, `Fetched`, `MR / PR` after the checkbox column
 - **AND** the rows of `backend` appear in the order `auth-service`, `Billing-api`, `ledger`
 
 ### Requirement: Repository cell
@@ -347,10 +347,11 @@ replace the remembered choice.
 
 ### Requirement: Filters
 The system SHALL show only the rows that match the filter text and every active chip. The filter text matches a row
-when it is a case-insensitive substring of the repository name, the branch name or the group name. The chips are
-**All**, **Dirty** (the repository is dirty), **Behind** (behind its upstream by at least 1), **Ahead** (ahead of its
-upstream by at least 1) and **No upstream** (HEAD on a branch with no upstream). Each chip label SHALL end with the
-number of rows that match that chip alone (`Dirty 3`). **All** is active when no other chip is; activating **All**
+when it is a case-insensitive substring of the repository name, the branch name or the group name. The chips are,
+in this order, **All**, **Dirty** (the repository is dirty), **Behind** (behind its upstream by at least 1), **Ahead**
+(ahead of its upstream by at least 1), **Has MR** (the MR / PR cell shows an open review, loaded or cached),
+**Pipeline ✗** (that review's pipeline or checks show `✗ failed`) and **No upstream** (HEAD on a branch with no
+upstream). Each chip label SHALL end with the number of rows that match that chip alone (`Dirty 3`, `Has MR 5`). **All** is active when no other chip is; activating **All**
 SHALL clear the other chips. Filtering MUST NOT change the selection.
 
 #### Scenario: Chip membership matrix
@@ -387,6 +388,17 @@ Row under test: `billing-api` in group `backend`, branch `feature/ABC-12-notes`,
 - **WHEN** the user types `bill` in the filter box
 - **THEN** only `billing-api` is shown and the footer still reads `2 selected`
 
+#### Scenario: Review chip membership matrix
+
+| # | MR / PR cell | Has MR | Pipeline ✗ |
+| :--- | :--- | :--- | :--- |
+| R1 | `!142  Draft  ⟳ running` | **Yes** | **No** |
+| R2 | `#311  ✗ failed  changes requested` | **Yes** | **Yes** |
+| R3 | `!88  ✓ passed  2/2`, not refreshed | **Yes** | **No** |
+| R4 | `!57  ✗ failed`, not refreshed | **Yes** | **Yes** |
+| R5 | `—` | **No** | **No** |
+| R6 | `Sign in`, `?` or `…` | **No** | **No** |
+
 ### Requirement: Keyboard navigation
 The system SHALL let the user navigate, select, filter, expand and get help in the grid with the keys in the matrix
 below, applied to the focused row or group header, and SHALL show a footer with the number of selected rows
@@ -395,9 +407,9 @@ navigation hints `↑↓ move · Space select · / filter · ⏎ details · ? ke
 this matrix and every action key.
 
 **Constraints:**
-- `1`, `2`, `3`, `4` and `7` toggle **All**, **Dirty**, **Behind**, **Ahead** and **No upstream**; `5` and `6` are kept
-  for the Has MR and Pipeline failed chips and do nothing in this version
-- Action keys are assigned by other capabilities (`git-operations`: `f` `p` `P` `b` `t` `.`; `batch-operations`: `F`)
+- `1` to `7` toggle **All**, **Dirty**, **Behind**, **Ahead**, **Has MR**, **Pipeline ✗** and **No upstream**
+- Action keys are assigned by other capabilities (`git-operations`: `f` `p` `P` `b` `t` `.`; `batch-operations`: `F`;
+  `hosting-providers`: `o`)
 - Keys that neither this matrix nor another capability assigns do nothing while the grid has focus
 
 #### Scenario: Grid key matrix
@@ -418,7 +430,6 @@ this matrix and every action key.
 | R12 | `2` | Dirty chip inactive | **Dirty chip active** |
 | R13 | `2` | Dirty chip active, no other chip | **All active** |
 | R14 | `1` | Dirty and Ahead chips active | **All active, Dirty and Ahead inactive** |
-| R15 | `5` or `6` | *Any* | **No change** |
 | R16 | `Esc` | Filter text `bill` or a chip other than All active, 2 selected | **Filter text empty, All active, 2 still selected** |
 | R17 | `Esc` | No filter text, All active, 3 selected | **0 selected, footer hidden** |
 | R18 | `?` | Focus in the grid | **Key help overlay listing every key of this matrix** |
@@ -426,6 +437,8 @@ this matrix and every action key.
 | R20 | `Esc` | Focus in the filter box with text `bill` | **Filter text empty, focus on the first shown row** |
 | R21 | `↓` | Focus in the filter box | **Focus on the first shown row** |
 | R22 | `j` | Focus in the filter box with text `bil` | **Filter text `bilj`, focus unchanged** |
+| R23 | `5` | Has MR chip inactive | **Has MR chip active** |
+| R24 | `6` | Pipeline ✗ chip inactive | **Pipeline ✗ chip active** |
 
 #### Scenario: Footer with action keys
 - **GIVEN** the dashboard shows the grid, `billing-api` is selected, and `git-operations` and `batch-operations` assign
