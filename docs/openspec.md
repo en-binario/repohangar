@@ -10,7 +10,7 @@
 `openspec/specs/<capability>/spec.md`, and each change to behaviour is a folder in `openspec/changes/<change>/` with a
 proposal, a design, tasks and **delta specs** that say which requirements it adds, modifies, removes or renames.
 Archiving a change merges its deltas into the capability specs. The product source of truth for the first changes is
-`PROPOSAL.md` (r4), which is kept outside this repository; changes cite it by section and decision id.
+`PROPOSAL.md` (r5), which is kept outside this repository; changes cite it by section and decision id.
 
 ```mermaid
 flowchart LR

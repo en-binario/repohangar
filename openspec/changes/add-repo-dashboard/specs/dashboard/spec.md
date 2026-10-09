@@ -19,8 +19,8 @@ repository is visible in one view.
 
 ### Requirement: Opening the dashboard
 The system SHALL open the dashboard as a webview panel titled `RepoHangar` in the active editor group, with its tab
-pinned, from the command `repohangar.open` (*RepoHangar: Open Dashboard*), the default keybinding `Ctrl+Alt+R`
-(`Cmd+Alt+R` on macOS), and the **Open RepoHangar** button (`$(layout)`) in the Source Control view title bar
+pinned, from the command `repohangar.open` (*RepoHangar: Open Dashboard*), the default keybinding `Ctrl+Alt+H`
+(`Ctrl+Cmd+H` on macOS), and the **Open RepoHangar** button (`$(layout)`) in the Source Control view title bar
 (`scm/title`). The system MUST keep at most one dashboard panel per window: when one exists, these entry points SHALL
 reveal it instead of creating another.
 
@@ -32,7 +32,7 @@ reveal it instead of creating another.
 
 #### Scenario: Open the dashboard when it is already open
 - **GIVEN** the dashboard panel exists in a background tab
-- **WHEN** the user presses `Ctrl+Alt+R`
+- **WHEN** the user presses `Ctrl+Alt+H`
 - **THEN** the existing panel becomes the active tab
 - **AND** the window has one dashboard panel
 

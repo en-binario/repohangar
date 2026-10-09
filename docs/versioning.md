@@ -27,7 +27,7 @@ A change is breaking only if it affects something users or their tools depend on
   `{commits}`, `{repo}`, `{defaultBranch}`, `{latestRelease}`, `{related}`, `{me}`) and `template:<name>`;
 - command ids (`repohangar.*`), which users bind keys to and call from tasks and other extensions;
 - context keys (`repohangar.*`), which users can use in the `when` clauses of their own keybindings;
-- the default keybindings (`Ctrl+Alt+R`, `Ctrl+Alt+M`, `Ctrl+Alt+Shift+M`, `Ctrl+Alt+G`) and the dashboard keys
+- the default keybindings (`Ctrl+Alt+H`, `Ctrl+Alt+M`, `Ctrl+Alt+Shift+M`, `Ctrl+Alt+G`) and the dashboard keys
   (`m`, `M`, `f`, `p`, `g`, `e`, …);
 - data RepoHangar stores for the user: GitLab tokens in `SecretStorage` (keyed by host), per-repo MR memory ("For this
   repo only", in `workspaceState`) and the remembered choice for repos outside the workspace;

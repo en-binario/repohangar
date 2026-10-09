@@ -80,8 +80,8 @@
     "keybindings": [
       {
         "command": "repohangar.open",
-        "key": "ctrl+alt+r",
-        "mac": "cmd+alt+r"
+        "key": "ctrl+alt+h",
+        "mac": "ctrl+cmd+h"
       }
     ],
     "menus": {

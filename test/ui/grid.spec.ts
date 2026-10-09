@@ -14,11 +14,11 @@ test.afterAll(async () => {
   await vscode?.close();
 });
 
-test('opens the dashboard with Ctrl+Alt+R', async () => {
+test('opens the dashboard with Ctrl+Alt+H', async () => {
   const { page } = vscode;
   // Wait until the extension has activated (the status bar summary appears).
   await expect(page.locator('[id="enbinario.repohangar.repohangar.summary"], .statusbar-item[aria-label^="RepoHangar:"]').first()).toBeVisible({ timeout: 60_000 });
-  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Alt+R' : 'Control+Alt+R');
+  await page.keyboard.press(process.platform === 'darwin' ? 'Control+Meta+H' : 'Control+Alt+H');
   await expect(row(dashboard(page), 'billing-api')).toBeVisible({ timeout: 60_000 });
 });
 

@@ -8,7 +8,7 @@ or GitHub pull requests with your team's defaults in one keystroke.
 
 ## Dashboard
 
-Run **RepoHangar: Open Dashboard** (`Ctrl+Alt+R`, `Cmd+Alt+R` on macOS), click the status bar summary, or click
+Run **RepoHangar: Open Dashboard** (`Ctrl+Alt+H`, `Ctrl+Cmd+H` on macOS), click the status bar summary, or click
 **Open RepoHangar** in the Source Control title bar. The dashboard has one row per repository that the built-in Git
 extension opened:
 

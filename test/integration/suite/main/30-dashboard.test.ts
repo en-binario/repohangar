@@ -35,10 +35,10 @@ describe('dashboard panel', () => {
     assert.equal(dashboardTabs().length, 1);
   });
 
-  it('declares Ctrl+Alt+R and Cmd+Alt+R for repohangar.open', () => {
+  it('declares Ctrl+Alt+H and Ctrl+Cmd+H for repohangar.open', () => {
     const binding = manifest.contributes.keybindings.find((k) => k.command === 'repohangar.open');
-    assert.equal(binding?.key, 'ctrl+alt+r');
-    assert.equal(binding?.mac, 'cmd+alt+r');
+    assert.equal(binding?.key, 'ctrl+alt+h');
+    assert.equal(binding?.mac, 'ctrl+cmd+h');
   });
 
   it('opens from the Open RepoHangar button in the Source Control title bar', async () => {

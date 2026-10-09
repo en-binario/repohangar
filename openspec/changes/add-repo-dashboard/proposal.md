@@ -30,7 +30,8 @@ title button.
   operation in progress from the git dir markers (§5.3), read from files without starting a process wherever possible.
 - **Status bar item** `⎇ 14 repos ↓3 ●2` with a tooltip listing the repositories behind or dirty; a click opens the
   dashboard (W1, §8.1).
-- **Entry points**: `repohangar.open` (*RepoHangar: Open Dashboard*, `Ctrl+Alt+R` / `Cmd+Alt+R`, D11),
+- **Entry points**: `repohangar.open` (*RepoHangar: Open Dashboard*, `Ctrl+Alt+H` / `Ctrl+Cmd+H` on macOS, D11 after the
+  conflict check of §10.3),
   `repohangar.refresh`, the **Open RepoHangar** button in the Source Control title bar (`scm/title`), and
   `repohangar.openOnStartup` (§8.1, §10.1, §10.3).
 - **Settings** (Appendix A): `repohangar.openOnStartup`, `repohangar.groupBy`, `repohangar.groups`,

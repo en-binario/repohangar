@@ -193,15 +193,29 @@ ${cspSource}`. Provider avatar hosts arrive with the MR column. Preact renders t
 userinfo of `http(s)` URLs removed. Only parsed fields cross into the store; the raw URL never does, so no later code
 path can post it to the webview. The SSH user (`git@`) is not a secret and stays.
 
+### D-13. Default keybinding of `repohangar.open` (D11)
+
+`Ctrl+Alt+H` on Windows and Linux, `Ctrl+Cmd+H` on macOS ("H" for Hangar), replacing PROPOSAL.md's
+`Ctrl+Alt+R` / `Cmd+Alt+R`. The conflict check of §10.3 (task 9.2) ran on 2026-10-08 against the default keymaps of
+VS Code 1.141.0 for the three platforms (the `codebling/vs-code-default-keybindings` export, the same version the
+tests run on; on Windows also through **Preferences: Open Default Keyboard Shortcuts (JSON)** in the test VS Code):
+
+| Key | Windows | Linux | macOS |
+|---|---|---|---|
+| `Ctrl+Alt+R` / `Cmd+Alt+R` | Terminal: Run Recent Command, terminal `sendSequence` (terminal focused) | Reveal in OS (editor not focused), Terminal: Run Recent Command | Toggle Find Regex (editor focused), Reveal in Finder (editor not focused), regex toggles in Search and the terminal find |
+| `Ctrl+Alt+D` / `Cmd+Alt+D` | Free | Free (Show Desktop in some Linux desktops) | Free in VS Code; macOS **Show/Hide Dock** |
+| `Ctrl+Alt+H` / `Cmd+Alt+H` | Free | Free | Free in VS Code; macOS **Hide Others** |
+| `Ctrl+Alt+H` / `Ctrl+Cmd+H` | **Free** | **Free** | **Free**, no macOS system shortcut |
+
+Alternatives rejected: keeping `Ctrl+Alt+R` with `"when": "!terminalFocus"` fixes the Windows terminal only, and on
+macOS the key would still take over Toggle Find Regex in every editor and Reveal in Finder; `Ctrl+Alt+Shift+R` is free
+everywhere but needs four keys for the most frequent command. The macOS modifiers differ from `Cmd+Alt+M` and
+`Cmd+Alt+G`, which phase 1 and 2 changes check for their own capabilities (`⌥⌘M` is also macOS **Minimize All**).
+
 ## Risks / Trade-offs
 
-- [`Ctrl+Alt+R` / `Cmd+Alt+R` collides with default bindings] → task 9.2. **Windows (VS Code 1.141, checked
-  2026-10-08):** `ctrl+alt+r` is bound to `workbench.action.terminal.runRecentCommand` (when `terminalFocus && …
-  !accessibilityModeEnabled`) and to `workbench.action.terminal.sendSequence` (when `accessibilityModeEnabled &&
-  terminalFocus`). RepoHangar's binding has no `when` clause, so in a focused terminal it would replace **Run Recent
-  Command**. **macOS and Linux:** not checked yet; Reveal in OS (`revealFileInOS`) is expected on `Cmd+Alt+R` /
-  `Ctrl+Alt+R` when the editor is not focused. Options for D11: add `"when": "!terminalFocus"` (keeps the key, solves
-  Windows only), or choose another key. Decided with `/opsx:update` before archive.
+- [A default key can collide with VS Code or OS shortcuts added later] → D-13 records the check against the VS Code
+  1.141 default keymaps; the release checklist repeats it for each new VS Code release (PROPOSAL.md §10.3).
 - [FS watchers inside `.git` may be excluded by `files.watcherExclude` on some setups] → `onDidChange` also re-reads
   the fast paths, and `git fetch` changes refs, which the Git extension reports; the watcher only shortens the delay.
 - [`workbench.action.pinEditor` pins the wrong editor if focus moves between create and pin] → pin only on the panel's
@@ -221,4 +235,4 @@ Not applicable: first release of the extension; nothing to migrate. Git Graph Op
 
 - Answered (2026-10-08, VS Code 1.141): VS Code starts RepoHangar without a reload when the workspace is trusted
   (`test/ui/trust.spec.ts`, packaged VSIX).
-- Open: the keybinding conflict on macOS and Linux, and the D11 decision for all three platforms (Risks, task 9.2).
+- Answered (2026-10-08): the open key is `Ctrl+Alt+H` / `Ctrl+Cmd+H` (D-13, task 9.2).
