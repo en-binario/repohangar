@@ -8,7 +8,7 @@ context: |
   creation from saved MR profiles (target, reviewers, assignees, labels, squash, delete source branch, draft, auto-merge,
   title and description templates), and shortcuts to Git Graph (when installed, else VS Code's Source Control Graph),
   the Explorer and Source Control. It absorbs the Git Graph Opener extension.
-  Product source of truth: PROPOSAL.md (r5), kept outside this repository. Section numbers (§7.5), wireframes (W4),
+  Product source of truth: PROPOSAL.md (r6), kept outside this repository. Section numbers (§7.5), wireframes (W4),
   decision ids (D1-D21) and appendices (Appendix A settings, B provider API, C layout, D migration) refer to it.
   Key decisions: Git state only from the built-in Git extension API (vscode.git, getAPI(1)); network Git operations go
   through the API so VS Code's credential prompts keep working; own `git` processes only for local fast paths
