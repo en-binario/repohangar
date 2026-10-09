@@ -2,7 +2,16 @@
 // (design D-4). No vscode import.
 
 import type { GraphVariant, NameClick } from './graph';
-import { ROW_ACTIONS, type BatchAction, type DashboardState, type GroupingMode, type RowAction, type RowData, type RowDetails } from './model';
+import {
+  ROW_ACTIONS,
+  type BatchAction,
+  type DashboardState,
+  type FirstRunPanel,
+  type GroupingMode,
+  type RowAction,
+  type RowData,
+  type RowDetails,
+} from './model';
 
 export interface Snapshot {
   type: 'snapshot';
@@ -17,6 +26,10 @@ export interface Snapshot {
   graph: GraphVariant;
   /** `repohangar.dashboard.nameClick` */
   nameClick: NameClick;
+  /** The first-run hosts panel, shown in place of the grid until dismissed (provider-auth) */
+  firstRun: FirstRunPanel | null;
+  /** The first-run decision waits for every listed repository's row */
+  firstRunPending: boolean;
 }
 
 export type HostMessage =
@@ -36,7 +49,13 @@ export type ViewMessage =
   | { type: 'runAction'; id: string; action: RowAction }
   | { type: 'runBatch'; action: BatchAction; ids: string[] }
   /** The selected rows, which the batch commands act on (batch-operations: Batch targets) */
-  | { type: 'setSelection'; ids: string[] };
+  | { type: 'setSelection'; ids: string[] }
+  /** A `Sign in` cell or a first-run button (provider-auth: Sign in to a host) */
+  | { type: 'signIn'; host: string }
+  /** The `?` cell (hosting-providers: Host choice for an unknown host) */
+  | { type: 'chooseProvider'; host: string }
+  | { type: 'skipHost'; host: string }
+  | { type: 'firstRunDone' };
 
 export const GROUPING_MODES: readonly GroupingMode[] = ['parentFolder', 'workspaceFolder', 'custom', 'none'];
 
@@ -57,6 +76,10 @@ const SHAPES: Record<ViewMessage['type'], Record<string, Field>> = {
   runAction: { id: 'string', action: 'rowAction' },
   runBatch: { action: 'batchAction', ids: 'ids' },
   setSelection: { ids: 'ids' },
+  signIn: { host: 'string' },
+  chooseProvider: { host: 'string' },
+  skipHost: { host: 'string' },
+  firstRunDone: {},
 };
 
 function fieldValid(kind: Field, value: unknown): boolean {

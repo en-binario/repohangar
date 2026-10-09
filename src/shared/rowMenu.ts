@@ -5,6 +5,7 @@
 import { isDirty } from './format';
 import { graphLabel, type GraphVariant } from './graph';
 import type { RowAction, RowData } from './model';
+import { compareState } from './review';
 
 export interface MenuItem {
   action: RowAction;
@@ -12,6 +13,8 @@ export interface MenuItem {
   /** The dashboard key of the action, shown next to the label */
   key?: string;
   enabled: boolean;
+  /** Why a disabled item does not apply, as its tooltip */
+  reason?: string;
 }
 
 /** The name of Reveal in File Explorer on each platform, as VS Code names it. */
@@ -33,8 +36,13 @@ function navigationItems(graph: GraphVariant): MenuItem[] {
 }
 
 /** The menu in groups, separated by a line. */
-export function rowMenu(row: Pick<RowData, 'counts' | 'stashes' | 'head'>, platform: string, graph: GraphVariant): MenuItem[][] {
+export function rowMenu(
+  row: Pick<RowData, 'counts' | 'stashes' | 'head'> & Partial<Pick<RowData, 'provider' | 'defaultBranch' | 'review'>>,
+  platform: string,
+  graph: GraphVariant,
+): MenuItem[][] {
   const dirty = isDirty(row);
+  const compare = compareState({ provider: row.provider ?? null, head: row.head, defaultBranch: row.defaultBranch ?? null, review: row.review }, undefined);
   return [
     navigationItems(graph),
     [
@@ -46,6 +54,8 @@ export function rowMenu(row: Pick<RowData, 'counts' | 'stashes' | 'head'>, platf
       { action: 'revealInOS', label: revealLabel(platform), enabled: true },
       { action: 'copyPath', label: 'Copy path', enabled: true },
       { action: 'copyBranch', label: 'Copy branch name', enabled: row.head.kind === 'branch' },
+      // hosting-providers: Compare page
+      { action: 'openCompare', label: 'Open compare page ↗', enabled: compare.enabled, ...(compare.enabled ? {} : { reason: compare.reason }) },
     ],
   ];
 }

@@ -13,8 +13,9 @@ import {
   type CellText,
 } from '../src/shared/format';
 import { nameClickAction, type GraphVariant } from '../src/shared/graph';
-import type { ChipId, GroupingMode, RowAction, RowData, RowDetails } from '../src/shared/model';
+import type { ChipId, FirstRunButton, FirstRunPanel, GroupingMode, RowAction, RowData, RowDetails } from '../src/shared/model';
 import type { HostMessage, Snapshot, ViewMessage } from '../src/shared/protocol';
+import { compareState, openReviewLabel, reviewCell, reviewDetails } from '../src/shared/review';
 import { detailsButtons } from '../src/shared/rowMenu';
 import { layout, rowKey, type GridItem } from './layout';
 import { BatchButtons, HoverActions, RowMenu, syncClickAction } from './RowActions';
@@ -39,7 +40,8 @@ const EMPTY_VIEW: PersistedView = { filter: '', chips: [], selected: [], expande
  * The hints of the action keys (git-operations: Row action keys), then those of the graph, Explorer and Source Control
  * keys, shown before the navigation hints.
  */
-export const ACTION_HINTS = 'f fetch · p pull · P push · b switch · t terminal · . more · g graph · e explorer · s source control';
+export const ACTION_HINTS =
+  'f fetch · p pull · P push · b switch · t terminal · . more · g graph · e explorer · s source control · o open MR';
 export const KEY_HINTS = '↑↓ move · Space select · / filter · ⏎ details · ? keys';
 
 export const KEY_HELP: readonly [string, string][] = [
@@ -52,6 +54,8 @@ export const KEY_HELP: readonly [string, string][] = [
   ['2', 'Dirty'],
   ['3', 'Behind'],
   ['4', 'Ahead'],
+  ['5', 'Has MR'],
+  ['6', 'Pipeline ✗'],
   ['7', 'No upstream'],
   ['Esc', 'Clear the filter, then the selection'],
   ['?', 'Show this help'],
@@ -65,6 +69,7 @@ export const KEY_HELP: readonly [string, string][] = [
   ['g', 'Open the focused row in the graph'],
   ['e', 'Reveal the focused row in the Explorer'],
   ['s', 'Show the focused row in Source Control'],
+  ['o', 'Open the merge request or pull request of the focused row'],
 ];
 
 const GROUP_OPTIONS: readonly [GroupingMode, string][] = [
@@ -266,6 +271,7 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
       g: 'graph',
       e: 'revealInExplorer',
       s: 'showInSourceControl',
+      o: 'openReview',
     };
     if (e.key === 'F') {
       e.preventDefault();
@@ -354,6 +360,16 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
   });
 
   if (!snapshot) return <div class="empty">Loading repositories…</div>;
+  if (snapshot.firstRun) return <FirstRun panel={snapshot.firstRun} api={api} />;
+  // Until every row is computed it is not known whether the first-run panel replaces the grid; showing neither
+  // keeps the grid from being swapped out under the user.
+  if (snapshot.firstRunPending) {
+    return (
+      <div class="empty" role="status" data-first-run-pending="true">
+        <p>Loading repositories…</p>
+      </div>
+    );
+  }
   const empty = emptyStateText(snapshot.state);
   if (empty) {
     return (
@@ -373,7 +389,7 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
   const chipActive = (id: ChipId | 'all') => (id === 'all' ? view.chips.length === 0 : view.chips.includes(id));
 
   return (
-    <div class="dashboard" data-graph={snapshot.graph} data-name-click={snapshot.nameClick}>
+    <div class="dashboard" data-graph={snapshot.graph} data-name-click={snapshot.nameClick} data-first-run-pending={snapshot.firstRunPending}>
       <div class="toolbar" role="toolbar" aria-label="Filters">
         <BatchButtons selected={view.selected.length} onRun={(action) => runBatch(action === 'fetch' ? 'fetchAll' : 'pullAllFf')} />
         <input
@@ -424,6 +440,7 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
           <span class="cell" role="columnheader">Sync</span>
           <span class="cell" role="columnheader">Changes</span>
           <span class="cell" role="columnheader">Fetched</span>
+          <span class="cell" role="columnheader">MR / PR</span>
         </div>
         {items.map((item) =>
           item.kind === 'group' ? (
@@ -431,7 +448,7 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
               <span
                 class="cell"
                 role="gridcell"
-                aria-colspan={6}
+                aria-colspan={7}
                 data-focus
                 tabIndex={item.key === focusKey ? 0 : -1}
                 onClick={() => {
@@ -469,6 +486,8 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
                 runAction(item.row.id, action);
               }}
               onMenuClose={closeMenu}
+              onSignIn={(host) => api.postMessage({ type: 'signIn', host })}
+              onChooseProvider={(host) => api.postMessage({ type: 'chooseProvider', host })}
             />
           ),
         )}
@@ -521,6 +540,8 @@ interface RowViewProps {
   onMenu(): void;
   onMenuChoose(action: RowAction): void;
   onMenuClose(): void;
+  onSignIn(host: string): void;
+  onChooseProvider(host: string): void;
 }
 
 function RowView(props: RowViewProps) {
@@ -618,6 +639,9 @@ function RowView(props: RowViewProps) {
             </>
           )}
         </span>
+        <span class="cell review" role="gridcell" data-col="review">
+          <ReviewCellView row={row} now={props.now} onAction={props.onAction} onSignIn={props.onSignIn} onChooseProvider={props.onChooseProvider} />
+        </span>
         <span class="cell actions" role="gridcell" aria-label="Actions">
           <HoverActions row={row} graph={props.graph} onAction={props.onAction} onMenu={props.onMenu} />
           {props.menuOpen && (
@@ -633,10 +657,11 @@ function RowView(props: RowViewProps) {
       </div>
       {props.expanded && (
         <div class="row details" role="row" data-details={row.name}>
-          <span class="cell" role="gridcell" aria-colspan={6}>
+          <span class="cell" role="gridcell" aria-colspan={7}>
             {props.details
               ? detailsLines(row, props.details, props.now).map((line) => <div class="detail-line">{line}</div>)
               : 'Loading…'}
+            <ReviewDetailsView row={row} details={props.details} onAction={props.onAction} />
             <div class="detail-buttons">
               {detailsButtons(props.graph).map((button) => (
                 <button
@@ -655,6 +680,151 @@ function RowView(props: RowViewProps) {
         </div>
       )}
     </>
+  );
+}
+
+/** The MR / PR cell (hosting-providers: MR / PR cell). */
+function ReviewCellView(props: {
+  row: RowData;
+  now: number;
+  onAction(action: RowAction): void;
+  onSignIn(host: string): void;
+  onChooseProvider(host: string): void;
+}) {
+  const cell = reviewCell(props.row.review, props.now);
+  if ((cell.kind === 'signIn' || cell.kind === 'unknownHost') && cell.host) {
+    const host = cell.host;
+    const run = cell.kind === 'signIn' ? () => props.onSignIn(host) : () => props.onChooseProvider(host);
+    return (
+      <button
+        type="button"
+        class="review-button"
+        tabIndex={-1}
+        aria-label={cell.label}
+        title={cell.tooltip ?? cell.label}
+        data-review={cell.kind}
+        onClick={(e) => {
+          e.stopPropagation();
+          run();
+        }}
+      >
+        {cell.text}
+      </button>
+    );
+  }
+  if (cell.kind !== 'review') {
+    return (
+      <span class={cell.stale ? 'symbol stale' : 'symbol'} role="img" aria-label={cell.label} title={cell.tooltip ?? cell.label} data-review={cell.kind}>
+        {cell.text}
+      </span>
+    );
+  }
+  const [ref, ...rest] = cell.parts;
+  return (
+    <span class={cell.stale ? 'review-parts stale' : 'review-parts'} title={cell.tooltip} role="img" aria-label={cell.label} data-review="review">
+      <button
+        type="button"
+        class="review-ref"
+        tabIndex={-1}
+        aria-label={ref?.label}
+        onClick={(e) => {
+          e.stopPropagation();
+          props.onAction('openReview');
+        }}
+      >
+        {ref?.text}
+      </button>
+      {rest.map((part) => (
+        <span key={part.text} class="review-part" aria-hidden="true">
+          {part.text}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** The merge request lines and buttons of the row details (hosting-providers: Review lines in row details). */
+function ReviewDetailsView(props: { row: RowData; details: RowDetails | undefined; onAction(action: RowAction): void }) {
+  const review = reviewDetails(props.row);
+  const provider = props.row.provider;
+  if (!review || (provider !== 'gitlab' && provider !== 'github')) return null;
+  const target = props.details?.compareTarget;
+  const compare = compareState(props.row, target === null ? null : (target ?? undefined));
+  const ready = compare.enabled && compare.target !== null;
+  const labels: Record<string, [RowAction, string]> = {
+    openReview: ['openReview', openReviewLabel(provider)],
+    copyLink: ['copyReviewLink', 'Copy link'],
+    compare: ['openCompare', (target ?? props.row.defaultBranch) ? `Compare with ${target ?? props.row.defaultBranch}` : 'Compare'],
+  };
+  return (
+    <div class="review-details">
+      {review.lines.map((line) => (
+        <div class="detail-line" key={line.text}>
+          {line.text}
+          {line.button && (
+            <>
+              {' '}
+              <button type="button" class="detail-button" tabIndex={-1} data-action="openPipeline" onClick={() => props.onAction('openPipeline')}>
+                {line.button.label}
+              </button>
+            </>
+          )}
+        </div>
+      ))}
+      <div class="detail-buttons">
+        {review.buttons.map((button) => {
+          const [action, label] = labels[button] as [RowAction, string];
+          const disabled = button === 'compare' && !ready;
+          return (
+            <button
+              type="button"
+              key={button}
+              class="detail-button"
+              data-action={action}
+              tabIndex={-1}
+              disabled={disabled}
+              title={disabled ? (compare.enabled ? 'Default branch unknown' : compare.reason) : undefined}
+              onClick={() => props.onAction(action)}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+const FIRST_RUN_BUTTONS: Record<FirstRunButton, string> = {
+  signInGitHub: 'Sign in to GitHub',
+  pasteToken: 'Paste a token…',
+  skip: 'Skip — git only',
+};
+
+/** The first-run hosts panel (provider-auth: First-run hosts panel, W10). */
+function FirstRun({ panel, api }: { panel: FirstRunPanel; api: VsCodeApi }) {
+  return (
+    <div class="first-run" role="region" aria-label="Connect your Git hosts">
+      <p class="first-run-summary">{panel.summary}</p>
+      {panel.hosts.map((host) => (
+        <div class="first-run-host" key={host.host} data-host={host.host}>
+          <span class="first-run-line">{host.line}</span>
+          {host.buttons.map((button) => (
+            <button
+              type="button"
+              key={button}
+              data-button={button}
+              onClick={() => api.postMessage(button === 'skip' ? { type: 'skipHost', host: host.host } : { type: 'signIn', host: host.host })}
+            >
+              {FIRST_RUN_BUTTONS[button]}
+            </button>
+          ))}
+        </div>
+      ))}
+      <button type="button" class="first-run-done" onClick={() => api.postMessage({ type: 'firstRunDone' })}>
+        Open dashboard →
+      </button>
+    </div>
   );
 }
 

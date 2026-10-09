@@ -16,6 +16,7 @@ import { SourceControl } from './integrations/sourceControl';
 import { CommandRunner, Notifier } from './integrations/workbench';
 import { JobRunner } from './jobs/runner';
 import { RepoHangarLog } from './log';
+import { ProviderService } from './providers/service';
 import { RowStore } from './state/store';
 import { Actions, commandArgument } from './ui/actions';
 import { DASHBOARD_VIEW_TYPE, DashboardController } from './ui/dashboard';
@@ -47,6 +48,7 @@ export interface TestApi {
   repositoryRoots: RepositoryRoots;
   legacyOpener: LegacyOpenerGuard;
   migration: { writes: MigrationWrite[]; run(): Promise<MigrationWrite[]>; state: vscode.Memento };
+  providers: ProviderService;
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<TestApi | undefined> {
@@ -82,11 +84,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<TestAp
   const explorerReveal = new ExplorerReveal(commands);
   const repositoryRoots = new RepositoryRoots(git, registry.onDidChangeRepositories);
   const legacyOpener = new LegacyOpenerGuard(context.globalState, notifier, commands);
+  const providers = new ProviderService(context, store, registry, notifier, log);
+  actions.review = {
+    openReview: (id) => providers.openReview(id),
+    copyLink: (id) => providers.copyLink(id),
+    openCompare: (id) => providers.openCompare(id),
+    openPipeline: (id) => providers.openPipeline(id),
+    afterPush: (id) => providers.afterPush(id),
+  };
   dashboard = new DashboardController(context.extensionUri, store, registry, git, viewState, actions, {
     get variant() {
       return graph.variant;
     },
     onDidChange: gitGraph.onDidChange,
+  }, {
+    firstRun: () => providers.firstRun(),
+    firstRunDismissed: () => providers.firstRunDismissed(),
+    onDidChangeFirstRun: providers.onDidChangeFirstRun,
+    compareTarget: (id) => providers.compareTarget(id),
+    signIn: (host) => providers.auth.signIn(host),
+    chooseProvider: (host) => providers.chooseProvider(host),
+    skipHost: (host) => providers.skipHost(host),
+    firstRunDone: () => providers.firstRunDone(),
   });
   const panel = dashboard;
   const statusBar = new StatusBar(store);
@@ -126,13 +145,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<TestAp
     gitGraph,
     repositoryRoots,
     legacyOpener,
+    providers,
     git.onDidChange(() => reg.attach(git.current)),
     vscode.window.registerWebviewPanelSerializer(DASHBOARD_VIEW_TYPE, panel),
     vscode.commands.registerCommand('repohangar.open', () => panel.open()),
     vscode.commands.registerCommand('repohangar.scm.openDashboard', () => vscode.commands.executeCommand('repohangar.open')),
     vscode.commands.registerCommand('repohangar.scm.fetch', (arg?: unknown) => vscode.commands.executeCommand('repohangar.fetch', arg)),
     vscode.commands.registerCommand('repohangar.refresh', async () => {
-      await Promise.all([reg.refreshAll(), repositoryRoots.rescan()]);
+      await Promise.all([reg.refreshAll(), repositoryRoots.rescan(), providers.refresh()]);
     }),
     vscode.commands.registerCommand('repohangar.openInGitGraph', (arg?: unknown) => graph.open(() => target(arg))),
     vscode.commands.registerCommand('repohangar.openInSourceControlGraph', async (arg?: unknown) => {
@@ -154,6 +174,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<TestAp
       const id = await actions.resolveActive(arg);
       if (id !== undefined) await panel.reveal(id);
     }),
+    vscode.commands.registerCommand('repohangar.mr.open', async (arg?: unknown) => {
+      const id = await actions.resolveActive(arg);
+      if (id !== undefined) await providers.openReview(id);
+    }),
+    vscode.commands.registerCommand('repohangar.mr.copyLink', async (arg?: unknown) => {
+      const id = await actions.resolveActive(arg);
+      if (id !== undefined) await providers.copyLink(id);
+    }),
+    vscode.commands.registerCommand('repohangar.signIn', () => providers.signInCommand()),
+    vscode.commands.registerCommand('repohangar.signOut', () => providers.signOutCommand()),
     vscode.commands.registerCommand('repohangar.explorer.fetch', (arg?: unknown) => vscode.commands.executeCommand('repohangar.fetch', arg)),
     vscode.commands.registerCommand('repohangar.explorer.pullFf', (arg?: unknown) => vscode.commands.executeCommand('repohangar.pullFf', arg)),
   );
@@ -187,6 +217,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<TestAp
     repositoryRoots,
     legacyOpener,
     migration: { writes: migrated, run: () => migrateSettings(context.globalState, log), state: context.globalState },
+    providers,
   };
 }
 

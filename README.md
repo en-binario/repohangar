@@ -3,8 +3,8 @@
 See every Git repository in your workspace at a glance, act on all of them at once, and open GitLab merge requests
 or GitHub pull requests with your team's defaults in one keystroke.
 
-> RepoHangar is in early development. This version has the read-only dashboard and the status bar summary; batch
-> operations, Git Graph shortcuts and merge requests follow.
+> RepoHangar is in early development. This version shows the merge request or pull request of every branch; creating
+> them from the dashboard follows.
 
 ## Dashboard
 
@@ -19,6 +19,7 @@ extension opened:
 | Sync | `↑ahead ↓behind`, `⇡ publish` for unpublished branches, `—` when there is nothing to sync |
 | Changes | `⚠ n confl`, `●` unstaged, `+` staged, `?` untracked, `≡` stashes |
 | Fetched | Time since the last fetch, `⚠` when older than `repohangar.staleFetchHours` |
+| MR / PR | The open merge request (`!142`) or pull request (`#311`) of the branch, `Draft`, the pipeline or checks (`✓ passed`, `⟳ running`, `◷ pending`, `✗ failed`), approvals (`1/2` on GitLab, `changes requested` on GitHub) and `auto ⇢`; `Sign in` when the host has no credential, `?` for an unknown host |
 
 Rows update as soon as the Git extension sees a change; RepoHangar never polls.
 
@@ -31,15 +32,47 @@ Rows update as soon as the Git extension sees a change; RepoHangar never polls.
 | `Ctrl+A` | Select all shown rows |
 | `/` | Filter by name, branch or group |
 | `Enter` | Row details, or collapse a group |
-| `1` `2` `3` `4` `7` | Chips All, Dirty, Behind, Ahead, No upstream |
+| `1` – `7` | Chips All, Dirty, Behind, Ahead, Has MR, Pipeline ✗, No upstream |
 | `Esc` | Clear the filter, then the selection |
 | `?` | Key help |
 | `g` | Open the focused row in Git Graph (or the Source Control Graph) |
 | `e` | Reveal the focused row in the Explorer |
 | `s` | Show the focused row in Source Control |
+| `o` | Open the merge request or pull request of the focused row |
 
 A click on a repository name reveals it in the Explorer (`repohangar.dashboard.nameClick`); a click on the Changes
 cell shows it in Source Control.
+
+## Merge requests and pull requests
+
+The **MR / PR** column shows the open merge request (GitLab) or pull request (GitHub) of each repository's branch. It
+costs one GraphQL request per host for every repository on it, and RepoHangar asks again only when something changed:
+a commit or branch switch, a push from RepoHangar, the window gaining focus after 60 s, every
+`repohangar.providers.refreshMinutes` while a pipeline runs, and **RepoHangar: Refresh**. Nothing is sent while the
+window is unfocused. The last values are kept, so the dashboard opens with them, dimmed until they are refreshed.
+
+A click on `!142` or `#311`, `o`, or **RepoHangar: Open Merge Request of Current Branch** opens it in the browser;
+**RepoHangar: Copy Merge Request Link** copies it. Row details add the merge request, its pipeline or checks, **Copy
+link** and **Compare with main**; the `⋯` menu has **Open compare page**.
+
+Hosts: `github.com` and `gitlab.com` are known; a self-hosted host is asked once (`/api/v4/version`, then
+`/api/v3/meta`, without credentials), or you choose with the `?` cell, which writes `repohangar.hosts`. RepoHangar
+warns once about a GitLab older than 17.10.
+
+### Signing in
+
+| Host | How RepoHangar gets a credential |
+|---|---|
+| github.com | Your VS Code GitHub account (`repo` scope); click `Sign in` if you are not signed in |
+| GitHub Enterprise | The VS Code account of `github-enterprise.uri`, a stored token, or your `gh` login |
+| GitLab (gitlab.com or self-hosted) | A stored token, else your `glab` login; `Sign in` opens the token page with the name `RepoHangar` and the `api` scope pre-filled, then asks you to paste the token |
+
+The first time the dashboard opens, a panel lists your hosts and how each is connected, with **Skip — git only** for
+hosts you do not want RepoHangar to contact. **RepoHangar: Sign In to Host…** and **Sign Out of Host…** do the same
+later.
+
+Tokens are kept only in VS Code's secret storage, per host, and sent only to their own host. They never reach
+settings, logs or the dashboard. A token the host rejects is deleted and RepoHangar asks you to sign in again.
 
 ## Git Graph
 
@@ -96,7 +129,8 @@ installed, RepoHangar hides its own Explorer item and offers once to uninstall G
 | `repohangar.groups` | `{}` | Custom groups: name → globs on the repository root path |
 | `repohangar.staleFetchHours` | `1` | Age that marks the last fetch as stale; `0` turns the marker off |
 | `repohangar.statusBar.enabled` | `true` | Show the status bar summary |
-| `repohangar.hosts` | `{}` | Provider of self-hosted hosts, for example `{ "git.acme.com": "gitlab" }` |
+| `repohangar.hosts` | `{}` | Provider of self-hosted hosts, for example `{ "git.acme.com": "gitlab" }`; entries of user and workspace settings add up |
+| `repohangar.providers.refreshMinutes` | `3` | Minutes between status refreshes while a pipeline runs and the window is focused |
 | `repohangar.dashboard.nameClick` | `"explorer"` | What a click on a repository name does: `explorer`, `gitGraph` or `sourceControl` |
 | `repohangar.gitGraph.whenMissing` | `"sourceControlGraph"` | Without Git Graph: `sourceControlGraph`, `offerInstall` or `hide` |
 | `repohangar.gitGraph.revealSourceControl` | `true` | Show Source Control after Open in Git Graph |

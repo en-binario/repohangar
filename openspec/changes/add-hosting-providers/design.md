@@ -66,8 +66,11 @@ branch protection rules, which need admin read access. `reviewDecision` (`approv
 
 ### D-4. Review state in the store and cache
 
-`RowData` gains `review?: ReviewCell` (the rendered text parts, accessible name, tooltip, `stale` flag, URL), so the
-webview stays a pure view. The store keeps `ReviewState` per `repoId + branch` with `headSha` and `fetchedAt`, persists
+`RowData` gains `review?: ReviewInfo` (the stored state, or why there is none: `signIn`, `unknownHost`, `skipped`,
+`loading`, `notFound`) plus `hosted`, `headSha` and `defaultBranch`; `src/shared/review.ts`, which both the host and
+the webview import (like `format.ts`), turns it into the cell text, accessible name and tooltip, so the webview keeps
+no logic of its own and one table-driven test covers both. The store applies the provider layer as a row decorator
+(`RowStore.setDecorator`), and republishes only rows whose decoration changed. The store keeps `ReviewState` per `repoId + branch` with `headSha` and `fetchedAt`, persists
 it in `workspaceState` (`repohangar.reviews`), and drops entries whose repository is gone at activation. "Not refreshed"
 = loaded in a previous session (`fetchedAt` before activation) or `headSha` ≠ HEAD or the host is in back-off.
 
@@ -105,6 +108,38 @@ is 22 ch wide by default; long titles stay in the tooltip.
 `statusBar.ts` counts rows whose `review` is an open review (stale or not) and adds `$(git-pull-request)<m>`; the
 tooltip line lists them by repository name with the same 10-name limit as the other lines.
 
+### D-9. `repohangar.hosts` across scopes
+
+`getConfiguration().get('repohangar.hosts')` returns only the narrowest scope's object, so the user-scope entry the `?`
+cell writes was hidden in a workspace with its own `repohangar.hosts` (found by
+`providers/30-reviewCommands.test.ts`). The registry now merges `inspect()`'s global, workspace and workspace-folder
+values, the narrower scope winning per host (spec `Host choice for an unknown host`).
+
+### D-10. Test seams
+
+The integration tests replace `Http.fetchOverride` and the `AuthUi` port (VS Code sessions, the token page, the
+password input, `glab` and `gh`) through the test API. Outside Production mode two environment variables are read:
+`REPOHANGAR_HTTP_STUB` sends every provider request to a local stub server (`<stub>/<host><path>`), which every
+integration session and the Playwright providers spec start, so no test reaches GitLab or GitHub; and
+`REPOHANGAR_TEST_TOKENS` seeds tokens per host for the Playwright tests, which cannot drive VS Code's GitHub sign-in or
+a browser. Neither is read in Production mode.
+
+### D-11. Hover buttons in their own column
+
+The row's hover buttons were positioned over the right edge of the row, which is now the MR / PR cell with its own
+buttons (`Sign in`, `?`, `!142`); a pointer over the cell showed the hover buttons on top of it, so the cell could not
+be clicked. The buttons get a 184 px grid column of their own.
+
+### D-12. When the first-run panel shows
+
+Rows arrive one by one after activation, and a repository on GitHub can be among the last (a repository without
+commits takes longest). Deciding on the first snapshot showed the grid and then swapped the panel in a moment later;
+deciding only when every row exists kept a restored dashboard on `Loading repositories…` for seconds. The dashboard
+therefore decides once per panel: at once after a dismissal or when a GitLab or GitHub row exists, else when the rows
+are complete or after 2 s; the snapshot carries `firstRunPending` until then, and the webview shows `Loading
+repositories…` instead of a grid it could replace. A restored panel never shows it, so the reload requirement of
+`dashboard` holds.
+
 ## Risks / Trade-offs
 
 - [`401` from `/api/v4/version` identifies GitLab on hosts that put everything behind SSO] → the result can be wrong
@@ -126,4 +161,8 @@ uninstalling; `SecretStorage` entries are removed with the extension's secrets.
 ## Open Questions
 
 - Does `glab config get token --host` print the token on `glab` 1.50 and later, or only `glab auth status
-  --show-token`? Answered while implementing task 2.3; both are tried, so the spec does not change.
+  --show-token`? Partly answered (task 2.3): on `glab` 1.80.4 (Windows), not logged in, `config get token --host`
+  prints nothing and exits 0, `glab auth token` does not exist, and `auth status` says it checks the config file, the
+  OS keyring and the environment, so a keyring login needs the `auth status --show-token` fallback. Not yet verified:
+  the `Token:` line of a logged-in keyring login on 1.80.4, and `glab` 1.46 and the latest release (1.121.0). Both
+  commands are tried, so the answer does not change the spec.

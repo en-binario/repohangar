@@ -2,7 +2,7 @@
 
 import { expect, test } from '@playwright/test';
 import { createMainFixture } from '../integration/fixtures/repos';
-import { dashboard, focusRow, launch, openDashboard, row, runCommand, type VsCode } from './vscode';
+import { dashboard, dismissFirstRun, focusRow, launch, openDashboard, row, runCommand, type VsCode } from './vscode';
 
 let vscode: VsCode;
 
@@ -19,12 +19,13 @@ test('opens the dashboard with Ctrl+Alt+H', async () => {
   // Wait until the extension has activated (the status bar summary appears).
   await expect(page.locator('[id="enbinario.repohangar.repohangar.summary"], .statusbar-item[aria-label^="RepoHangar:"]').first()).toBeVisible({ timeout: 60_000 });
   await page.keyboard.press(process.platform === 'darwin' ? 'Control+Meta+H' : 'Control+Alt+H');
+  await dismissFirstRun(dashboard(page));
   await expect(row(dashboard(page), 'billing-api')).toBeVisible({ timeout: 60_000 });
 });
 
 test('shows the column headers and orders rows by name', async () => {
   const frame = await openDashboard(vscode.page);
-  await expect(frame.locator('.row.header [role="columnheader"]')).toHaveText(['', 'Repository', 'Branch', 'Sync', 'Changes', 'Fetched']);
+  await expect(frame.locator('.row.header [role="columnheader"]')).toHaveText(['', 'Repository', 'Branch', 'Sync', 'Changes', 'Fetched', 'MR / PR']);
   const backend = await frame.locator('[data-repo]').evaluateAll((rows) =>
     rows.map((r) => r.getAttribute('data-repo') as string),
   );

@@ -154,9 +154,15 @@ system SHALL show, in place of the grid, a panel with the line
 state and buttons as the matrix states, then the button `Open dashboard →`, which shows the grid. The system SHALL
 record in `globalState` that the panel was shown and SHALL NOT show it again in any window.
 
+Whether a dashboard panel shows it SHALL be decided once per panel: at once when the panel was dismissed before (no
+panel) or a listed repository is on a GitLab or GitHub host (the panel), else when every listed repository has its row
+or 2 s have passed, the dashboard showing `Loading repositories…` until then. A dashboard restored after a window
+reload SHALL NOT show the panel.
+
 **Constraints:**
 - Hosts are ordered by the number of repositories, then by name; `local only` counts repositories without a provider
   and is left out when 0
+- The decision waits at most 2 s for the rows of the listed repositories
 
 #### Scenario: Host line matrix
 
@@ -175,6 +181,12 @@ record in `globalState` that the panel was shown and SHALL NOT show it again in 
 - **WHEN** the dashboard opens
 - **THEN** the panel's first line reads
   `Found 14 repositories: 9 on git.acme.com (GitLab) · 4 on github.com (GitHub) · 1 local only`
+
+#### Scenario: Restored dashboard keeps its view
+- **GIVEN** the panel was never dismissed, the dashboard is open with the filter `bill`, and a repository on
+  `github.com` is listed
+- **WHEN** the user runs **Developer: Reload Window**
+- **THEN** the restored dashboard shows the grid with the filter `bill`, not the panel
 
 #### Scenario: Panel shown once
 - **GIVEN** the user clicked `Open dashboard →` in the first-run panel

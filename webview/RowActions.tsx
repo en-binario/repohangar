@@ -135,6 +135,7 @@ export function RowMenu({ row, platform, graph, onChoose, onClose }: MenuProps) 
       data-action={entry.action}
       aria-disabled={!entry.enabled}
       aria-keyshortcuts={entry.key}
+      title={entry.enabled ? undefined : entry.reason}
       onClick={() => entry.enabled && onChoose(entry.action)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {

@@ -75,6 +75,27 @@ describe('smoke', () => {
     assert.deepEqual([properties['repohangar.fetchTimeoutSeconds']?.minimum, properties['repohangar.fetchTimeoutSeconds']?.maximum], [5, 600]);
   });
 
+  it('declares the provider setting and commands', async () => {
+    assert.equal(vscode.workspace.getConfiguration('repohangar').get('providers.refreshMinutes'), 3);
+    const manifest = vscode.extensions.getExtension('enbinario.repohangar')?.packageJSON as {
+      contributes: {
+        commands: { command: string; title: string; category?: string }[];
+        configuration: { properties: Record<string, { minimum?: number; maximum?: number }> };
+      };
+    };
+    const range = manifest.contributes.configuration.properties['repohangar.providers.refreshMinutes'];
+    assert.deepEqual([range?.minimum, range?.maximum], [1, 60]);
+    const titles = Object.fromEntries(manifest.contributes.commands.map((c) => [c.command, `${c.category}: ${c.title}`]));
+    assert.equal(titles['repohangar.mr.open'], 'RepoHangar: Open Merge Request of Current Branch');
+    assert.equal(titles['repohangar.mr.copyLink'], 'RepoHangar: Copy Merge Request Link');
+    assert.equal(titles['repohangar.signIn'], 'RepoHangar: Sign In to Host…');
+    assert.equal(titles['repohangar.signOut'], 'RepoHangar: Sign Out of Host…');
+    const registered = await vscode.commands.getCommands(true);
+    for (const id of ['repohangar.mr.open', 'repohangar.mr.copyLink', 'repohangar.signIn', 'repohangar.signOut']) {
+      assert.ok(registered.includes(id), `${id} is registered`);
+    }
+  });
+
   it('does not open the dashboard at startup with openOnStartup never', async () => {
     const api = await ready(14);
     assert.equal(await api.startupCheck, 'notOpened');

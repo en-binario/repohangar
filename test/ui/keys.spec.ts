@@ -1,4 +1,5 @@
-// dashboard :: Grid key matrix, one test per row, in row order R1–R22.
+// dashboard :: Grid key matrix, one test per row, in row order R1–R14, R16–R24 (R15 was removed: 5 and 6 now toggle
+// the Has MR and Pipeline ✗ chips, R23 and R24).
 
 import { expect, test, type FrameLocator, type Page } from '@playwright/test';
 import { createMainFixture } from '../integration/fixtures/repos';
@@ -148,12 +149,16 @@ test('clears every chip with 1', async () => {
   expect(await chipPressed('ahead')).toBe('false');
 });
 
-test('does nothing with 5 or 6', async () => {
-  const rows = await frame.locator('[data-repo]').count();
+test('turns the Has MR chip on with 5', async () => {
   await page.keyboard.press('5');
+  expect(await chipPressed('hasReview')).toBe('true');
+  expect(await chipPressed('all')).toBe('false');
+});
+
+test('turns the Pipeline failed chip on with 6', async () => {
   await page.keyboard.press('6');
-  expect(await chipPressed('all')).toBe('true');
-  await expect(frame.locator('[data-repo]')).toHaveCount(rows);
+  expect(await chipPressed('pipelineFailed')).toBe('true');
+  expect(await chipPressed('all')).toBe('false');
 });
 
 test('clears the filter and chips with Esc and keeps the selection', async () => {
@@ -219,11 +224,11 @@ test('moves from the filter box to the first shown row with ArrowDown', async ()
   expect(await focusedKey(frame)).toBe(await keyOf('auth-service'));
 });
 
-test('shows the action keys, then g graph, e explorer and s source control, before the navigation hints in the footer', async () => {
+test('shows the action keys, then g graph, e explorer, s source control and o open MR, before the navigation hints in the footer', async () => {
   await page.keyboard.press('Space');
   await expect(frame.locator('.footer')).toHaveText(
     '1 selected' +
-      'f fetch · p pull · P push · b switch · t terminal · . more · g graph · e explorer · s source control · ↑↓ move · Space select · / filter · ⏎ details · ? keys',
+      'f fetch · p pull · P push · b switch · t terminal · . more · g graph · e explorer · s source control · o open MR · ↑↓ move · Space select · / filter · ⏎ details · ? keys',
   );
   await expect(frame.locator('.selected-count')).toHaveText('1 selected');
 });

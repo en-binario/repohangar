@@ -41,7 +41,62 @@ export interface RowData {
   lastFetch: number | null;
   /** The running or last finished job (git-operations design D-2) */
   job?: RowJob;
+  /** The commit of HEAD, the cache key of the review state with the repository and branch */
+  headSha?: string;
+  /** The chosen remote's host, project path and web URL, when it is hosted (no credentials) */
+  hosted?: HostedRemote;
+  /** The target of the compare page from `refs/remotes/<remote>/HEAD` (`main`), or null when unknown */
+  defaultBranch?: string | null;
+  /** What the MR / PR cell shows (hosting-providers); set by the provider layer */
+  review?: ReviewInfo;
 }
+
+export interface HostedRemote {
+  host: string;
+  projectPath: string;
+  webUrl: string;
+}
+
+/**
+ * The open merge request or pull request of a branch, with the provider's values as they came (hosting-providers
+ * design D-2); `src/shared/review.ts` turns them into cell text.
+ */
+export interface ReviewState {
+  provider: 'gitlab' | 'github';
+  /** GitLab iid or GitHub number */
+  number: number;
+  url: string;
+  title: string;
+  draft: boolean;
+  /** GitLab `headPipeline.status` or GitHub `statusCheckRollup.state`; null when there is none */
+  pipeline: string | null;
+  /** GitLab, null when the field is not in the selection */
+  approvalsRequired?: number | null;
+  approvalsLeft?: number | null;
+  /** GitHub `reviewDecision` */
+  reviewDecision?: string | null;
+  /** GitLab `detailedMergeStatus` or GitHub `mergeable`; null when the field is not in the selection */
+  mergeStatus: string | null;
+  autoMerge: boolean;
+  headSha: string;
+}
+
+/** The state of a row's MR / PR cell (hosting-providers: Batched review status, Review state cache). */
+export type ReviewInfo =
+  /** No provider, or HEAD not on a branch: `—` */
+  | { kind: 'none' }
+  /** The provider stays `unknown` after the probe: `?` */
+  | { kind: 'unknownHost'; host: string }
+  /** No credential for the host: `Sign in` */
+  | { kind: 'signIn'; host: string }
+  /** The host is skipped: `—` with a tooltip */
+  | { kind: 'skipped'; host: string }
+  /** No stored state for the branch yet: `…` */
+  | { kind: 'loading' }
+  /** The project does not exist or cannot be read: `—` with a tooltip */
+  | { kind: 'notFound'; host: string; projectPath: string }
+  /** A loaded state: an open review, or null for none; `stale` marks it as not refreshed */
+  | { kind: 'loaded'; provider: 'gitlab' | 'github'; review: ReviewState | null; stale: boolean; fetchedAt: number };
 
 /** Actions that run as a job: one at a time per repository, shown in the Sync cell. */
 export type JobAction = 'fetch' | 'pull' | 'pullFf' | 'push' | 'publish' | 'sync';
@@ -74,7 +129,11 @@ export type RowAction =
   | 'copyBranch'
   | 'graph'
   | 'revealInExplorer'
-  | 'showInSourceControl';
+  | 'showInSourceControl'
+  | 'openReview'
+  | 'copyReviewLink'
+  | 'openCompare'
+  | 'openPipeline';
 
 export const ROW_ACTIONS: readonly RowAction[] = [
   'fetch',
@@ -92,6 +151,10 @@ export const ROW_ACTIONS: readonly RowAction[] = [
   'graph',
   'revealInExplorer',
   'showInSourceControl',
+  'openReview',
+  'copyReviewLink',
+  'openCompare',
+  'openPipeline',
 ];
 
 export type BatchAction = 'fetch' | 'pullFf';
@@ -107,6 +170,17 @@ export interface CommitDetails {
 /** Details of one row, loaded on demand (design D-9). `commit` is null when the branch has no commits. */
 export interface RowDetails {
   commit: CommitDetails | null;
+  /** The target of the compare page; null when it cannot be determined (hosting-providers: Compare page) */
+  compareTarget?: string | null;
+}
+
+/** A button of a host line in the first-run hosts panel (provider-auth: First-run hosts panel). */
+export type FirstRunButton = 'signInGitHub' | 'pasteToken' | 'skip';
+
+export interface FirstRunPanel {
+  /** `Found 14 repositories: 9 on git.acme.com (GitLab) · 4 on github.com (GitHub) · 1 local only` */
+  summary: string;
+  hosts: { host: string; line: string; buttons: FirstRunButton[] }[];
 }
 
 export type GitApiState = 'uninitialized' | 'initialized';
@@ -117,4 +191,4 @@ export type DashboardState =
   | { kind: 'noRepositories' }
   | { kind: 'grid' };
 
-export type ChipId = 'dirty' | 'behind' | 'ahead' | 'noUpstream';
+export type ChipId = 'dirty' | 'behind' | 'ahead' | 'hasReview' | 'pipelineFailed' | 'noUpstream';

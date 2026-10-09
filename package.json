@@ -136,6 +136,26 @@
       {
         "command": "repohangar.explorer.pullFf",
         "title": "Pull (ff)"
+      },
+      {
+        "command": "repohangar.mr.open",
+        "title": "Open Merge Request of Current Branch",
+        "category": "RepoHangar"
+      },
+      {
+        "command": "repohangar.mr.copyLink",
+        "title": "Copy Merge Request Link",
+        "category": "RepoHangar"
+      },
+      {
+        "command": "repohangar.signIn",
+        "title": "Sign In to Host…",
+        "category": "RepoHangar"
+      },
+      {
+        "command": "repohangar.signOut",
+        "title": "Sign Out of Host…",
+        "category": "RepoHangar"
       }
     ],
     "keybindings": [
@@ -326,6 +346,14 @@
           "markdownDescription": "Hosting provider of self-hosted Git hosts, for example `{ \"git.acme.com\": \"gitlab\" }`. `github.com`, `gitlab.com` and the host of `#github-enterprise.uri#` are detected without it.",
           "scope": "window"
         },
+        "repohangar.providers.refreshMinutes": {
+          "type": "integer",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 60,
+          "markdownDescription": "Minutes between merge request status refreshes while the window is focused and a pipeline or check is running. No request is sent while the window is unfocused.",
+          "scope": "window"
+        },
         "repohangar.concurrency": {
           "type": "integer",
           "minimum": 1,
@@ -471,6 +499,7 @@
     "glob": "11.1.0",
     "jsdom": "26.1.0",
     "mocha": "11.8.0",
+    "msw": "^2.15.0",
     "typescript": "5.9.3",
     "vitest": "3.2.7"
   }

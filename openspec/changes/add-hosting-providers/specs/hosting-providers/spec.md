@@ -48,7 +48,15 @@ window reload. A host the probe does not identify SHALL stay `unknown` and SHALL
 The system SHALL show `?` in the MR / PR cell of a repository whose provider stays `unknown` after the probe, as a
 button with the tooltip `Unknown host git.acme.com — choose its provider`. The button SHALL open a quick pick titled
 `git.acme.com` with the items **This host is GitLab** and **This host is GitHub**; choosing one SHALL add the entry
-`"<host>": "gitlab"` or `"<host>": "github"` to `repohangar.hosts` at user scope, keeping its other entries.
+`"<host>": "gitlab"` or `"<host>": "github"` to `repohangar.hosts` at user scope, keeping its other entries. Provider
+detection SHALL use the entries of `repohangar.hosts` at user, workspace and workspace-folder scope together, the
+narrower scope winning for a host, so that a host chosen here also applies in a workspace that sets its own hosts.
+
+#### Scenario: Host chosen in a workspace with its own hosts
+- **GIVEN** the workspace settings hold `repohangar.hosts` `{ "git.acme.com": "gitlab" }` and `charts` on `git.unknown.test` shows `?`
+- **WHEN** the user clicks `?` and chooses **This host is GitLab**
+- **THEN** `repohangar.hosts` at user scope holds `{ "git.unknown.test": "gitlab" }` and the workspace value is unchanged
+- **AND** the provider of `charts` is `gitlab` and of `billing-api` on `git.acme.com` still `gitlab`
 
 #### Scenario: Choose GitLab for an unknown host
 - **GIVEN** `repohangar.hosts` at user scope is `{ "github.acme.com": "github" }` and `billing-api` on `git.acme.com`

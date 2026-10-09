@@ -7,12 +7,29 @@ import type { GitApiAccess } from '../git/api';
 import type { Registry } from '../git/registry';
 import { dashboardState } from '../shared/format';
 import type { GraphVariant, NameClick } from '../shared/graph';
+import type { FirstRunPanel } from '../shared/model';
 import { parseViewMessage, type HostMessage, type Snapshot, type ViewMessage } from '../shared/protocol';
 import type { RowStore } from '../state/store';
 import type { Actions } from './actions';
 import type { ViewState } from './viewState';
 
 export const DASHBOARD_VIEW_TYPE = 'repohangar.dashboard';
+
+/** The longest the first-run decision waits for every listed repository's row. */
+export const FIRST_RUN_WAIT_MS = 2_000;
+
+/** What the dashboard asks of the provider layer (hosting-providers, provider-auth). */
+export interface DashboardProviders {
+  firstRun(): FirstRunPanel | undefined;
+  /** The first-run panel was dismissed once, in any window */
+  firstRunDismissed(): boolean;
+  readonly onDidChangeFirstRun: vscode.Event<void>;
+  compareTarget(id: string): Promise<string | null>;
+  signIn(host: string): Promise<unknown>;
+  chooseProvider(host: string): Promise<void>;
+  skipHost(host: string): Promise<void>;
+  firstRunDone(): Promise<void>;
+}
 
 export interface FirstPaint {
   ms: number;
@@ -50,6 +67,7 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
     private readonly viewState: ViewState,
     private readonly actions: Pick<Actions, 'runRowAction' | 'runBatch'>,
     private readonly graph: { readonly variant: GraphVariant; readonly onDidChange: vscode.Event<void> },
+    private readonly providers?: DashboardProviders,
   ) {
     this.disposables.push(
       this.firstPaintEmitter,
@@ -58,6 +76,7 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
       registry.onDidChangeRepositories(() => this.postSnapshotIfStateChanged()),
       viewState.onDidChangeGrouping(() => this.postSnapshot()),
       graph.onDidChange(() => this.postSnapshot()),
+      ...(providers ? [providers.onDidChangeFirstRun(() => this.postSnapshotIfFirstRunChanged())] : []),
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (
           e.affectsConfiguration('repohangar.staleFetchHours') ||
@@ -138,6 +157,9 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
     this.openedAt = Date.now();
     panel.webview.options = this.webviewOptions();
     this.setup(panel);
+    // A dashboard restored after a reload keeps its view (dashboard: Dashboard restored after a window reload); the
+    // first-run panel waits for a dashboard the user opens.
+    this.firstRunDecision = false;
   }
 
   private webviewOptions(): vscode.WebviewOptions & vscode.WebviewPanelOptions {
@@ -171,6 +193,10 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
         this.ready = false;
         this.restored = false;
         this.selection = [];
+        this.firstRunDecision = undefined;
+        this.firstRunWaited = false;
+        if (this.firstRunTimer) clearTimeout(this.firstRunTimer);
+        this.firstRunTimer = undefined;
       }),
     ];
     pin();
@@ -195,7 +221,9 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
         return;
       case 'loadDetails': {
         const details = await this.registry.loadDetails(message.id);
-        if (details) this.post({ type: 'details', id: message.id, details });
+        if (!details) return;
+        const compareTarget = this.providers ? await this.providers.compareTarget(message.id) : undefined;
+        this.post({ type: 'details', id: message.id, details: compareTarget === undefined ? details : { ...details, compareTarget } });
         return;
       }
       case 'openSettings':
@@ -210,6 +238,18 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
         return;
       case 'setSelection':
         this.selection = message.ids;
+        return;
+      case 'signIn':
+        await this.providers?.signIn(message.host);
+        return;
+      case 'chooseProvider':
+        await this.providers?.chooseProvider(message.host);
+        return;
+      case 'skipHost':
+        await this.providers?.skipHost(message.host);
+        return;
+      case 'firstRunDone':
+        await this.providers?.firstRunDone();
         return;
     }
   }
@@ -229,11 +269,53 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
       platform: process.platform,
       graph: this.graph.variant,
       nameClick: nameClickSetting(),
+      firstRun: state.kind === 'grid' ? this.firstRunPanel() : null,
+      firstRunPending: state.kind === 'grid' && !!this.providers && this.firstRunDecision === undefined,
     };
   }
 
   postSnapshot(): void {
-    this.post(this.snapshot());
+    const snapshot = this.snapshot();
+    this.lastFirstRun = JSON.stringify([snapshot.firstRun, snapshot.firstRunPending]);
+    this.post(snapshot);
+  }
+
+  private lastFirstRun = 'null';
+  /**
+   * Whether this panel shows the first-run hosts panel: decided once, as soon as every listed repository has its row
+   * (until then the snapshot says `firstRunPending`); the decision holds for the life of the panel.
+   */
+  private firstRunDecision: boolean | undefined;
+  private firstRunWaited = false;
+  private firstRunTimer: ReturnType<typeof setTimeout> | undefined;
+
+  private firstRunPanel(): FirstRunPanel | null {
+    if (!this.providers) return null;
+    if (this.firstRunDecision === undefined) {
+      // Dismissed before: nothing to wait for. A GitLab or GitHub row already computed: the panel, at once.
+      if (this.providers.firstRunDismissed()) this.firstRunDecision = false;
+      else if (this.providers.firstRun()) this.firstRunDecision = true;
+    }
+    if (this.firstRunDecision === undefined) {
+      if (this.store.all().length < this.registry.size && !this.firstRunWaited) {
+        // A row that never computes must not keep the dashboard loading: decide after at most 2 s.
+        this.firstRunTimer ??= setTimeout(() => {
+          this.firstRunWaited = true;
+          this.postSnapshot();
+        }, FIRST_RUN_WAIT_MS);
+        return null;
+      }
+      this.firstRunDecision = this.providers.firstRun() !== undefined;
+    }
+    return this.firstRunDecision ? (this.providers.firstRun() ?? null) : null;
+  }
+
+
+  private postSnapshotIfFirstRunChanged(): void {
+    const grid = dashboardState(this.git.enabled, this.git.state, this.registry.size).kind === 'grid';
+    const panel = grid ? this.firstRunPanel() : null;
+    const pending = grid && !!this.providers && this.firstRunDecision === undefined;
+    if (JSON.stringify([panel, pending]) !== this.lastFirstRun) this.postSnapshot();
   }
 
   private postSnapshotIfStateChanged(): void {

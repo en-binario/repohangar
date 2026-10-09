@@ -5,7 +5,8 @@ import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { downloadAndUnzipVSCode, runTests } from '@vscode/test-electron';
-import { createMainFixture, createManyFixture, type Fixture } from './fixtures/repos';
+import { startProviderStub } from './fixtures/providerStub';
+import { createMainFixture, createManyFixture, createProvidersFixture, type Fixture } from './fixtures/repos';
 
 interface Session {
   fixture: Fixture;
@@ -39,7 +40,14 @@ async function gitGraphVsix(): Promise<string> {
 const sessions: Record<string, () => Session> = {
   main: () => ({ fixture: createMainFixture() }),
   gitDisabled: () => ({ fixture: createManyFixture(2, { 'git.enabled': false }) }),
-  perf: () => ({ fixture: createManyFixture(50) }),
+  // 50 repositories, half on git.acme.com (GitLab) and half on github.com (hosting-providers performance target).
+  perf: () => ({
+    fixture: createManyFixture(50, { 'repohangar.hosts': { 'git.acme.com': 'gitlab' } }, (i, name) =>
+      i % 2 === 0 ? `https://git.acme.com/services/${name}.git` : `https://github.com/acme/${name}.git`,
+    ),
+  }),
+  // Repositories on GitLab, GitHub, an unknown host and none (hosting-providers, provider-auth).
+  providers: () => ({ fixture: createProvidersFixture() }),
   // Starts without Git Graph; the suites install the mhutchie.git-graph and Git Graph Opener VSIXs into this session's
   // extensions folder while the window is open.
   gitGraph: () => ({ fixture: createMainFixture() }),
@@ -64,6 +72,8 @@ async function main(): Promise<void> {
   const only = process.argv.find((a) => a.startsWith('--session='))?.slice('--session='.length);
   const vscodeExecutablePath = await downloadAndUnzipVSCode(process.env.VSCODE_VERSION ?? 'stable');
   const gitGraph = !only || only === 'gitGraph' ? await gitGraphVsix() : '';
+  // No session reaches GitLab or GitHub: provider requests go to this stub unless a test answers them.
+  const stub = await startProviderStub();
   let failed = false;
   for (const [name, create] of Object.entries(sessions)) {
     if (only && only !== name) continue;
@@ -94,6 +104,7 @@ async function main(): Promise<void> {
           REPOHANGAR_REMOTES: fixture.remotes,
           REPOHANGAR_LEGACY_OPENER_VSIX: LEGACY_OPENER_VSIX,
           REPOHANGAR_GIT_GRAPH_VSIX: gitGraph,
+          REPOHANGAR_HTTP_STUB: stub.url,
         },
       });
     } catch (error) {
@@ -101,6 +112,7 @@ async function main(): Promise<void> {
       failed = true;
     }
   }
+  await stub.close();
   if (failed) process.exit(1);
 }
 

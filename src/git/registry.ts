@@ -4,7 +4,7 @@
 import { basename } from 'node:path';
 import * as vscode from 'vscode';
 import type { API, Repository } from './git';
-import { readLastFetch, readOperation, readStashCount } from './fastPaths';
+import { readLastFetch, readOperation, readRemoteHead, readStashCount } from './fastPaths';
 import { nodeFileSystem } from './fsPort';
 import { resolveGitDirs, type GitDirs } from './gitDirs';
 import { assignGroup } from './groups';
@@ -12,7 +12,7 @@ import { runGit } from './process';
 import { chooseRemote } from './remoteChoice';
 import { parseRemoteUrl } from './remoteUrl';
 import { detectProvider } from '../providers/detect';
-import type { Head, RowData, RowDetails } from '../shared/model';
+import type { Head, Provider, RowData, RowDetails } from '../shared/model';
 import type { RowStore } from '../state/store';
 import type { ViewState } from '../ui/viewState';
 
@@ -32,6 +32,16 @@ interface Entry {
   disposables: vscode.Disposable[];
 }
 
+/**
+ * `repohangar.hosts` with the entries of every scope: user, then workspace, then workspace folder, the narrower scope
+ * winning per host. VS Code returns only the narrowest scope's object, which would hide a host chosen at user scope
+ * (hosting-providers: Host choice for an unknown host) in a workspace that sets its own hosts.
+ */
+export function hostsSetting(): Record<string, unknown> {
+  const inspected = vscode.workspace.getConfiguration('repohangar').inspect<Record<string, unknown>>('hosts');
+  return { ...(inspected?.globalValue ?? {}), ...(inspected?.workspaceValue ?? {}), ...(inspected?.workspaceFolderValue ?? {}) };
+}
+
 export class Registry implements vscode.Disposable {
   private readonly entries = new Map<string, Entry>();
   private readonly disposables: vscode.Disposable[] = [];
@@ -41,6 +51,8 @@ export class Registry implements vscode.Disposable {
   /** Fires when a repository is added or removed. */
   readonly onDidChangeRepositories = this.countEmitter.event;
   private api: API | undefined;
+  /** The provider the unknown-host probe found for a host (hosting-providers: Unknown host probe) */
+  probed: ((host: string) => Provider | undefined) | undefined;
 
   constructor(
     private readonly store: RowStore,
@@ -154,11 +166,12 @@ export class Registry implements vscode.Disposable {
     const chosen = chooseRemote(state.remotes, HEAD?.upstream?.remote);
     const parsed = chosen ? parseRemoteUrl(chosen.url) : undefined;
     const config = vscode.workspace.getConfiguration();
-    const provider = detectProvider(
+    const detected = detectProvider(
       parsed?.hosted ? parsed.host : undefined,
-      config.get<Record<string, unknown>>('repohangar.hosts', {}),
+      hostsSetting(),
       config.get<string>('github-enterprise.uri'),
     );
+    const provider = detected === 'unknown' && parsed?.hosted ? (this.probed?.(parsed.host) ?? detected) : detected;
 
     const changes = state.workingTreeChanges;
     const counts = {
@@ -171,13 +184,14 @@ export class Registry implements vscode.Disposable {
     };
 
     const dirs = await entry.dirs;
-    const [operation, lastFetch, stashes] = dirs
+    const [operation, lastFetch, stashes, defaultBranch] = dirs
       ? await Promise.all([
           readOperation(dirs.gitDir, nodeFileSystem),
           readLastFetch(dirs.gitDir, dirs.commonDir, nodeFileSystem),
           readStashCount(dirs.commonDir, nodeFileSystem),
+          chosen ? readRemoteHead(dirs.commonDir, chosen.name, nodeFileSystem) : Promise.resolve(null),
         ])
-      : [null, null, 0];
+      : [null, null, 0, null];
 
     const path = repository.rootUri.fsPath;
     const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => ({ name: f.name, path: f.uri.fsPath }));
@@ -199,6 +213,9 @@ export class Registry implements vscode.Disposable {
       counts,
       stashes,
       lastFetch,
+      ...(HEAD?.commit ? { headSha: HEAD.commit } : {}),
+      ...(parsed?.hosted ? { hosted: { host: parsed.host, projectPath: parsed.projectPath, webUrl: parsed.webUrl } } : {}),
+      defaultBranch,
     };
   }
 

@@ -40,7 +40,7 @@ function installVsix(executablePath: string, extensionsDir: string, env: Record<
  */
 export async function launch(
   fixture: Fixture,
-  options: { trusted?: boolean; installed?: boolean; settings?: Record<string, unknown> } = {},
+  options: { trusted?: boolean; installed?: boolean; settings?: Record<string, unknown>; env?: Record<string, string> } = {},
 ): Promise<VsCode> {
   const executablePath = await downloadAndUnzipVSCode(process.env.VSCODE_VERSION ?? 'stable');
   const profile = mkdtempSync(join(tmpdir(), 'repohangar-ui-'));
@@ -50,6 +50,7 @@ export async function launch(
   }
   const env = { ...process.env } as Record<string, string>;
   delete env.ELECTRON_RUN_AS_NODE;
+  Object.assign(env, options.env ?? {});
   if (options.installed) installVsix(executablePath, join(profile, 'extensions'), env);
   const app = await electron.launch({
     executablePath,
@@ -73,8 +74,13 @@ export async function launch(
 
 /** Runs a command from the command palette by its title. */
 export async function runCommand(page: Page, title: string): Promise<void> {
-  await page.keyboard.press('F1');
   const input = page.locator('.quick-input-widget input');
+  await page.keyboard.press('F1');
+  // F1 can be lost while focus moves into or out of a webview; press it again once.
+  if (!(await input.isVisible())) {
+    await page.waitForTimeout(500);
+    if (!(await input.isVisible())) await page.keyboard.press('F1');
+  }
   await expect(input).toBeVisible();
   await input.fill(`>${title}`);
   const match = page.locator('.quick-input-list .monaco-list-row', { hasText: title }).first();
@@ -84,15 +90,26 @@ export async function runCommand(page: Page, title: string): Promise<void> {
   else await match.click();
 }
 
+/** Dismisses the first-run hosts panel with `Open dashboard →` when the dashboard shows it. */
+export async function dismissFirstRun(frame: FrameLocator): Promise<void> {
+  const firstRun = frame.locator('.first-run-done');
+  await expect(frame.locator('.dashboard[data-first-run-pending="false"]').or(firstRun)).toBeVisible({ timeout: 60_000 });
+  if (await firstRun.isVisible()) await firstRun.click();
+}
+
 /** The dashboard's document inside VS Code's webview frames. */
 export function dashboard(page: Page): FrameLocator {
   return page.frameLocator('iframe.webview.ready').frameLocator('iframe#active-frame');
 }
 
-/** Opens the dashboard and waits until it shows the row of `repo`. */
+/**
+ * Opens the dashboard and waits until it shows the row of `repo`. The first-run hosts panel, which a fixture with a
+ * GitLab or GitHub repository shows once, is dismissed with `Open dashboard →`, as a user would.
+ */
 export async function openDashboard(page: Page, repo = 'billing-api'): Promise<FrameLocator> {
   await runCommand(page, 'RepoHangar: Open Dashboard');
   const frame = dashboard(page);
+  await dismissFirstRun(frame);
   await expect(frame.locator(`[data-repo="${repo}"]`)).toBeVisible({ timeout: 60_000 });
   return frame;
 }

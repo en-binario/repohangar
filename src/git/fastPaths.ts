@@ -53,3 +53,13 @@ export async function readStashCount(commonDir: string, fs: FileSystemPort): Pro
   if (packed?.split('\n').some((line) => /^[0-9a-f]+ refs\/stash\s*$/.test(line))) return 1;
   return 0;
 }
+
+/**
+ * The default branch of a remote from `refs/remotes/<remote>/HEAD` in the common git dir (`ref: refs/remotes/origin/main`
+ * → `main`), or null when it is missing. Used as the target of the compare page (hosting-providers: Compare page).
+ */
+export async function readRemoteHead(commonDir: string, remote: string, fs: FileSystemPort): Promise<string | null> {
+  const text = (await fs.readFile(resolve(commonDir, 'refs', 'remotes', remote, 'HEAD')))?.trim();
+  const prefix = `ref: refs/remotes/${remote}/`;
+  return text?.startsWith(prefix) ? text.slice(prefix.length) : null;
+}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { statusBarModel } from '../../src/shared/format';
 import type { RowData } from '../../src/shared/model';
-import { counts, row } from './rows';
+import { counts, githubReview, gitlabReview, loaded, row } from './rows';
 
 function repo(name: string, behind = 0, dirty = false): RowData {
   return row({
@@ -41,5 +41,18 @@ describe('statusBarModel tooltip', () => {
   it('reads the accessible label', () => {
     const rows = fourteen(repo('a', 1), repo('b', 1), repo('c', 1), repo('d', 0, true), repo('e', 0, true));
     expect(statusBarModel(rows, true).label).toBe('RepoHangar: 14 repositories, 3 behind, 2 with changes');
+  });
+});
+
+describe('Tooltip and label with open reviews', () => {
+  it('adds the Open MR/PR line and the count to the label', () => {
+    const rows = fourteen(
+      repo('ledger', 4),
+      { ...repo('billing-api', 0, true), review: loaded(gitlabReview()) },
+      { ...repo('web-shop'), review: loaded(githubReview()) },
+    );
+    const model = statusBarModel(rows, true);
+    expect(model.tooltip).toBe('RepoHangar: 14 repositories\nBehind: ledger ↓4\nDirty: billing-api\nOpen MR/PR: billing-api !142, web-shop #311');
+    expect(model.label).toBe('RepoHangar: 14 repositories, 1 behind, 1 with changes, 2 with an open MR or PR');
   });
 });

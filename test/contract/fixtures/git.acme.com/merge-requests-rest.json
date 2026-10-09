@@ -1,0 +1,17 @@
+[
+  {
+    "id": 9142,
+    "iid": 142,
+    "project_id": 31,
+    "title": "feat: ABC-12 Add billing notes",
+    "state": "opened",
+    "draft": false,
+    "work_in_progress": false,
+    "source_branch": "feature/ABC-12-notes",
+    "target_branch": "main",
+    "merge_when_pipeline_succeeds": false,
+    "detailed_merge_status": "mergeable",
+    "sha": "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2",
+    "web_url": "https://git.acme.com/payments/billing-api/-/merge_requests/142"
+  }
+]

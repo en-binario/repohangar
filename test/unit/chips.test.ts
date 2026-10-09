@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { chipMembership } from '../../src/shared/format';
-import type { RowData } from '../../src/shared/model';
-import { counts, row } from './rows';
+import type { ReviewInfo, RowData } from '../../src/shared/model';
+import { counts, githubReview, gitlabReview, loaded, row } from './rows';
 
 const tracked = (ahead: number, behind: number): RowData['head'] => ({ kind: 'branch', name: 'main', upstream: 'origin/main', ahead, behind });
 
@@ -19,6 +19,35 @@ const rows: [string, Partial<RowData>, [boolean, boolean, boolean, boolean]][] =
 
 describe('chipMembership', () => {
   it.each(rows)('%s', (_name, overrides, [dirty, behind, ahead, noUpstream]) => {
-    expect(chipMembership(row(overrides))).toEqual({ dirty, behind, ahead, noUpstream });
+    expect(chipMembership(row(overrides))).toEqual({ dirty, behind, ahead, noUpstream, hasReview: false, pipelineFailed: false });
+  });
+});
+
+// dashboard :: Review chip membership matrix — [Has MR, Pipeline ✗]
+const reviewRows: [string, ReviewInfo, [boolean, boolean]][] = [
+  ['counts a draft merge request with a running pipeline as Has MR only', loaded(gitlabReview({ draft: true, pipeline: 'RUNNING' })), [true, false]],
+  [
+    'counts a pull request with failed checks as Has MR and Pipeline failed',
+    loaded(githubReview({ pipeline: 'FAILURE', reviewDecision: 'CHANGES_REQUESTED' })),
+    [true, true],
+  ],
+  ['counts a cached merge request that passed as Has MR', loaded(gitlabReview({ number: 88, pipeline: 'SUCCESS', approvalsRequired: 2, approvalsLeft: 0 }), 'gitlab', true), [true, false]],
+  ['counts a cached merge request that failed as both', loaded(gitlabReview({ number: 57, pipeline: 'FAILED' }), 'gitlab', true), [true, true]],
+  ['counts a branch without an open review as neither', loaded(null), [false, false]],
+  ['counts Sign in, ? and loading cells as neither', { kind: 'signIn', host: 'git.acme.com' }, [false, false]],
+];
+
+describe('review chips', () => {
+  it.each(reviewRows)('%s', (_name, review, [hasReview, pipelineFailed]) => {
+    const member = chipMembership(row({ review }));
+    expect([member.hasReview, member.pipelineFailed]).toEqual([hasReview, pipelineFailed]);
+  });
+
+  it.each<[string, ReviewInfo]>([
+    ['the ? cell', { kind: 'unknownHost', host: 'git.acme.com' }],
+    ['the … cell', { kind: 'loading' }],
+  ])('counts %s as neither', (_name, review) => {
+    const member = chipMembership(row({ review }));
+    expect([member.hasReview, member.pipelineFailed]).toEqual([false, false]);
   });
 });

@@ -89,7 +89,7 @@ select {
 .row {
   position: relative;
   display: grid;
-  grid-template-columns: 28px minmax(160px, 1.4fr) minmax(160px, 1.6fr) 90px minmax(120px, 1fr) 90px;
+  grid-template-columns: 28px minmax(160px, 1.4fr) minmax(160px, 1.6fr) 90px minmax(120px, 1fr) 90px minmax(22ch, 1.2fr) 184px;
   align-items: center;
   border-bottom: 1px solid var(--rh-border);
 }
@@ -222,13 +222,11 @@ select {
 }
 
 /* Hover buttons sit over the last cells, so the grid columns do not change (design D-6). */
+/* A column of its own, so the buttons never cover the MR / PR cell, which has buttons too. */
 .cell.actions {
-  position: absolute;
-  top: 0;
-  right: 4px;
-  bottom: 0;
-  z-index: 1;
-  padding: 0;
+  position: relative;
+  align-self: stretch;
+  padding: 0 4px 0 0;
   overflow: visible;
 }
 
@@ -339,4 +337,75 @@ select {
 
 .detail-button:hover {
   background: var(--vscode-button-secondaryHoverBackground);
+}
+
+/* MR / PR cell (hosting-providers: MR / PR cell, Review state cache) */
+.cell.review {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.review-parts {
+  display: inline-flex;
+  gap: 2ch;
+}
+
+.review-ref,
+.review-button {
+  padding: 0;
+  color: var(--vscode-textLink-foreground);
+  background: none;
+  border: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.review-ref:hover,
+.review-button:hover {
+  text-decoration: underline;
+}
+
+.stale {
+  opacity: 0.6;
+  font-style: italic;
+}
+
+.detail-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* First-run hosts panel (provider-auth: First-run hosts panel) */
+.first-run {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+}
+
+.first-run-host {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--vscode-editor-font-family);
+}
+
+.first-run-line {
+  min-width: 40ch;
+}
+
+.first-run button {
+  padding: 2px 8px;
+  color: var(--vscode-button-secondaryForeground);
+  background: var(--vscode-button-secondaryBackground);
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.first-run .first-run-done {
+  align-self: flex-start;
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
 }

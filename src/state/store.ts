@@ -82,8 +82,26 @@ export class RowStore {
     // A newer computation or a removal replaced this one.
     if (this.generations.get(id) !== generation) return;
     if (!row) return;
-    this.put(id, this.withJob(id, row));
+    this.put(id, this.decorate(this.withJob(id, row)));
   }
+
+  /** Adds what other layers show in a row (the MR / PR cell of hosting-providers) to every computed row. */
+  setDecorator(decorate: (row: RowData) => RowData): void {
+    this.decorate = decorate;
+    this.redecorate();
+  }
+
+  /** Applies the decorator again to these rows, or to every row; publishes only rows that changed. */
+  redecorate(ids: Iterable<string> = this.rows.keys()): void {
+    for (const id of [...ids]) {
+      const row = this.rows.get(id);
+      if (!row) continue;
+      const next = this.decorate(row);
+      if (JSON.stringify(next) !== JSON.stringify(row)) this.put(id, next);
+    }
+  }
+
+  private decorate: (row: RowData) => RowData = (row) => row;
 
   /**
    * Shows a job in a row. A running job stays until the next job; a finished one until the next job or until the Git

@@ -3,13 +3,18 @@
 
 import * as vscode from 'vscode';
 
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
 
 export class RepoHangarLog implements vscode.Disposable {
   readonly channel = vscode.window.createOutputChannel('RepoHangar', { log: true });
   /** Every line logged while `record` is true (integration tests). */
   readonly lines: { level: LogLevel; message: string }[] = [];
   record = false;
+
+  /** HTTP timings of provider requests; never headers or bodies (PROPOSAL.md §12). */
+  trace(message: string): void {
+    this.write('trace', message);
+  }
 
   debug(message: string): void {
     this.write('debug', message);

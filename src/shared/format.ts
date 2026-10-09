@@ -12,6 +12,7 @@ import type {
   RowDetails,
   RowJob,
 } from './model';
+import { openReview, reference, reviewChips } from './review';
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -228,7 +229,8 @@ export const CHIPS: readonly { id: ChipId | 'all'; label: string; key: string }[
   { id: 'dirty', label: 'Dirty', key: '2' },
   { id: 'behind', label: 'Behind', key: '3' },
   { id: 'ahead', label: 'Ahead', key: '4' },
-  // Keys 5 and 6 are kept for the Has MR and Pipeline failed chips (design D-11).
+  { id: 'hasReview', label: 'Has MR', key: '5' },
+  { id: 'pipelineFailed', label: 'Pipeline ✗', key: '6' },
   { id: 'noUpstream', label: 'No upstream', key: '7' },
 ];
 
@@ -238,6 +240,7 @@ export function chipMembership(row: RowData): Record<ChipId, boolean> {
     dirty: isDirty(row),
     behind: (branch?.behind ?? 0) >= 1 && !!branch?.upstream,
     ahead: (branch?.ahead ?? 0) >= 1 && !!branch?.upstream,
+    ...reviewChips(row),
     noUpstream: !!branch && !branch.upstream,
   };
 }
@@ -313,6 +316,11 @@ export function statusBarModel(rows: readonly RowData[], enabled: boolean): Stat
   const segments = [`$(git-branch) ${n} ${n === 1 ? 'repo' : 'repos'}`];
   if (behind.length > 0) segments.push(`$(arrow-down)${behind.length}`);
   if (dirty.length > 0) segments.push(`$(circle-filled)${dirty.length}`);
+  const reviews = sorted.flatMap((r) => {
+    const review = openReview(r);
+    return review ? [`${r.name} ${reference(review)}`] : [];
+  });
+  if (reviews.length > 0) segments.push(`$(git-pull-request)${reviews.length}`);
 
   const lines = [`RepoHangar: ${plural(n, 'repository', 'repositories')}`];
   if (behind.length > 0) {
@@ -320,11 +328,14 @@ export function statusBarModel(rows: readonly RowData[], enabled: boolean): Stat
   }
   if (dirty.length > 0) lines.push(`Dirty: ${nameList(dirty.map((r) => r.name))}`);
   if (behind.length === 0 && dirty.length === 0) lines.push('All repositories are clean and up to date.');
+  if (reviews.length > 0) lines.push(`Open MR/PR: ${nameList(reviews)}`);
 
   return {
     visible: enabled && n > 0,
     text: segments.join('  '),
     tooltip: lines.join('\n'),
-    label: `RepoHangar: ${plural(n, 'repository', 'repositories')}, ${behind.length} behind, ${dirty.length} with changes`,
+    label: `RepoHangar: ${plural(n, 'repository', 'repositories')}, ${behind.length} behind, ${dirty.length} with changes${
+      reviews.length > 0 ? `, ${reviews.length} with an open MR or PR` : ''
+    }`,
   };
 }

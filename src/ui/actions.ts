@@ -22,6 +22,16 @@ export interface RowIntegrations {
   showInSourceControl(root: string): Promise<void>;
 }
 
+/** The merge request actions of a row (hosting-providers). */
+export interface ReviewIntegrations {
+  openReview(id: string): Promise<void>;
+  copyLink(id: string): Promise<void>;
+  openCompare(id: string): Promise<void>;
+  openPipeline(id: string): Promise<void>;
+  /** RepoHangar pushed, published or synced the repository */
+  afterPush(id: string): void;
+}
+
 const SHOW_OUTPUT = 'Show Git Output';
 
 const FAILURE_NAMES: Record<JobAction, string> = {
@@ -42,6 +52,8 @@ export class Actions implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[];
   /** Set after construction: the integrations resolve their targets through `resolveActive`. */
   integrations: RowIntegrations | undefined;
+  /** Set after construction by the provider layer. */
+  review: ReviewIntegrations | undefined;
 
   constructor(
     private readonly registry: Registry,
@@ -104,6 +116,14 @@ export class Actions implements vscode.Disposable {
         return this.integrations?.revealInExplorer(repository.rootUri.fsPath, this.name(id));
       case 'showInSourceControl':
         return this.integrations?.showInSourceControl(repository.rootUri.fsPath);
+      case 'openReview':
+        return this.review?.openReview(id);
+      case 'copyReviewLink':
+        return this.review?.copyLink(id);
+      case 'openCompare':
+        return this.review?.openCompare(id);
+      case 'openPipeline':
+        return this.review?.openPipeline(id);
     }
   }
 
@@ -148,6 +168,8 @@ export class Actions implements vscode.Disposable {
   private async single(id: string, action: JobAction, job: Job): Promise<void> {
     const finished = await this.runner.run(id, action, job);
     if (finished?.result.state === 'failed') this.notifyFailure(id, finished.action, finished.result.detail);
+    const pushed = finished?.action === 'push' || finished?.action === 'publish' || finished?.action === 'sync';
+    if (pushed && finished?.result.state === 'ok' && finished.result.detail !== 'nothing to push') this.review?.afterPush(id);
   }
 
   private notifyFailure(id: string, action: JobAction, message: string | undefined): void {

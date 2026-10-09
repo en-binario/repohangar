@@ -33,7 +33,7 @@ describe('rowMenu', () => {
     expect(rowMenu(row(), 'win32', 'gitGraph').map((group) => group.map((item) => item.label))).toEqual([
       ['Open in Git Graph', 'Reveal in Explorer', 'Show in Source Control', 'Open terminal'],
       ['Stash changes', 'Pop latest stash', 'Discard all changes…'],
-      ['Reveal in File Explorer', 'Copy path', 'Copy branch name'],
+      ['Reveal in File Explorer', 'Copy path', 'Copy branch name', 'Open compare page ↗'],
     ]);
   });
 

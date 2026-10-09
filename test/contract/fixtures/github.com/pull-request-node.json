@@ -1,0 +1,11 @@
+{
+  "number": 311,
+  "url": "https://github.com/acme/web-shop/pull/311",
+  "title": "feat: ABC-12 Add billing notes",
+  "isDraft": false,
+  "mergeable": "MERGEABLE",
+  "reviewDecision": "CHANGES_REQUESTED",
+  "headRefOid": "c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2",
+  "autoMergeRequest": null,
+  "commits": { "nodes": [{ "commit": { "statusCheckRollup": { "state": "FAILURE" } } }] }
+}

@@ -72,3 +72,24 @@ All notable changes to RepoHangar are recorded here. Entries are written and cla
   `repohangar.gitGraph.syncSourceControlSelection` (`true`), `repohangar.explorer.contextMenu.showOn`
   (`repositoryRoots`), `repohangar.explorer.submenu` (`true`), `repohangar.explorer.collapseBeforeReveal`
   (`false`), `repohangar.explorer.outsideWorkspace` (`ask`) and `repohangar.repositoryScanDepth` (`3`).
+- **Added — the MR / PR column.** Each row shows the open GitLab merge request (`!142`) or GitHub pull request
+  (`#311`) of its branch with `Draft`, the pipeline or checks (`✓ passed`, `⟳ running`, `◷ pending`, `✗ failed`),
+  approvals (`1/2` on GitLab, `approved` or `changes requested` on GitHub) and `auto ⇢`. One request per host loads
+  every repository on it; RepoHangar asks again after a commit, a branch switch or a push, when the window gains focus,
+  every 3 minutes while a pipeline runs, and on **RepoHangar: Refresh**, never while the window is unfocused. The last
+  values are shown at once, dimmed until refreshed. The **Has MR** (`5`) and **Pipeline ✗** (`6`) chips filter by them.
+- **Added — signing in to GitLab and GitHub.** github.com uses your VS Code GitHub account; GitHub Enterprise and
+  GitLab use your `gh` or `glab` login when there is one, or a token you paste after RepoHangar opens the token page
+  with the name and scope filled in. Tokens are kept only in VS Code's secret storage. **RepoHangar: Sign In to Host…**
+  and **RepoHangar: Sign Out of Host…**, a `Sign in` button in the MR / PR column, and a first-run panel that lists your
+  hosts with **Skip — git only**.
+- **Added — open and copy merge requests.** `o`, a click on `!142`, **RepoHangar: Open Merge Request of Current
+  Branch** and **RepoHangar: Copy Merge Request Link**; without a credential, `o` opens the host's merge request list
+  for the branch. Row details show the merge request, its pipeline or checks and **Compare with main**, and the `⋯`
+  menu has **Open compare page**.
+- **Added:** a self-hosted host is identified once (`/api/v4/version`, `/api/v3/meta`), or by choosing **This host is
+  GitLab** / **GitHub** in its `?` cell; RepoHangar warns once about a GitLab older than 17.10.
+- **Added:** the status bar summary counts open merge requests and pull requests (`$(git-pull-request)5`).
+- **Added:** the setting `repohangar.providers.refreshMinutes` (`3`).
+- **Changed:** `repohangar.hosts` entries from user and workspace settings now add up, so a host chosen from the
+  dashboard also applies in a workspace that sets its own hosts.

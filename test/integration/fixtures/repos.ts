@@ -207,14 +207,77 @@ export function createMainFixture(settings: Record<string, unknown> = {}): Fixtu
   return { root, workspace, remotes, workspaceFile, repo: at };
 }
 
-/** `count` clean clones of one remote under `services/`, for the startup and performance tests. */
-export function createManyFixture(count: number, settings: Record<string, unknown> = {}): Fixture {
+/**
+ * `count` clean clones of one remote under `services/`, for the startup and performance tests. `hosted` gives a clone's
+ * fetch URL (the push URL stays local).
+ */
+export function createManyFixture(
+  count: number,
+  settings: Record<string, unknown> = {},
+  hosted?: (index: number, name: string) => string | undefined,
+): Fixture {
   const { root, workspace, remotes } = createRoot('repohangar-many-');
   const at = (relative: string) => join(workspace, relative);
   cloned(remotes, join(remotes, 'template-src'), 'template');
   for (let i = 1; i <= count; i++) {
-    git(workspace, 'clone', '--quiet', join(remotes, 'template.git'), at(`services/svc-${String(i).padStart(2, '0')}`));
+    const name = `svc-${String(i).padStart(2, '0')}`;
+    git(workspace, 'clone', '--quiet', join(remotes, 'template.git'), at(`services/${name}`));
+    const url = hosted?.(i, name);
+    if (url) {
+      git(at(`services/${name}`), 'remote', 'set-url', 'origin', url);
+      git(at(`services/${name}`), 'remote', 'set-url', '--push', 'origin', join(remotes, 'template.git'));
+    }
   }
   const workspaceFile = writeWorkspaceFile(root, workspace, settings);
+  return { root, workspace, remotes, workspaceFile, repo: at };
+}
+
+/**
+ * The providers fixture: repositories on GitLab (git.acme.com), GitHub (github.com), an unknown host and none. Fetch
+ * URLs are hosted, push URLs stay on the local bare remotes, so pushes work without a network.
+ */
+export function createProvidersFixture(settings: Record<string, unknown> = {}): Fixture {
+  const { root, workspace, remotes } = createRoot('repohangar-providers-');
+  const at = (relative: string) => join(workspace, relative);
+  const hosted = (path: string, name: string, url: string) => {
+    git(at(path), 'remote', 'set-url', 'origin', url);
+    git(at(path), 'remote', 'set-url', '--push', 'origin', join(remotes, `${name}.git`));
+  };
+
+  // backend/billing-api: feature/ABC-12-notes with upstream, origin/HEAD → main.
+  cloned(remotes, at('backend/billing-api'), 'billing-api');
+  git(at('backend/billing-api'), 'checkout', '-b', 'feature/ABC-12-notes');
+  commit(at('backend/billing-api'), 'notes.md', 'Add notes field to invoice');
+  git(at('backend/billing-api'), 'push', '-u', 'origin', 'feature/ABC-12-notes');
+  hosted('backend/billing-api', 'billing-api', 'https://git.acme.com/payments/billing-api.git');
+
+  // backend/ledger: main on GitLab.
+  cloned(remotes, at('backend/ledger'), 'ledger');
+  hosted('backend/ledger', 'ledger', 'git@git.acme.com:payments/ledger.git');
+
+  // frontend/web-shop: a feature branch on GitHub.
+  cloned(remotes, at('frontend/web-shop'), 'web-shop');
+  git(at('frontend/web-shop'), 'checkout', '-b', 'feature/ABC-12-notes');
+  commit(at('frontend/web-shop'), 'shop.md', 'Add credit note link');
+  git(at('frontend/web-shop'), 'push', '-u', 'origin', 'feature/ABC-12-notes');
+  hosted('frontend/web-shop', 'web-shop', 'https://github.com/acme/web-shop.git');
+
+  // frontend/admin-portal: GitHub Enterprise, through repohangar.hosts.
+  cloned(remotes, at('frontend/admin-portal'), 'admin-portal');
+  git(at('frontend/admin-portal'), 'checkout', '-b', 'feature/ABC-12-notes');
+  commit(at('frontend/admin-portal'), 'portal.md', 'Add billing notes to the portal');
+  git(at('frontend/admin-portal'), 'push', '-u', 'origin', 'feature/ABC-12-notes');
+  hosted('frontend/admin-portal', 'admin-portal', 'https://github.acme.com/acme/admin-portal.git');
+
+  // infra/charts: a host neither detection nor the probe identifies.
+  cloned(remotes, at('infra/charts'), 'charts');
+  hosted('infra/charts', 'charts', 'https://git.unknown.test/infra/charts.git');
+
+  // tools/scratch: no remote.
+  mkdirSync(at('tools/scratch'), { recursive: true });
+  git(at('tools/scratch'), 'init');
+  commit(at('tools/scratch'), 'a.txt', 'Initial import');
+
+  const workspaceFile = writeWorkspaceFile(root, workspace, { 'repohangar.hosts': { 'git.acme.com': 'gitlab', 'github.acme.com': 'github' }, ...settings });
   return { root, workspace, remotes, workspaceFile, repo: at };
 }
