@@ -11,7 +11,8 @@ their guards, the job state shown in the row and the repository a command acts o
   `batch-operations`.
 - Open in Git Graph, Reveal in Explorer, Show in Source Control, and clicks on the Repository name and the Changes
   cell, owned by `explorer-open-in-git-graph`, `explorer-reveal` and `source-control-reveal`.
-- Switching or creating a branch across repositories, and pushing a selection: no capability yet.
+- Switching or creating a branch across repositories, `b` on a selection and `n`, owned by `batch-operations`.
+- Pushing a selection: no capability yet.
 - The compare page and merge request actions, owned by `hosting-providers` and `mr-creation`.
 
 ## Requirements
@@ -166,17 +167,23 @@ menu SHALL be operable with `↑`, `↓`, `Enter` and `Esc`.
 
 ### Requirement: Row action keys
 The system SHALL run on the focused row: `f` Fetch, `p` Pull, `P` Push or Publish, `b` Switch Branch…, `t` Open
-Terminal and `.` the more-actions menu. With rows selected, `P`, `b`, `t` and `.` still act on the focused row only.
+Terminal and `.` the more-actions menu. With rows selected, `P`, `t` and `.` still act on the focused row only, and `b` switches
+the selected repositories (`batch-operations`).
 The footer SHALL show the hints `f fetch · p pull · P push · b switch · t terminal · . more` before the navigation
 hints, and the key help overlay SHALL list these keys.
 
 **Constraints:**
-- `f` and `p` on a selection belong to `batch-operations`
+- `f`, `p` and `b` on a selection belong to `batch-operations`
 
 #### Scenario: Push key with rows selected
 - **GIVEN** `billing-api` and `ledger` are selected and the focus is on `web-shop`, 1 commit ahead
 - **WHEN** the user presses `P`
 - **THEN** `repository.push()` runs for `web-shop` only
+
+#### Scenario: Switch key with no row selected
+- **GIVEN** no row is selected and the focus is on `ledger`
+- **WHEN** the user presses `b`
+- **THEN** `git.checkout` runs with the repository `ledger`
 
 ### Requirement: Active repository for commands
 The system SHALL resolve the repository of a command that acts on one repository from, in this order: its argument (an

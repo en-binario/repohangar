@@ -25,4 +25,4 @@
 
 - [x] 5.1 Update the README (switch and create across repositories, the result panel) and the key help; run `npm run build`, `npm test`, the integration and UI suites and `openspec validate add-multi-repo-branches --strict`; all pass
 - [x] 5.2 Add entries under `## Unreleased` in `CHANGELOG.md` (docs/versioning.md): `Added` for switch and create across repositories, `n`, the toolbar buttons and the result panel with fix buttons and Retry failed; `Changed` for `b` on a selection; verify the kinds with the `changelog-entry` skill
-- [ ] 5.3 After archiving, edit the `## Purpose` non-goals of `openspec/specs/batch-operations/spec.md` and `openspec/specs/git-operations/spec.md` so they no longer say "no capability yet" for these features; verify `openspec validate --specs --strict` passes
+- [x] 5.3 After archiving, edit the `## Purpose` non-goals of `openspec/specs/batch-operations/spec.md` and `openspec/specs/git-operations/spec.md` so they no longer say "no capability yet" for these features; verify `openspec validate --specs --strict` passes
