@@ -72,7 +72,8 @@ export async function glabToken(host: string, port: Pick<AuthPort, 'run'>): Prom
   const configured = (await port.run('glab', ['config', 'get', 'token', '--host', host]))?.trim();
   if (configured && !/\s/.test(configured)) return configured;
   const status = await port.run('glab', ['auth', 'status', '--hostname', host, '--show-token']);
-  const match = status ? /Token:\s*(\S+)/.exec(status) : null;
+  // glab 1.80 prints `✓ Token found: <token>`; older releases `✓ Token: <token>`.
+  const match = status ? /Token(?: found)?:\s*(\S+)/.exec(status) : null;
   const token = match?.[1];
   return token && !token.startsWith('*') ? token : undefined;
 }

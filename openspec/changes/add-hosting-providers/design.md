@@ -163,6 +163,8 @@ uninstalling; `SecretStorage` entries are removed with the extension's secrets.
 - Does `glab config get token --host` print the token on `glab` 1.50 and later, or only `glab auth status
   --show-token`? Partly answered (task 2.3): on `glab` 1.80.4 (Windows), not logged in, `config get token --host`
   prints nothing and exits 0, `glab auth token` does not exist, and `auth status` says it checks the config file, the
-  OS keyring and the environment, so a keyring login needs the `auth status --show-token` fallback. Not yet verified:
-  the `Token:` line of a logged-in keyring login on 1.80.4, and `glab` 1.46 and the latest release (1.121.0). Both
-  commands are tried, so the answer does not change the spec.
+  OS keyring and the environment, so a keyring login needs the `auth status --show-token` fallback. Logged in with a
+  config-file token, 1.80.4 prints the token for `config get token --host` (exit 0), and `auth status --show-token`
+  prints it on a `✓ Token found: <token>` line, not `Token: <token>`; the parser now reads both forms (unit test *reads
+  the Token found line that glab 1.80 prints*). Not yet verified: a keyring login, and `glab` 1.46 and the latest release
+  (1.121.0). Both commands are tried, so the answer does not change the spec.
