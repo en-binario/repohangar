@@ -390,12 +390,15 @@ Row under test: `billing-api` in group `backend`, branch `feature/ABC-12-notes`,
 ### Requirement: Keyboard navigation
 The system SHALL let the user navigate, select, filter, expand and get help in the grid with the keys in the matrix
 below, applied to the focused row or group header, and SHALL show a footer with the number of selected rows
-(`<n> selected`, hidden when 0) and the key hints `↑↓ move · Space select · / filter · ⏎ details · ? keys`.
+(`<n> selected`, hidden when 0), then the key hints of the action keys that other capabilities assign, then the
+navigation hints `↑↓ move · Space select · / filter · ⏎ details · ? keys`. The key help overlay SHALL list the keys of
+this matrix and every action key.
 
 **Constraints:**
 - `1`, `2`, `3`, `4` and `7` toggle **All**, **Dirty**, **Behind**, **Ahead** and **No upstream**; `5` and `6` are kept
   for the Has MR and Pipeline failed chips and do nothing in this version
-- Keys other than those in the matrix do nothing while the grid has focus
+- Action keys are assigned by other capabilities (`git-operations`: `f` `p` `P` `b` `t` `.`; `batch-operations`: `F`)
+- Keys that neither this matrix nor another capability assigns do nothing while the grid has focus
 
 #### Scenario: Grid key matrix
 
@@ -423,6 +426,12 @@ below, applied to the focused row or group header, and SHALL show a footer with 
 | R20 | `Esc` | Focus in the filter box with text `bill` | **Filter text empty, focus on the first shown row** |
 | R21 | `↓` | Focus in the filter box | **Focus on the first shown row** |
 | R22 | `j` | Focus in the filter box with text `bil` | **Filter text `bilj`, focus unchanged** |
+
+#### Scenario: Footer with action keys
+- **GIVEN** the dashboard shows the grid, `billing-api` is selected, and `git-operations` and `batch-operations` assign
+  their keys
+- **WHEN** the footer renders
+- **THEN** it reads `1 selected` and `f fetch · p pull · P push · b switch · t terminal · . more · ↑↓ move · Space select · / filter · ⏎ details · ? keys`
 
 ### Requirement: Row details
 The system SHALL show, when a row's details are open, the lines **Last commit** (short hash, subject in quotes, author
