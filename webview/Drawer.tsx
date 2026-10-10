@@ -1,7 +1,10 @@
 // The Create MR drawer (mr-creation: Create MR drawer, W4; design D-7): every field pre-filled from the resolved
 // profile, the grid still usable on the left. The host resolves again when the profile or target changes.
 
+import { Fragment } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { recentOffer } from '../src/mr/recent';
+import type { SaveTarget } from '../src/mr/saveDefaults';
 import type { DrawerData, DrawerEdits } from '../src/shared/drawer';
 import type { ViewMessage } from '../src/shared/protocol';
 
@@ -12,11 +15,19 @@ interface Props {
   onClose(): void;
 }
 
-type ListKey = 'reviewers' | 'assignees' | 'labels';
+export type ListKey = 'reviewers' | 'assignees' | 'labels';
+
+/** Save as defaults ▾ (mr-profiles: Save as defaults) */
+const SAVE_ITEMS: readonly [SaveTarget, string][] = [
+  ['user', 'For me (all workspaces)'],
+  ['workspace', 'For this workspace (shared)'],
+  ['repo', 'For this repo only'],
+];
 
 export function Drawer({ data, users, post, onClose }: Props) {
   const [edits, setEdits] = useState<DrawerEdits>({});
   const [profile, setProfile] = useState(data.profile);
+  const [saveMenu, setSaveMenu] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
 
   // A new drawer (another repository) starts without edits; a re-resolved one keeps them (the host sends them back).
@@ -25,6 +36,7 @@ export function Drawer({ data, users, post, onClose }: Props) {
   }, [data.profile]);
   useEffect(() => {
     setEdits({});
+    setSaveMenu(false);
     titleRef.current?.focus();
   }, [data.id]);
 
@@ -117,6 +129,7 @@ export function Drawer({ data, users, post, onClose }: Props) {
           name={key}
           values={value(key)}
           suggestions={key === 'labels' ? [] : users}
+          recent={key === 'reviewers' || key === 'labels' ? data.recent[key] : []}
           onChange={(values) => edit({ [key]: values })}
           onSearch={(text) => key !== 'labels' && post({ type: 'drawerSearchUsers', id: data.id, text })}
         />
@@ -149,6 +162,30 @@ export function Drawer({ data, users, post, onClose }: Props) {
         </p>
       ))}
       <footer class="drawer-footer">
+        <span class="save-defaults">
+          <button type="button" data-button="saveDefaults" aria-haspopup="menu" aria-expanded={saveMenu} onClick={() => setSaveMenu(!saveMenu)}>
+            Save as defaults ▾
+          </button>
+          {saveMenu && (
+            <span class="save-menu" role="menu">
+              {SAVE_ITEMS.map(([target, label]) => (
+                <button
+                  type="button"
+                  role="menuitem"
+                  key={target}
+                  data-save={target}
+                  disabled={target === 'workspace' && !data.hasWorkspace}
+                  onClick={() => {
+                    setSaveMenu(false);
+                    post({ type: 'drawerSaveDefaults', id: data.id, profile, edits, target });
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </span>
+          )}
+        </span>
         <button type="button" onClick={close} data-button="cancel">
           Cancel
         </button>
@@ -160,7 +197,15 @@ export function Drawer({ data, users, post, onClose }: Props) {
   );
 }
 
-function Chips(props: { name: ListKey; values: string[]; suggestions: string[]; onChange(values: string[]): void; onSearch(text: string): void }) {
+export function Chips(props: {
+  name: ListKey;
+  values: string[];
+  suggestions: string[];
+  /** Recent values of the host, offered first (mr-profiles: Recent reviewers and labels) */
+  recent?: string[];
+  onChange(values: string[]): void;
+  onSearch(text: string): void;
+}) {
   const [text, setText] = useState('');
   const label = props.name.charAt(0).toUpperCase() + props.name.slice(1);
   const add = (value: string) => {
@@ -169,6 +214,7 @@ function Chips(props: { name: ListKey; values: string[]; suggestions: string[]; 
     setText('');
   };
   const listId = `suggest-${props.name}`;
+  const offer = recentOffer(props.recent ?? [], props.values);
   return (
     <div class="field chips-field" data-chips={props.name}>
       <span>{label}</span>
@@ -208,6 +254,19 @@ function Chips(props: { name: ListKey; values: string[]; suggestions: string[]; 
           </datalist>
         )}
       </span>
+      {offer.length > 0 && (
+        <span class="recent" data-recent={props.name}>
+          {'recent: '}
+          {offer.map((v, i) => (
+            <Fragment key={v}>
+              {i > 0 && ' · '}
+              <button type="button" class="recent-value" aria-label={`Add ${v}`} onClick={() => props.onChange([...props.values, v])}>
+                {v}
+              </button>
+            </Fragment>
+          ))}
+        </span>
+      )}
     </div>
   );
 }

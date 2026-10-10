@@ -10,6 +10,7 @@ import type { CreateNotice, HostedProvider, HostingProvider, ProjectInfo, UserSt
 import { postGuards, preGuards, pushPlan, type GuardButton, type UsePushOptions } from './guards';
 import { applySquashPolicy, resolveValues, type ExplicitProfile, type ProfileValues } from './profiles';
 import { pushArguments, reportedMergeRequest } from './pushOptions';
+import type { Recent } from './recent';
 import { EMPTY_RELATED } from './related';
 import { createdText, existingText, pushedText, type Applied } from './result';
 import { chooseRule, missingProfileText, type Rule } from './rules';
@@ -35,6 +36,8 @@ export interface CreateFlowPort {
   projectInfo(id: string): Promise<ProjectInfo | undefined>;
   /** The current user on the host (for `@me` and `{me}`); empty when unknown */
   me(host: string): Promise<string>;
+  /** The per-repository memory of `<host>/<project path>` (mr-profiles: Per-repository memory) */
+  memory?(repoKey: string): Partial<ProfileValues> | undefined;
   stores: UserStores;
   files: TemplateFiles;
   git: {
@@ -89,6 +92,8 @@ export interface Prepared {
   commitsAhead: number;
   /** Notes for the drawer: the squash policy, a missing named template */
   notes: string[];
+  /** The squash policy forced `values.squash` (Save as defaults leaves it out) */
+  squashForced: boolean;
   /** The uncommitted-files warning, shown after the result */
   warning?: { text: string; button: GuardButton };
   /** Whether a push runs first */
@@ -120,6 +125,8 @@ export interface Created {
   description: string;
   notices: CreateNotice[];
   openAfterCreate: ProfileValues['openAfterCreate'];
+  /** The reviewers (without `@me`) and labels the create request sent, for the recent values */
+  sent: Recent;
   warning?: { text: string; button: GuardButton };
 }
 
@@ -138,6 +145,8 @@ export interface Pushed {
   reviewers: string[];
   /** Assignees after the first, which push options could not set */
   assignees: string[];
+  /** What the push options sent: labels, no reviewers */
+  sent: Recent;
   warning?: { text: string; button: GuardButton };
 }
 
@@ -180,11 +189,14 @@ export class CreateFlow {
       if (existing) return existing;
     }
 
-    const chosen = options.profile ? { profile: options.profile, set: {} } : chooseRule(settings.rules, `${host}/${row.hosted.projectPath}`, branch);
+    const repoKey = `${host}/${row.hosted.projectPath}`;
+    const chosen = options.profile ? { profile: options.profile, set: {} } : chooseRule(settings.rules, repoKey, branch);
+    const memory = this.port.memory?.(repoKey);
     const resolved = resolveValues({
       profiles: settings.profiles,
       profile: chosen.profile,
       set: chosen.set,
+      ...(memory ? { memory } : {}),
       ...(options.edits ? { edits: options.edits } : {}),
     });
     if (!resolved.ok) {
@@ -256,6 +268,7 @@ export class CreateFlow {
       target: target.target,
       commitsAhead: ctx.commits.length,
       notes,
+      squashForced: squash.note !== undefined,
       ...(post.warning ? { warning: post.warning } : {}),
       willPush: plan.kind === 'publish' || plan.kind === 'push',
     };
@@ -388,6 +401,7 @@ export class CreateFlow {
       description: p.description,
       notices: [...users.notices, ...outcome.notices],
       openAfterCreate: p.values.openAfterCreate,
+      sent: { reviewers: p.values.reviewers.filter((r) => r !== '@me'), labels: p.values.labels },
       ...(p.warning ? { warning: p.warning } : {}),
     };
   }
@@ -428,6 +442,7 @@ export class CreateFlow {
       pushed,
       reviewers,
       assignees,
+      sent: { reviewers: [], labels: p.values.labels },
       ...(p.warning ? { warning: p.warning } : {}),
     };
   }

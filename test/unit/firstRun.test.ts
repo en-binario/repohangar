@@ -1,7 +1,7 @@
-// provider-auth :: Host line matrix (R1–R6), First-run summary line.
+// provider-auth :: Host line matrix (R1–R6), First-run summary line. mr-profiles :: Defaults line matrix (R1–R2).
 
 import { describe, expect, it } from 'vitest';
-import { firstRunModel, hostLine, type HostAccount } from '../../src/providers/firstRun';
+import { defaultsLine, firstRunModel, hostLine, type HostAccount } from '../../src/providers/firstRun';
 import type { RowData } from '../../src/shared/model';
 import { row } from './rows';
 
@@ -56,5 +56,29 @@ describe('First-run summary line', () => {
 
   it('is not shown without a GitLab or GitHub repository', () => {
     expect(firstRunModel([row({ provider: null, remote: null })], () => ({ state: 'none' }))).toBeUndefined();
+  });
+});
+
+describe('Defaults line matrix', () => {
+  const none = { text: 'Merge request defaults: none yet.', button: 'setUpProfile', note: '(you can also save them from the form)' };
+
+  it.each<[string, unknown, unknown]>([
+    ['R1 not set at either scope', undefined, undefined],
+    ['R1 only { "default": {} }', { default: {} }, undefined],
+    ['R1 only { "default": {} } at both scopes', { default: {} }, { default: {} }],
+  ])('%s: none yet, with Set up a default profile', (_name, user, workspace) => {
+    expect(defaultsLine(user, workspace)).toEqual(none);
+  });
+
+  it('R2 default and hotfix with keys: 2 profiles, with Edit profiles', () => {
+    expect(defaultsLine({ default: { squash: true } }, { hotfix: { labels: ['hotfix'] } })).toEqual({
+      text: 'Merge request defaults: 2 profiles.',
+      button: 'editProfiles',
+    });
+  });
+
+  it('comes after the host lines of the panel', () => {
+    const rows = [row({ provider: 'gitlab', hosted: { host: 'git.acme.com', projectPath: 'payments/billing-api', webUrl: 'https://git.acme.com/payments/billing-api' } })];
+    expect(firstRunModel(rows, () => ({ state: 'none' }), defaultsLine(undefined, undefined))?.defaults).toEqual(none);
   });
 });

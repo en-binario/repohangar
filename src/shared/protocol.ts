@@ -2,6 +2,7 @@
 // (design D-4). No vscode import.
 
 import { FIX_IDS, type BatchPanel, type FixId, type ResultLine } from './batchResult';
+import { SAVE_TARGETS, type SaveTarget } from '../mr/saveDefaults';
 import { parseEdits, type DrawerData, type DrawerEdits } from './drawer';
 import type { GraphVariant, NameClick } from './graph';
 import {
@@ -69,6 +70,10 @@ export type ViewMessage =
   | { type: 'closeBatchResult' }
   /** The selected rows, which the batch commands act on (batch-operations: Batch targets) */
   | { type: 'setSelection'; ids: string[] }
+  /** The focused row, whose repository and branch the profile editor's title preview uses */
+  | { type: 'setFocus'; id: string }
+  /** `⚙` in the toolbar and Set up a default profile / Edit profiles in the first-run panel (mr-profiles) */
+  | { type: 'editProfiles' }
   /** A `Sign in` cell or a first-run button (provider-auth: Sign in to a host) */
   | { type: 'signIn'; host: string }
   /** The `?` cell (hosting-providers: Host choice for an unknown host) */
@@ -79,7 +84,9 @@ export type ViewMessage =
   | { type: 'drawerChange'; id: string; profile: string; edits: DrawerEdits }
   | { type: 'drawerCreate'; id: string; profile: string; edits: DrawerEdits }
   | { type: 'drawerClose' }
-  | { type: 'drawerSearchUsers'; id: string; text: string };
+  | { type: 'drawerSearchUsers'; id: string; text: string }
+  /** Save as defaults ▾ in the drawer (mr-profiles: Save as defaults) */
+  | { type: 'drawerSaveDefaults'; id: string; profile: string; edits: DrawerEdits; target: SaveTarget };
 
 export const GROUPING_MODES: readonly GroupingMode[] = ['parentFolder', 'workspaceFolder', 'custom', 'none'];
 
@@ -89,7 +96,7 @@ export const BATCH_ACTIONS: readonly BatchAction[] = ['fetch', 'pullFf'];
 const MAX_STRING = 4096;
 const MAX_IDS = 10_000;
 
-type Field = 'string' | 'count' | 'grouping' | 'rowAction' | 'batchAction' | 'ids' | 'edits' | 'text' | 'fix';
+type Field = 'string' | 'count' | 'grouping' | 'rowAction' | 'batchAction' | 'ids' | 'edits' | 'text' | 'fix' | 'saveTarget';
 
 const SHAPES: Record<ViewMessage['type'], Record<string, Field>> = {
   ready: {},
@@ -108,6 +115,8 @@ const SHAPES: Record<ViewMessage['type'], Record<string, Field>> = {
   copyAllLinks: {},
   closeBatchResult: {},
   setSelection: { ids: 'ids' },
+  setFocus: { id: 'string' },
+  editProfiles: {},
   signIn: { host: 'string' },
   chooseProvider: { host: 'string' },
   skipHost: { host: 'string' },
@@ -116,6 +125,7 @@ const SHAPES: Record<ViewMessage['type'], Record<string, Field>> = {
   drawerCreate: { id: 'string', profile: 'string', edits: 'edits' },
   drawerClose: {},
   drawerSearchUsers: { id: 'string', text: 'text' },
+  drawerSaveDefaults: { id: 'string', profile: 'string', edits: 'edits', target: 'saveTarget' },
 };
 
 function fieldValid(kind: Field, value: unknown): boolean {
@@ -134,6 +144,8 @@ function fieldValid(kind: Field, value: unknown): boolean {
       return typeof value === 'string' && (FIX_IDS as readonly string[]).includes(value);
     case 'edits':
       return parseEdits(value) !== undefined;
+    case 'saveTarget':
+      return typeof value === 'string' && (SAVE_TARGETS as readonly string[]).includes(value);
     case 'text':
       return typeof value === 'string' && value.length <= 256;
     case 'ids':

@@ -1,4 +1,5 @@
-// Builds the extension host bundle, the dashboard webview bundle and (with --tests) the integration tests.
+// Builds the extension host bundle, the dashboard and MR profile editor webview bundles and (with --tests) the
+// integration tests.
 import { context, build } from 'esbuild';
 import { cp, mkdir, rm } from 'node:fs/promises';
 import { glob } from 'glob';
@@ -24,7 +25,7 @@ const extension = {
 
 /** @type {import('esbuild').BuildOptions} */
 const webview = {
-  entryPoints: { webview: 'webview/main.tsx' },
+  entryPoints: { webview: 'webview/main.tsx', profiles: 'webview/profiles.tsx' },
   bundle: true,
   platform: 'browser',
   format: 'iife',

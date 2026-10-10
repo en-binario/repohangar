@@ -30,6 +30,10 @@ export interface DrawerData {
   warnings: string[];
   /** A guard that stopped Create, shown at the top */
   error: string;
+  /** For this workspace (shared) of Save as defaults needs an open folder or workspace */
+  hasWorkspace: boolean;
+  /** The recent reviewers and labels of the repository's host, most recent first (mr-profiles: Recent reviewers and labels) */
+  recent: { reviewers: string[]; labels: string[] };
 }
 
 /** The fields the drawer can edit. */

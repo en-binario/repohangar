@@ -168,6 +168,12 @@
         "category": "RepoHangar"
       },
       {
+        "command": "repohangar.profiles.edit",
+        "title": "Edit MR Profiles",
+        "category": "RepoHangar",
+        "icon": "$(gear)"
+      },
+      {
         "command": "repohangar.mr.create",
         "title": "Create Merge Request (Defaults)",
         "category": "RepoHangar"

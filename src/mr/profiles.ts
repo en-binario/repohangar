@@ -128,20 +128,24 @@ export interface ResolutionInput {
   profile: string;
   /** The rule's `set` */
   set?: Partial<ProfileValues>;
+  /** The repository's per-repository memory (mr-profiles: Per-repository memory) */
+  memory?: Partial<ProfileValues>;
   /** Values edited in the drawer or the quick input, for this merge request only */
   edits?: Partial<ProfileValues>;
 }
 
 /**
  * The resolution order (mr-profiles: Resolution order): built-in, `default`, the chosen profile with its `extends`
- * chain, the rule's `set`, then the edits. The squash policy comes last, with `applySquashPolicy`.
+ * chain, the rule's `set`, the per-repository memory, then the edits. The squash policy comes last, with
+ * `applySquashPolicy`.
  */
 export function resolveValues(input: ResolutionInput): ProfileResult {
   const base = resolveProfile(input.profiles, input.profile);
   if (!base.ok) return base;
-  const values = { ...base.values, ...(input.set ?? {}), ...(input.edits ?? {}) };
+  const layers = { ...(input.set ?? {}), ...(input.memory ?? {}), ...(input.edits ?? {}) };
+  const values = { ...base.values, ...layers };
   const explicit = new Set(base.explicit);
-  for (const key of Object.keys({ ...(input.set ?? {}), ...(input.edits ?? {}) }) as ProfileKey[]) explicit.add(key);
+  for (const key of Object.keys(layers) as ProfileKey[]) explicit.add(key);
   return { ok: true, values: clone(values), explicit };
 }
 

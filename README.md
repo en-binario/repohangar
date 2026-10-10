@@ -126,7 +126,8 @@ typed, and it offers **Edit all fields…**, the other profiles and **Create as 
 
 `M`, **RepoHangar: Create Merge Request…** (`Ctrl+Alt+Shift+M`, `Ctrl+Cmd+Shift+M` on macOS) open the **Create MR
 drawer** beside the grid, every field filled in from the profile: profile, target, title, description, reviewers,
-assignees, labels, squash, delete source branch and draft. `Ctrl+Enter` creates, `Esc` closes it. **Create MR**,
+assignees, labels, squash, delete source branch and draft. Under **Reviewers** and **Labels**, `recent: luis.gomez ·
+team:backend` offers the last 10 you sent on that host, one click each. `Ctrl+Enter` creates, `Esc` closes it. **Create MR**,
 **Create MR…** and **Open MR** are also in the Source Control Repositories menu and the Explorer **RepoHangar**
 submenu of GitLab and GitHub repositories.
 
@@ -158,6 +159,28 @@ A profile is a named set of defaults in `repohangar.mr.profiles`, at user scope 
 scope (shared with the team); a workspace profile overrides the user profile of the same name key by key.
 `repohangar.mr.rules` chooses a profile per repository and branch: the first rule whose globs match wins, and its
 `set` overrides values of that profile.
+
+You rarely need to write them by hand:
+
+- **The profile editor.** **RepoHangar: Edit MR Profiles**, the `⚙` button of the dashboard toolbar, or **Set up a
+  default profile** in the first-run panel open a form with a **User** / **Workspace** switch. It lists the profiles of
+  that scope (`★ default` first), the rules in order (**New rule**, move, delete) and every field of the selected
+  profile, with a live preview of the title for the focused dashboard row. A field the profile does not set shows the
+  inherited value, dimmed, with *Inherited from …* as its tooltip. **Save** writes that scope only, through VS Code's
+  own settings editing, so the rest of `settings.json` and its comments stay as they are (comments *inside* the
+  `repohangar.mr.profiles` value are not kept; use **Open settings.json** for those). If the settings change elsewhere
+  while you have unsaved edits, the editor asks before reloading.
+- **Save as defaults ▾** in the Create MR drawer keeps the reviewers, assignees, labels, squash, delete source branch
+  and draft values that differ from the profile, without the title, description or target:
+
+  | Item | Saved to |
+  |---|---|
+  | **For me (all workspaces)** | the profile at user scope |
+  | **For this workspace (shared)** | the profile at workspace scope (`.vscode/settings.json` or the `.code-workspace` file) |
+  | **For this repo only** | this repository, on this machine and in this workspace only |
+
+  What a repository remembers is applied after the rule's `set` and before your edits in the drawer. The profile
+  editor lists it (`billing-api → reviewers +carla.ruiz`) with **Forget**.
 
 ```jsonc
 "repohangar.mr.profiles": {

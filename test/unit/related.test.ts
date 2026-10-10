@@ -91,6 +91,7 @@ describe('related links', () => {
         pushed: 1,
         reviewers: [],
         assignees: [],
+        sent: { reviewers: [], labels: [] },
       },
       { name: 'auth-service', provider: 'gitlab', host: 'git.acme.com', projectPath: 'payments/auth-service' },
     );

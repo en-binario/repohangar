@@ -135,3 +135,17 @@ All notable changes to RepoHangar are recorded here. Entries are written and cla
   with its reason. Each description then gets a `Related:` section linking the others, at `{related}` (a new
   placeholder) or at the end, replaced rather than repeated when the set is created again. A result panel lists every
   repository with **Open ↗**, **Copy all links** and **Retry failed**.
+- **Added — the MR profile editor.** **RepoHangar: Edit MR Profiles** (`repohangar.profiles.edit`), the `⚙` button of
+  the dashboard toolbar and **Set up a default profile** in the first-run hosts panel (which now says `Merge request
+  defaults: none yet.` or `Merge request defaults: 2 profiles.`) open a form over `repohangar.mr.profiles` and
+  `repohangar.mr.rules`, with a **User** / **Workspace** switch: add profiles, edit every key with a live title preview,
+  see inherited values dimmed with where they come from, and add, move and delete rules. **Save** writes only the
+  chosen scope and keeps the rest of `settings.json`, comments included; a change made in `settings.json` while you
+  have unsaved edits shows **Reload** and **Keep editing** instead of overwriting them.
+- **Added — Save as defaults.** **Save as defaults ▾** in the Create MR drawer keeps the reviewers, assignees, labels,
+  squash, delete-branch and draft values that differ from the profile: **For me (all workspaces)** in the profile at user
+  scope, **For this workspace (shared)** at workspace scope, or **For this repo only**, remembered for that repository
+  in this workspace and applied after the rule's `set`. The profile editor lists what each repository remembers, with
+  **Forget**. The title, description and target are never saved, nor a squash value the GitLab project forces.
+- **Added — recent reviewers and labels.** The drawer shows `recent: luis.gomez · team:backend` under **Reviewers** and
+  **Labels**: the last 10 you sent on that host that the field does not hold yet, each one click to add.

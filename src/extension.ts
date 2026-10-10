@@ -16,6 +16,7 @@ import { SourceControl } from './integrations/sourceControl';
 import { CommandRunner, Notifier } from './integrations/workbench';
 import { JobRunner } from './jobs/runner';
 import { RepoHangarLog } from './log';
+import { ProfileEditor } from './mr/profileEditor';
 import { MrService } from './mr/service';
 import { ProviderService } from './providers/service';
 import { RowStore } from './state/store';
@@ -51,6 +52,7 @@ export interface TestApi {
   migration: { writes: MigrationWrite[]; run(): Promise<MigrationWrite[]>; state: vscode.Memento };
   providers: ProviderService;
   mr: MrService;
+  profiles: ProfileEditor;
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<TestApi | undefined> {
@@ -118,6 +120,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<TestAp
   });
   const panel = dashboard;
   panel.drawer = mr;
+  const profiles = new ProfileEditor(context.extensionUri, {
+    focused: () => {
+      const row = panel.focused === undefined ? undefined : store.get(panel.focused);
+      return row?.head.kind === 'branch' ? { repo: row.name, branch: row.head.name } : undefined;
+    },
+    memory: mr.repoMemory,
+  });
   actions.resultView = panel;
   actions.mrBatch = mr.mrBatch;
   mr.dashboard = { open: () => panel.open(), postDrawer: (data) => panel.showDrawer(data), postDrawerUsers: (id, users) => panel.postDrawerUsers(id, users) };
@@ -165,6 +174,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<TestAp
     legacyOpener,
     providers,
     mr,
+    profiles,
     git.onDidChange(() => reg.attach(git.current)),
     vscode.window.registerWebviewPanelSerializer(DASHBOARD_VIEW_TYPE, panel),
     vscode.commands.registerCommand('repohangar.open', () => panel.open()),
@@ -202,6 +212,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<TestAp
       if (id !== undefined) await providers.copyLink(id);
     }),
     vscode.commands.registerCommand('repohangar.signIn', () => providers.signInCommand()),
+    vscode.commands.registerCommand('repohangar.profiles.edit', () => profiles.open()),
     vscode.commands.registerCommand('repohangar.signOut', () => providers.signOutCommand()),
     // With no argument, a selection in the active dashboard creates one per selected row (add-multi-repo-mrs D-4);
     // from an editor the selection is not visible, so the active repository is used.
@@ -254,6 +265,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<TestAp
     migration: { writes: migrated, run: () => migrateSettings(context.globalState, log), state: context.globalState },
     providers,
     mr,
+    profiles,
   };
 }
 

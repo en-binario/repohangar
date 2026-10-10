@@ -1,4 +1,5 @@
-// mr-profiles :: Profile value matrix (R1–R6), Invalid extends matrix (R1–R2), Resolution order matrix (R1–R4).
+// mr-profiles :: Profile value matrix (R1–R6), Invalid extends matrix (R1–R2), Resolution order matrix (R1–R4), Memory in
+// the resolution order matrix (R1–R3).
 
 import { describe, expect, it } from 'vitest';
 import { mergeScopes, resolveValues, type RawProfiles } from '../../src/mr/profiles';
@@ -79,5 +80,23 @@ describe('Resolution order matrix', () => {
   it('marks the keys a profile, rule or edit set as explicit, not the built-in ones', () => {
     const result = resolveValues({ profiles, profile: 'default', edits: { title: 'x' } });
     expect(result.ok && [...result.explicit].sort()).toEqual(['reviewers', 'title']);
+  });
+});
+
+describe('Memory in the resolution order matrix', () => {
+  const profiles = mergeScopes({ default: { reviewers: ['ana.perez'] } }, undefined);
+  const set = { reviewers: ['carla.ruiz'] };
+  it.each<[string, object | undefined, object | undefined, string[]]>([
+    ['R1 uses the rule set without a memory', undefined, undefined, ['carla.ruiz']],
+    ['R2 lets the memory override the rule set', { reviewers: ['carla.ruiz', 'luis.gomez'] }, undefined, ['carla.ruiz', 'luis.gomez']],
+    ['R3 lets the drawer edit override the memory', { reviewers: ['carla.ruiz', 'luis.gomez'] }, { reviewers: ['ana.perez'] }, ['ana.perez']],
+  ])('%s', (_name, memory, edits, reviewers) => {
+    const result = resolveValues({ profiles, profile: 'default', set, ...(memory ? { memory } : {}), ...(edits ? { edits } : {}) });
+    expect(result.ok && result.values.reviewers).toEqual(reviewers);
+  });
+
+  it('applies the memory key by key, keeping the rule set for the keys it leaves out', () => {
+    const result = resolveValues({ profiles, profile: 'default', set: { reviewers: ['carla.ruiz'], labels: ['payments'] }, memory: { squash: true } });
+    expect(result.ok && [result.values.reviewers, result.values.labels, result.values.squash]).toEqual([['carla.ruiz'], ['payments'], true]);
   });
 });

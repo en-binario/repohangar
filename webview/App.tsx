@@ -200,6 +200,11 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
 
   const focusKey = items.some((i) => i.key === view.focus) ? view.focus : (items[0]?.key ?? null);
 
+  // The profile editor's title preview uses the focused row's repository and branch.
+  useEffect(() => {
+    if (focusKey?.startsWith('row:')) api.postMessage({ type: 'setFocus', id: focusKey.slice('row:'.length) });
+  }, [api, focusKey]);
+
   useLayoutEffect(() => {
     if (!focusRequested.current || !focusKey) return;
     focusRequested.current = false;
@@ -494,6 +499,9 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
             ))}
           </select>
         </label>
+        <button type="button" class="batch" data-button="editProfiles" aria-label="Edit MR profiles" title="Edit MR profiles" onClick={() => api.postMessage({ type: 'editProfiles' })}>
+          ⚙
+        </button>
       </div>
 
       {batchPanel && (
@@ -919,6 +927,15 @@ function FirstRun({ panel, api }: { panel: FirstRunPanel; api: VsCodeApi }) {
           ))}
         </div>
       ))}
+      {panel.defaults && (
+        <div class="first-run-defaults" data-defaults>
+          <span class="first-run-line">{panel.defaults.text}</span>
+          <button type="button" data-button={panel.defaults.button} onClick={() => api.postMessage({ type: 'editProfiles' })}>
+            {panel.defaults.button === 'setUpProfile' ? 'Set up a default profile' : 'Edit profiles'}
+          </button>
+          {panel.defaults.note && <span class="note">{panel.defaults.note}</span>}
+        </div>
+      )}
       <button type="button" class="first-run-done" onClick={() => api.postMessage({ type: 'firstRunDone' })}>
         Open dashboard →
       </button>

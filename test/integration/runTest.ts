@@ -105,6 +105,7 @@ async function main(): Promise<void> {
           REPOHANGAR_LEGACY_OPENER_VSIX: LEGACY_OPENER_VSIX,
           REPOHANGAR_GIT_GRAPH_VSIX: gitGraph,
           REPOHANGAR_HTTP_STUB: stub.url,
+          REPOHANGAR_USER_SETTINGS: join(profile, 'user-data', 'User', 'settings.json'),
         },
       });
     } catch (error) {

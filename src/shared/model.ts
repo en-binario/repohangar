@@ -199,10 +199,20 @@ export interface RowDetails {
 /** A button of a host line in the first-run hosts panel (provider-auth: First-run hosts panel). */
 export type FirstRunButton = 'signInGitHub' | 'pasteToken' | 'skip';
 
+/** The merge request defaults line after the hosts (mr-profiles: Defaults line in the first-run panel) */
+export interface DefaultsLine {
+  /** `Merge request defaults: none yet.` or `Merge request defaults: 2 profiles.` */
+  text: string;
+  button: 'setUpProfile' | 'editProfiles';
+  /** `(you can also save them from the form)` */
+  note?: string;
+}
+
 export interface FirstRunPanel {
   /** `Found 14 repositories: 9 on git.acme.com (GitLab) · 4 on github.com (GitHub) · 1 local only` */
   summary: string;
   hosts: { host: string; line: string; buttons: FirstRunButton[] }[];
+  defaults?: DefaultsLine;
 }
 
 export type GitApiState = 'uninitialized' | 'initialized';

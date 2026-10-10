@@ -10,7 +10,7 @@ import type { FirstRunPanel, RowData } from '../shared/model';
 import { compareState, copyLinkPlan, openReviewPlan, pipelineActive, reviewNoun } from '../shared/review';
 import type { RowStore } from '../state/store';
 import { Auth, type HostInfo } from './auth';
-import { firstRunModel } from './firstRun';
+import { defaultsLine, firstRunModel } from './firstRun';
 import { GitLabProvider } from './gitlab';
 import { Http, type FetchFn } from './http';
 import { Prober, VersionCheck, type ProbedProvider } from './probe';
@@ -127,6 +127,8 @@ export class ProviderService implements vscode.Disposable {
       vscode.window.onDidChangeWindowState((state) => this.queue.windowFocusChanged(this.focusOverride ?? state.focused)),
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration('repohangar.providers.refreshMinutes')) this.queue.pipelinesChanged();
+        // The first-run panel's merge request defaults line.
+        if (e.affectsConfiguration('repohangar.mr.profiles')) this.firstRunEmitter.fire();
       }),
       { dispose: () => this.queue.dispose() },
     );
@@ -450,10 +452,15 @@ export class ProviderService implements vscode.Disposable {
   /** The first-run hosts panel, until the user dismisses it once. */
   firstRun(): FirstRunPanel | undefined {
     if (this.context.globalState.get<boolean>(FIRST_RUN_KEY, false)) return undefined;
-    return firstRunModel(this.store.all(), (host) => {
-      const account = this.auth.account(host);
-      return { state: this.auth.hostState(host), ...(account ? { account } : {}) };
-    });
+    const profiles = vscode.workspace.getConfiguration('repohangar').inspect('mr.profiles');
+    return firstRunModel(
+      this.store.all(),
+      (host) => {
+        const account = this.auth.account(host);
+        return { state: this.auth.hostState(host), ...(account ? { account } : {}) };
+      },
+      defaultsLine(profiles?.globalValue, profiles?.workspaceValue),
+    );
   }
 
   firstRunDismissed(): boolean {

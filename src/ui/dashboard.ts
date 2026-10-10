@@ -8,6 +8,7 @@ import type { Registry } from '../git/registry';
 import { dashboardState } from '../shared/format';
 import type { GraphVariant, NameClick } from '../shared/graph';
 import type { BatchPanel } from '../shared/batchResult';
+import type { SaveTarget } from '../mr/saveDefaults';
 import type { DrawerData, DrawerEdits } from '../shared/drawer';
 import type { FirstRunPanel } from '../shared/model';
 import { parseViewMessage, type HostMessage, type Snapshot, type ViewMessage } from '../shared/protocol';
@@ -40,6 +41,7 @@ export interface DashboardDrawer {
   drawerCreate(id: string, profile: string, edits: DrawerEdits): Promise<void>;
   drawerClose(): void;
   drawerSearchUsers(id: string, text: string): void;
+  drawerSaveDefaults(id: string, profile: string, edits: DrawerEdits, target: SaveTarget): Promise<void>;
 }
 
 export interface FirstPaint {
@@ -67,6 +69,8 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
   recordMessages = false;
   /** The rows selected in the dashboard, as the webview last reported them; empty while it is closed. */
   selection: readonly string[] = [];
+  /** The focused row, as the webview last reported it; undefined while it is closed. */
+  focused: string | undefined;
   /** The row Show in RepoHangar moves the focus to once the webview is ready */
   private pendingReveal: string | undefined;
   /** The drawer posted once the webview is ready */
@@ -261,6 +265,7 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
         this.ready = false;
         this.restored = false;
         this.selection = [];
+        this.focused = undefined;
         this.batchResultShown = false;
         this.pendingBatchResult = false;
         this.firstRunDecision = undefined;
@@ -333,6 +338,12 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
       case 'setSelection':
         this.selection = message.ids;
         return;
+      case 'setFocus':
+        this.focused = message.id;
+        return;
+      case 'editProfiles':
+        await vscode.commands.executeCommand('repohangar.profiles.edit');
+        return;
       case 'signIn':
         await this.providers?.signIn(message.host);
         return;
@@ -356,6 +367,9 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
         return;
       case 'drawerSearchUsers':
         this.drawer?.drawerSearchUsers(message.id, message.text);
+        return;
+      case 'drawerSaveDefaults':
+        await this.drawer?.drawerSaveDefaults(message.id, message.profile, message.edits, message.target);
         return;
     }
   }

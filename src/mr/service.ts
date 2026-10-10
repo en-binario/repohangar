@@ -23,11 +23,15 @@ import type { RowStore } from '../state/store';
 import type { MrBatch } from '../ui/actions';
 import { CreateFlow, type CreateOptions, type FlowOutcome, type MrSettings, type Prepared, type Stop } from './create';
 import type { UsePushOptions } from './guards';
+import { RepoMemoryStore, SAVED_KEYS, type SavedValues } from './memory';
 import { batchEntry, confirmDetail, entryDetail, mrPanelTitle, relatedNote, writeRelatedLinks, type MrBatchEntry } from './multi';
-import { mergeScopes, type ProfileValues, type RawProfiles } from './profiles';
+import { hasWorkspace } from './profileEditor';
+import { mergeScopes, resolveProfile, type ProfileValues, type RawProfiles } from './profiles';
+import { EMPTY_RECENT, readRecent, recentKey, recordRecent, type Recent } from './recent';
 import { allLinks } from './related';
 import { closedText, resultPlan, undoExpiredText, UNDO_WINDOW_MS } from './result';
 import { readRules } from './rules';
+import { planSaveDefaults, type SaveTarget } from './saveDefaults';
 import { DEFAULT_TICKET_PATTERN, DEFAULT_TYPE_MAP } from './templates';
 
 const PROJECT_INFO_MS = 60 * 60_000;
@@ -123,6 +127,8 @@ export class MrService implements vscode.Disposable {
   batchUi: MrBatchUi = vscodeMrBatchUi;
   /** Replaced by the tests to answer the drawer without a webview. */
   dashboard: MrDashboard | undefined;
+  /** The per-repository memory of this workspace (mr-profiles: Per-repository memory) */
+  readonly repoMemory: RepoMemoryStore;
   private readonly projectInfos = new Map<string, { info: ProjectInfo | undefined; at: number }>();
   private drawer: { id: string; profile: string; edits: DrawerEdits } | undefined;
   private searchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -173,6 +179,7 @@ export class MrService implements vscode.Disposable {
       singleReviewer: (host) => context.globalState.get<boolean>(`repohangar.gitlab.singleReviewer.${host}`, false),
       setSingleReviewer: (host) => void context.globalState.update(`repohangar.gitlab.singleReviewer.${host}`, true),
     };
+    this.repoMemory = new RepoMemoryStore(context.workspaceState);
     this.flow = new CreateFlow({
       row: (id) => this.store.get(id),
       root: (id) => this.registry.repository(id)?.rootUri.fsPath,
@@ -181,6 +188,7 @@ export class MrService implements vscode.Disposable {
       provider: (kind, host, webUrl) => this.providers.factory.get(kind, host, new URL(webUrl).origin),
       projectInfo: (id) => this.projectInfo(id),
       me: (host) => this.providers.me(host),
+      memory: (repoKey) => this.repoMemory.get(repoKey),
       stores,
       files: {
         readFile: (path) => nodeFileSystem.readFile(path),
@@ -247,6 +255,17 @@ export class MrService implements vscode.Disposable {
     return info;
   }
 
+  /** The recent reviewers and labels of a host (mr-profiles: Recent reviewers and labels). */
+  recent(host: string): Recent {
+    return host ? readRecent(this.context.globalState.get(recentKey(host))) : { ...EMPTY_RECENT };
+  }
+
+  /** Records what a successful creation sent (design D-5). */
+  private async remember(outcome: FlowOutcome): Promise<void> {
+    if (outcome.kind !== 'created' && outcome.kind !== 'pushed') return;
+    await this.context.globalState.update(recentKey(outcome.host), recordRecent(this.recent(outcome.host), outcome.sent));
+  }
+
   // -------------------------------------------------------------------------------------------------------------
   // Create with defaults, the quick input and the job
 
@@ -285,6 +304,7 @@ export class MrService implements vscode.Disposable {
       return outcome.kind === 'stop' && outcome.severity === 'error' ? { state: 'failed', detail: outcome.text } : { state: 'ok' };
     });
     if (!finished || !outcome) return undefined;
+    await this.remember(outcome);
     await this.handle(id, outcome, options);
     return outcome;
   }
@@ -432,6 +452,7 @@ export class MrService implements vscode.Disposable {
     return async (ctx) => {
       this.batchEntries.delete(id);
       const outcome = await ctx.network(() => this.flow.create(id, { batch: true }));
+      await this.remember(outcome);
       if (outcome.kind === 'created') this.providers.afterPush(id);
       if (outcome.kind === 'pushed') this.providers.storePushed(id, outcome.branch, outcome.number, outcome.url);
       const row = this.store.get(id);
@@ -499,7 +520,7 @@ export class MrService implements vscode.Disposable {
     }
     this.drawer = { id, profile: prepared.profile, edits: options.edits ?? {} };
     this.dashboard?.open();
-    this.dashboard?.postDrawer(drawerData(prepared, this.store.get(id), options.edits ?? {}, '', await this.remoteBranches(id, prepared.remote)));
+    this.dashboard?.postDrawer(drawerData(prepared, this.store.get(id), options.edits ?? {}, '', await this.remoteBranches(id, prepared.remote), this.recent(prepared.host)));
   }
 
   async drawerChange(id: string, profile: string, edits: DrawerEdits): Promise<void> {
@@ -507,7 +528,7 @@ export class MrService implements vscode.Disposable {
     const prepared = await this.flow.prepare(id, { profile, edits });
     if (prepared.kind !== 'prepared') return;
     this.drawer = { id, profile, edits };
-    this.dashboard?.postDrawer(drawerData(prepared, this.store.get(id), edits, '', await this.remoteBranches(id, prepared.remote)));
+    this.dashboard?.postDrawer(drawerData(prepared, this.store.get(id), edits, '', await this.remoteBranches(id, prepared.remote), this.recent(prepared.host)));
   }
 
   async drawerCreate(id: string, profile: string, edits: DrawerEdits): Promise<void> {
@@ -516,13 +537,48 @@ export class MrService implements vscode.Disposable {
     if (prepared.kind === 'stop') {
       // R5: the drawer stays open with the guard's text at the top.
       const shown = await this.flow.prepare(id, { profile });
-      if (shown.kind === 'prepared') this.dashboard?.postDrawer(drawerData(shown, this.store.get(id), edits, prepared.text, await this.remoteBranches(id, shown.remote)));
+      if (shown.kind === 'prepared') {
+        this.dashboard?.postDrawer(drawerData(shown, this.store.get(id), edits, prepared.text, await this.remoteBranches(id, shown.remote), this.recent(shown.host)));
+      }
       return;
     }
     this.drawer = undefined;
     this.dashboard?.postDrawer(null);
     if (prepared.kind === 'exists') return this.handle(id, prepared, {});
     await this.runCreate(id, { profile, edits });
+  }
+
+  /**
+   * Save as defaults ▾ (mr-profiles: Save as defaults; design D-3): the drawer's saved keys that differ from the
+   * profile, into the profile at user or workspace scope, or into the per-repository memory; then the notification.
+   */
+  async drawerSaveDefaults(id: string, profile: string, edits: DrawerEdits, target: SaveTarget): Promise<void> {
+    if (this.drawer?.id !== id || (target === 'workspace' && !hasWorkspace())) return;
+    const prepared = await this.flow.prepare(id, { profile, edits });
+    if (prepared.kind !== 'prepared') return;
+    const base = resolveProfile(settings().profiles, profile);
+    if (!base.ok) return;
+    const config = vscode.workspace.getConfiguration('repohangar');
+    const stored = config.inspect<RawProfiles>('mr.profiles');
+    const values = Object.fromEntries(SAVED_KEYS.map((k) => [k, prepared.values[k]])) as unknown as SavedValues;
+    const plan = planSaveDefaults({
+      target,
+      profile,
+      repo: prepared.repo,
+      repoKey: `${prepared.host}/${prepared.projectPath}`,
+      values,
+      effective: base.values,
+      squashForced: prepared.squashForced,
+      ...(target === 'user' ? { scopeProfiles: stored?.globalValue ?? stored?.defaultValue ?? {} } : {}),
+      ...(target === 'workspace' ? { scopeProfiles: stored?.workspaceValue ?? {} } : {}),
+      memory: this.repoMemory.all(),
+    });
+    if (plan.kind === 'settings') {
+      await config.update('mr.profiles', plan.value, plan.scope === 'user' ? vscode.ConfigurationTarget.Global : vscode.ConfigurationTarget.Workspace);
+    } else if (plan.kind === 'memory') {
+      await this.repoMemory.replace(plan.value);
+    }
+    void this.notifier.show('information', plan.text);
   }
 
   /** The branches of a remote from local refs (`git for-each-ref`, no network), sorted; the drawer's targets. */
@@ -597,7 +653,14 @@ function titleEdit(title: string, p: Prepared): Partial<ProfileValues> {
 }
 
 /** The drawer's content from a prepared creation. */
-export function drawerData(p: Prepared, row: RowData | undefined, edits: DrawerEdits, error: string, targets: string[] = []): DrawerData {
+export function drawerData(
+  p: Prepared,
+  row: RowData | undefined,
+  edits: DrawerEdits,
+  error: string,
+  targets: string[] = [],
+  recent: Recent = EMPTY_RECENT,
+): DrawerData {
   const ahead = row?.head.kind === 'branch' && row.head.upstream ? (row.head.ahead ?? 0) : p.commitsAhead;
   const profiles = [...new Set(['default', ...settings().profiles.keys()])].sort();
   return {
@@ -622,6 +685,8 @@ export function drawerData(p: Prepared, row: RowData | undefined, edits: DrawerE
     notes: p.notes,
     warnings: p.warning ? [p.warning.text] : [],
     error,
+    hasWorkspace: hasWorkspace(),
+    recent: { reviewers: [...recent.reviewers], labels: [...recent.labels] },
   };
 }
 
