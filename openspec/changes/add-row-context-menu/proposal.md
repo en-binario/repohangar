@@ -41,5 +41,5 @@ None.
 - **Extension host, protocol, settings, commands**: none. The menu items still run through the existing `RowAction`
   messages.
 - **Tests**: a Playwright UI test in `test/ui/actions.spec.ts`.
-- **Docs**: an `Added` entry under `## Unreleased` in `CHANGELOG.md` (docs/versioning.md R6: a new way to open a
-  menu).
+- **Docs**: a `Changed` entry under `## Unreleased` in `CHANGELOG.md` (docs/versioning.md R9: a menu opens in a new
+  place; no item, setting or command is added).

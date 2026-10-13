@@ -152,3 +152,6 @@ All notable changes to RepoHangar are recorded here. Entries are written and cla
 - **Changed:** a push stopped by the repository's local pre-push hook (`P`, the Sync cell, or the push before
   **Create MR**) now says so: the failure reads `pre-push hook failed: <the hook's first line>` instead of only the
   hook's output, which Git prints without naming the hook.
+- **Changed:** a right-click on a dashboard row opens the row's `⋯` menu (Open terminal, Stash changes, Copy path, Copy
+  branch name, …) at the pointer instead of the Cut / Copy / Paste menu. The filter box and the row details keep Cut /
+  Copy / Paste.

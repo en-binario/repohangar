@@ -271,6 +271,13 @@ select {
   box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 }
 
+/* Opened by a right-click: at the pointer, in viewport coordinates (add-row-context-menu design D-3). */
+.row-menu.at-pointer {
+  position: fixed;
+  top: auto;
+  right: auto;
+}
+
 .menu-item {
   display: flex;
   justify-content: space-between;

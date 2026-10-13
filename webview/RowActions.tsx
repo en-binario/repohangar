@@ -1,8 +1,9 @@
 // The dashboard's action controls (git-operations design D-6, explorer-open-in-git-graph design D-8): the toolbar batch
-// buttons, the hover buttons of a row, its more-actions menu and the action a click on the Sync cell runs.
+// buttons, the hover buttons of a row, its more-actions menu (also on a right-click, add-row-context-menu design D-2)
+// and the action a click on the Sync cell runs.
 
 import { Fragment } from 'preact';
-import { useEffect, useRef } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef } from 'preact/hooks';
 import { toolbarLabel } from '../src/shared/batch';
 import { syncCell } from '../src/shared/format';
 import { graphLabel, type GraphVariant } from '../src/shared/graph';
@@ -99,27 +100,54 @@ export function HoverActions({ row, graph, onAction, onMenu }: HoverProps) {
   );
 }
 
+/** A point in viewport coordinates, as `clientX` / `clientY` give it. */
+export interface MenuPoint {
+  x: number;
+  y: number;
+}
+
 interface MenuProps {
   row: RowData;
   platform: string;
   graph: GraphVariant;
+  /** The pointer of the right-click that opened the menu; without it the menu hangs under the row's right edge */
+  at?: MenuPoint;
   onChoose(action: RowAction): void;
   onClose(): void;
 }
 
 /** The more-actions menu of a row, operable with ↑, ↓, Enter and Esc. */
-export function RowMenu({ row, platform, graph, onChoose, onClose }: MenuProps) {
+export function RowMenu({ row, platform, graph, at, onChoose, onClose }: MenuProps) {
   const ref = useRef<HTMLDivElement>(null);
   const groups = rowMenu(row, platform, graph);
 
+  // At the pointer, moved left and up by what would overflow the dashboard, before it is painted (design D-3).
+  useLayoutEffect(() => {
+    const menu = ref.current;
+    if (!at || !menu) return;
+    const { width, height } = menu.getBoundingClientRect();
+    menu.style.left = `${Math.max(0, Math.min(at.x, window.innerWidth - width))}px`;
+    menu.style.top = `${Math.max(0, Math.min(at.y, window.innerHeight - height))}px`;
+  }, [at?.x, at?.y]);
+
   useEffect(() => {
-    ref.current?.querySelector<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])')?.focus();
+    ref.current?.querySelector<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])')?.focus({ preventScroll: true });
     const onPointer = (e: MouseEvent) => {
       if (!ref.current?.contains(e.target as Node)) onClose();
     };
     document.addEventListener('mousedown', onPointer);
-    return () => document.removeEventListener('mousedown', onPointer);
-  }, []);
+    // A menu fixed at the pointer would drift from its row, so it closes when anything scrolls or the view resizes.
+    const onMove = () => onClose();
+    if (at) {
+      document.addEventListener('scroll', onMove, true);
+      window.addEventListener('resize', onMove);
+    }
+    return () => {
+      document.removeEventListener('mousedown', onPointer);
+      document.removeEventListener('scroll', onMove, true);
+      window.removeEventListener('resize', onMove);
+    };
+  }, [at?.x, at?.y]);
 
   const onKey = (e: KeyboardEvent) => {
     const items = [...(ref.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])') ?? [])];
@@ -171,12 +199,18 @@ export function RowMenu({ row, platform, graph, onChoose, onClose }: MenuProps) 
   return (
     <div
       ref={ref}
-      class="row-menu"
+      class={at ? 'row-menu at-pointer' : 'row-menu'}
+      style={at ? { left: `${at.x}px`, top: `${at.y}px` } : undefined}
       role="menu"
       aria-label={`Actions for ${row.name}`}
       onKeyDown={onKey}
       // A click in the menu is not a click on the cell under it.
       onClick={(e) => e.stopPropagation()}
+      // A right-click in the menu neither shows Cut / Copy / Paste nor reopens the menu (design D-4).
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
     >
       {groups.map((group, i) => (
         <Fragment key={i}>

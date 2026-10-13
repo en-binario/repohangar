@@ -47,6 +47,10 @@ Rows update as soon as the Git extension sees a change; RepoHangar never polls.
 A click on a repository name reveals it in the Explorer (`repohangar.dashboard.nameClick`); a click on the Changes
 cell shows it in Source Control.
 
+The `⋯` button at the right of a hovered row (or `.`) opens its menu: Open in Git Graph, Reveal in Explorer, Show in
+Source Control, Open terminal, the stash and discard actions, Reveal in File Explorer, Copy path, Copy branch name and
+Open compare page. A right-click anywhere on the row opens the same menu at the pointer.
+
 ### Switch or create a branch across repositories
 
 Select the repositories of a feature and press `b`, click **⎇ Switch…** in the toolbar or run **RepoHangar: Switch

@@ -131,6 +131,28 @@ export async function focusRow(frame: FrameLocator, repo: string): Promise<void>
   await cell.focus();
 }
 
+/**
+ * Arms a one-shot watch on the next `contextmenu` event in the dashboard and returns a reader of whether the dashboard
+ * suppressed VS Code's Cut / Copy / Paste menu (null until the event happened). VS Code shows that menu from a bubble
+ * listener on the frame's window unless the default is prevented; a listener on the document runs just before it.
+ */
+export async function watchContextMenu(frame: FrameLocator): Promise<() => Promise<boolean | null>> {
+  await frame.locator('body').evaluate(() => {
+    const w = window as unknown as { rhSuppressed?: boolean | null };
+    w.rhSuppressed = null;
+    const onDocument = (e: Event) => (w.rhSuppressed = e.defaultPrevented);
+    document.addEventListener('contextmenu', onDocument, { once: true });
+    const afterAll = () =>
+      setTimeout(() => {
+        document.removeEventListener('contextmenu', onDocument);
+        // Propagation stopped before the document, so VS Code's window listener did not see the event either.
+        if (w.rhSuppressed === null) w.rhSuppressed = true;
+      });
+    window.addEventListener('contextmenu', afterAll, { capture: true, once: true });
+  });
+  return () => frame.locator('body').evaluate(() => (window as unknown as { rhSuppressed?: boolean | null }).rhSuppressed ?? null);
+}
+
 /** Merges `settings` into the user settings.json; VS Code applies the change without a reload. */
 export function writeSettings(vscode: VsCode, settings: Record<string, unknown>): void {
   const current = existsSync(vscode.settingsFile) ? (JSON.parse(readFileSync(vscode.settingsFile, 'utf8')) as Record<string, unknown>) : {};

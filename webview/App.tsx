@@ -22,7 +22,7 @@ import { detailsButtons } from '../src/shared/rowMenu';
 import { layout, rowKey, type GridItem } from './layout';
 import { BatchResult } from './BatchResult';
 import { Drawer } from './Drawer';
-import { BatchButtons, HoverActions, RowMenu, syncClickAction } from './RowActions';
+import { BatchButtons, HoverActions, RowMenu, syncClickAction, type MenuPoint } from './RowActions';
 
 export interface VsCodeApi {
   postMessage(message: ViewMessage): void;
@@ -106,8 +106,8 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
   const [view, setView] = useState<PersistedView>(() => readView(api));
   const [now, setNow] = useState(initialNow ?? Date.now());
   const [helpOpen, setHelpOpen] = useState(false);
-  /** The row whose more-actions menu is open */
-  const [menuFor, setMenuFor] = useState<string | null>(null);
+  /** The row whose more-actions menu is open, and the pointer it opened at on a right-click (design D-2) */
+  const [menu, setMenu] = useState<{ id: string; at?: MenuPoint } | null>(null);
   /** The row Show in RepoHangar asked to focus, until the grid shows it */
   const [revealId, setRevealId] = useState<string | null>(null);
   /** The Create MR drawer and the user suggestions for it (mr-creation: Create MR drawer) */
@@ -282,7 +282,7 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
   };
 
   const closeMenu = () => {
-    setMenuFor(null);
+    setMenu(null);
     focusRequested.current = true;
     update({ focus: focusKey });
   };
@@ -345,7 +345,7 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
     }
     if (focusedRow && (e.key === '.' || Object.prototype.hasOwnProperty.call(rowKeys, e.key))) {
       e.preventDefault();
-      if (e.key === '.') return setMenuFor(focusedRow.id);
+      if (e.key === '.') return setMenu({ id: focusedRow.id });
       return runAction(focusedRow.id, rowKeys[e.key] as RowAction);
     }
     switch (e.key) {
@@ -558,13 +558,14 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
               platform={snapshot.platform}
               graph={snapshot.graph}
               nameAction={nameClickAction(snapshot.nameClick)}
-              menuOpen={menuFor === item.row.id}
+              menuOpen={menu?.id === item.row.id}
+              menuAt={menu?.id === item.row.id ? menu.at : undefined}
               onFocus={() => update({ focus: item.key })}
               onToggleSelected={() => toggleSelected(item.row.id)}
               onAction={(action) => runAction(item.row.id, action)}
-              onMenu={() => {
+              onMenu={(at) => {
                 update({ focus: item.key });
-                setMenuFor(item.row.id);
+                setMenu({ id: item.row.id, ...(at ? { at } : {}) });
               }}
               onMenuChoose={(action) => {
                 closeMenu();
@@ -621,10 +622,12 @@ interface RowViewProps {
   /** What a click on the repository name runs (explorer-reveal: Repository name click) */
   nameAction: RowAction;
   menuOpen: boolean;
+  /** Where a right-click opened the menu; none for the `⋯` button and the `.` key */
+  menuAt: MenuPoint | undefined;
   onFocus(): void;
   onToggleSelected(): void;
   onAction(action: RowAction): void;
-  onMenu(): void;
+  onMenu(at?: MenuPoint): void;
   onMenuChoose(action: RowAction): void;
   onMenuClose(): void;
   onSignIn(host: string): void;
@@ -649,6 +652,11 @@ function RowView(props: RowViewProps) {
         aria-selected={props.selected}
         aria-expanded={props.expanded}
         onClick={props.onFocus}
+        // git-operations: Row context menu — the row's menu at the pointer instead of Cut / Copy / Paste.
+        onContextMenu={(e) => {
+          e.preventDefault();
+          props.onMenu({ x: e.clientX, y: e.clientY });
+        }}
       >
         <span class="cell check" role="gridcell">
           <input
@@ -736,6 +744,7 @@ function RowView(props: RowViewProps) {
               row={row}
               platform={props.platform}
               graph={props.graph}
+              at={props.menuAt}
               onChoose={props.onMenuChoose}
               onClose={props.onMenuClose}
             />

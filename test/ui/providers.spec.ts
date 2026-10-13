@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { expect, test, type FrameLocator, type Page } from '@playwright/test';
 import { startProviderStub, type StubRequest } from '../integration/fixtures/providerStub';
 import { createProvidersFixture } from '../integration/fixtures/repos';
-import { dashboard, focusRow, launch, openDashboard, row, runCommand, type VsCode } from './vscode';
+import { dashboard, focusRow, launch, openDashboard, row, runCommand, watchContextMenu, type VsCode } from './vscode';
 
 let vscode: VsCode;
 let page: Page;
@@ -118,6 +118,29 @@ test('shows the loaded merge request and Sign in in the MR / PR column', async (
   await expect(row(frame, 'web-shop').locator('[data-col="review"]')).toHaveText('Sign in');
   await expect(row(frame, 'charts').locator('[data-col="review"]')).toHaveText('?');
   await expect(row(frame, 'scratch').locator('[data-col="review"]')).toHaveText('—');
+});
+
+// git-operations: Row context menu, Right-click target matrix R4 (the other rows are in actions.spec.ts).
+test('R4: opens the row menu, not Cut / Copy / Paste, on a right-click on the merge request link', async () => {
+  const link = row(frame, 'billing-api').locator('[data-col="review"] button.review-ref');
+  await expect(link).toHaveText('!142', { timeout: 30_000 });
+  const box = await link.boundingBox();
+  if (!box) throw new Error('link not visible');
+  const suppressed = await watchContextMenu(frame);
+  await link.click({ button: 'right', position: { x: 4, y: 4 } });
+  await expect.poll(suppressed).toBe(true);
+  const menu = frame.getByRole('menu', { name: 'Actions for billing-api' });
+  await expect(menu).toBeVisible();
+  const opened = await menu.boundingBox();
+  const view = await page.locator('iframe.webview.ready').boundingBox();
+  if (!opened || !view) throw new Error('menu not visible');
+  // At the pointer, or moved left just enough to stay inside the dashboard when the link is near its right edge.
+  const expectedX = Math.min(box.x + 4, view.x + view.width - opened.width);
+  expect(Math.abs(opened.x - expectedX)).toBeLessThanOrEqual(2);
+  expect(Math.abs(opened.y - (box.y + 4))).toBeLessThanOrEqual(1);
+  await expect(frame.locator('.row.repo.focused')).toHaveAttribute('data-repo', 'billing-api');
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
 });
 
 test('writes no setting when the host choice is dismissed', async () => {
