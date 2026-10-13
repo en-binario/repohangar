@@ -2,6 +2,7 @@
 // push, the create request or push options, and the result. No vscode import: the extension supplies a port, and the
 // drawer and the quick input call `prepare` to show the values before `create` sends them.
 
+import { pushHookFailure } from '../git/errors';
 import { isDirty } from '../shared/format';
 import type { RowData } from '../shared/model';
 import { reference, reviewNoun } from '../shared/review';
@@ -467,6 +468,8 @@ function dirtyFiles(row: RowData): number {
 function messageOf(error: unknown): string {
   const stderr = (error as { stderr?: unknown } | undefined)?.stderr;
   if (typeof stderr === 'string' && stderr.trim()) {
+    const hook = pushHookFailure(stderr);
+    if (hook) return hook;
     const lines = stderr.trim().split(/\r?\n/).filter((l) => !/^(remote:|To |hint:)/.test(l));
     if (lines.length) return lines[0] as string;
   }

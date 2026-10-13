@@ -149,3 +149,6 @@ All notable changes to RepoHangar are recorded here. Entries are written and cla
   **Forget**. The title, description and target are never saved, nor a squash value the GitLab project forces.
 - **Added — recent reviewers and labels.** The drawer shows `recent: luis.gomez · team:backend` under **Reviewers** and
   **Labels**: the last 10 you sent on that host that the field does not hold yet, each one click to add.
+- **Changed:** a push stopped by the repository's local pre-push hook (`P`, the Sync cell, or the push before
+  **Create MR**) now says so: the failure reads `pre-push hook failed: <the hook's first line>` instead of only the
+  hook's output, which Git prints without naming the hook.

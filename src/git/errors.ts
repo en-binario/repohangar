@@ -10,11 +10,29 @@ export function redactUrls(text: string): string {
 }
 
 /**
+ * `pre-push hook failed: <its first line>` when a push was stopped by the local pre-push hook, else undefined. Git
+ * does not name the hook: its stderr is the hook's own output, then `error: failed to push some refs`, with no
+ * `To <url>` status (nothing reached the remote) and no Git-prefixed line of its own before it (`error: src refspec …`).
+ */
+export function pushHookFailure(stderr: string): string | undefined {
+  const lines = stderr.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
+  const end = lines.findIndex((l) => /^error: failed to push some refs\b/.test(l));
+  if (end < 0 || lines.some((l) => /^(To |! \[|remote:)/.test(l))) return undefined;
+  const first = lines[0] as string;
+  if (end === 0) return 'pre-push hook failed';
+  if (/^(?:fatal|error|warning|hint):/i.test(first)) return undefined;
+  return redactUrls(`pre-push hook failed: ${first.replace(/\.$/, '')}`);
+}
+
+/**
  * The first line of Git's error output (`stderr` of the Git API's errors) without its `fatal:` or `git@host:` prefix
- * and final period, else the first line of the error message; URL credentials are removed.
+ * and final period, else the first line of the error message; URL credentials are removed. A push stopped by the
+ * pre-push hook says so (`pushHookFailure`).
  */
 export function gitErrorMessage(error: unknown): string {
   const record = (typeof error === 'object' && error !== null ? error : {}) as { stderr?: unknown; message?: unknown };
+  const hook = typeof record.stderr === 'string' ? pushHookFailure(record.stderr) : undefined;
+  if (hook) return hook;
   const sources = [record.stderr, record.message, typeof error === 'string' ? error : undefined];
   for (const source of sources) {
     if (typeof source !== 'string') continue;
