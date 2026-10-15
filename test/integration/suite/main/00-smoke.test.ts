@@ -27,7 +27,7 @@ describe('smoke', () => {
     assert.equal(config.get('concurrency'), 6);
     assert.equal(config.get('fetchTimeoutSeconds'), 60);
     // explorer-open-in-git-graph, explorer-reveal, source-control-reveal, source-control-selection-sync
-    assert.equal(config.get('dashboard.nameClick'), 'explorer');
+    assert.equal(config.get('dashboard.nameClick'), 'auto');
     assert.equal(config.get('gitGraph.whenMissing'), 'sourceControlGraph');
     assert.equal(config.get('gitGraph.revealSourceControl'), true);
     assert.equal(config.get('gitGraph.syncSourceControlSelection'), true);

@@ -33,10 +33,12 @@ export function graphLabel(variant: GraphVariant): string | undefined {
 }
 
 /** `repohangar.dashboard.nameClick` */
-export type NameClick = 'explorer' | 'gitGraph' | 'sourceControl';
+export type NameClick = 'auto' | 'explorer' | 'gitGraph' | 'sourceControl';
 
-export function nameClickAction(nameClick: string): RowAction {
+/** `auto` (the default) opens Git Graph when it is installed, else reveals the repository in the Explorer. */
+export function nameClickAction(nameClick: string, graph: GraphVariant): RowAction {
   if (nameClick === 'gitGraph') return 'graph';
   if (nameClick === 'sourceControl') return 'showInSourceControl';
-  return 'revealInExplorer';
+  if (nameClick === 'explorer') return 'revealInExplorer';
+  return graph === 'gitGraph' ? 'graph' : 'revealInExplorer';
 }

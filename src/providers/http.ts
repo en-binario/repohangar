@@ -134,7 +134,11 @@ export function rateLimitUntil(response: Pick<Response, 'status' | 'headers'>, n
   return now + 60_000;
 }
 
+/** The first GraphQL error message, else the REST `message` or `error`, else `HTTP <status>`. */
 function statusMessage(status: number, json: unknown): string {
+  const errors = (json as { errors?: unknown } | undefined)?.errors;
+  const first = Array.isArray(errors) ? (errors[0] as { message?: unknown } | undefined)?.message : undefined;
+  if (typeof first === 'string') return first;
   const message = (json as { message?: unknown; error?: unknown } | undefined)?.message ?? (json as { error?: unknown } | undefined)?.error;
   if (typeof message === 'string') return message;
   if (Array.isArray(message)) return message.map(String).join('; ');

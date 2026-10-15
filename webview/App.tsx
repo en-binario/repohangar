@@ -557,7 +557,7 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
               staleFetchHours={snapshot.staleFetchHours}
               platform={snapshot.platform}
               graph={snapshot.graph}
-              nameAction={nameClickAction(snapshot.nameClick)}
+              nameAction={nameClickAction(snapshot.nameClick, snapshot.graph)}
               menuOpen={menu?.id === item.row.id}
               menuAt={menu?.id === item.row.id ? menu.at : undefined}
               onFocus={() => update({ focus: item.key })}

@@ -12,10 +12,32 @@ body {
   font-size: var(--vscode-font-size);
 }
 
-.dashboard {
+/*
+ * The dashboard fills the panel without a scrollbar while the rows fit (dashboard: Dashboard height). 100% of html is
+ * the panel without its scrollbars, unlike 100vh, so a horizontal scrollbar on a narrow panel does not add a vertical
+ * one; the body's 12 px bottom padding is inside its min-height.
+ */
+html {
+  height: 100%;
+}
+
+body:has(> #root > .dashboard) {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  min-height: 100%;
+}
+
+body:has(> #root > .dashboard) > #root {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+.dashboard {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
 }
 
 .toolbar {

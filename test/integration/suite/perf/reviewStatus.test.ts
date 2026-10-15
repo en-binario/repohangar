@@ -1,12 +1,12 @@
 // hosting-providers performance target (§11.2): the review status of 50 repositories over 2 hosts costs 1 request per
-// host and arrives in < 1.5 s, with the hosts answering after 100 ms.
+// host and chunk (10 aliases on GitLab, 50 on GitHub) and arrives in < 1.5 s, with the hosts answering after 100 ms.
 
 import * as assert from 'node:assert/strict';
 import { ready, waitFor } from '../helpers';
 import { answerHttp, graphql, stubAuthUi, users } from '../providers/support';
 
 describe('review status', () => {
-  it('costs 2 requests and arrives in < 1.5 s for 50 repositories on 2 hosts', async () => {
+  it('costs 1 request per host and chunk and arrives in < 1.5 s for 50 repositories on 2 hosts', async () => {
     const api = await ready(50);
     api.providers.focusOverride = true;
     const ui = stubAuthUi(api, { sessions: { github: { token: 'gho_session', username: 'luisgomez' } }, pasted: ['glpat-x1y2'] });
@@ -33,7 +33,12 @@ describe('review status', () => {
       const ms = Date.now() - started;
       const posts = http.requests.filter((r) => r.method === 'POST').map((r) => new URL(r.url).host).sort();
       console.log(`      review status: ${ms} ms, ${posts.length} requests`);
-      assert.deepEqual(posts, ['api.github.com', 'git.acme.com']);
+      const on = (host: string) => api.store.all().filter((r) => r.hosted?.host === host).length;
+      const expected = [
+        ...Array<string>(Math.ceil(on('github.com') / 50)).fill('api.github.com'),
+        ...Array<string>(Math.ceil(on('git.acme.com') / 10)).fill('git.acme.com'),
+      ];
+      assert.deepEqual(posts, expected);
       assert.ok(ms < 1500, `review status took ${ms} ms`);
     } finally {
       http.restore();

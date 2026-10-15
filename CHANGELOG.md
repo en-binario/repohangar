@@ -155,3 +155,16 @@ All notable changes to RepoHangar are recorded here. Entries are written and cla
 - **Changed:** a right-click on a dashboard row opens the row's `⋯` menu (Open terminal, Stash changes, Copy path, Copy
   branch name, …) at the pointer instead of the Cut / Copy / Paste menu. The filter box and the row details keep Cut /
   Copy / Paste.
+- **Added:** the value `"auto"` of `repohangar.dashboard.nameClick`: Open in Git Graph when Git Graph is installed,
+  else Reveal in Explorer.
+- **Changed:** a click on a repository name opens the repository in Git Graph when Git Graph is installed
+  (`repohangar.dashboard.nameClick` now defaults to `"auto"`); without Git Graph it still reveals the repository in the
+  Explorer. Set `"explorer"` to keep revealing it in the Explorer.
+- **Fixed:** `Ctrl+Alt+H` and **RepoHangar: Open Dashboard** opened a second RepoHangar tab after a window reload while
+  the restored dashboard waited in a background tab; they now show that tab. A second dashboard restored from an
+  earlier session is closed.
+- **Fixed:** the dashboard showed a vertical scrollbar when every row fit in the panel.
+- **Fixed:** MR / PR cells of a GitLab host with more than 13 repositories never refreshed (`Not refreshed since …`,
+  no `[Create MR]`): GitLab rejected the batched status request as too large or too complex (`HTTP 422`). Requests now
+  carry at most 10 repositories and are split further when GitLab still rejects them, and the RepoHangar log shows
+  GitLab's message (`Query too large`) instead of `HTTP 422`.

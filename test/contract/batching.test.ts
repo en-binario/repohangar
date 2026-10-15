@@ -1,11 +1,14 @@
-// hosting-providers :: Forty repositories on two hosts, Chunks of 50 aliases; the queries sent and the answers mapped.
+// hosting-providers :: Forty repositories on two hosts, Chunks of 50 aliases, GitLab chunk limit matrix (R1–R5); the
+// queries sent and the answers mapped.
 
-import { http } from 'msw';
+import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { GitHubProvider } from '../../src/providers/github';
 import { GitLabProvider } from '../../src/providers/gitlab';
 import { Http } from '../../src/providers/http';
-import type { ReviewItem } from '../../src/providers/provider';
+import { ProviderFactory, type ReviewItem } from '../../src/providers/provider';
+import { ReviewLoader } from '../../src/providers/reviewLoader';
+import { row } from '../unit/rows';
 import { contractServer } from './helpers';
 import { aliases, statusAnswer } from './graphql';
 
@@ -17,7 +20,7 @@ const items = (n: number, prefix: string): ReviewItem[] =>
   Array.from({ length: n }, (_, i) => ({ key: `${prefix}-${i}`, projectPath: `${prefix}/repo-${i}`, branch: 'feature/ABC-12-notes' }));
 
 describe('Batched review status', () => {
-  it('costs exactly 2 requests for 25 repositories on git.acme.com and 15 on github.com', async () => {
+  it('costs 3 requests to git.acme.com for 25 repositories and 1 to github.com for 15', async () => {
     server.use(
       http.post('https://git.acme.com/api/graphql', async ({ request }) => statusAnswer('gitlab', ((await request.json()) as { query: string }).query)),
       http.post('https://api.github.com/graphql', async ({ request }) => statusAnswer('github', ((await request.json()) as { query: string }).query)),
@@ -30,28 +33,30 @@ describe('Batched review status', () => {
     expect(requests.map((r) => `${r.method} ${r.url}`).sort()).toEqual([
       'POST https://api.github.com/graphql',
       'POST https://git.acme.com/api/graphql',
+      'POST https://git.acme.com/api/graphql',
+      'POST https://git.acme.com/api/graphql',
     ]);
-    const count = (url: string) => aliases((requests.find((r) => r.url === url)?.body as { query: string }).query).length;
-    expect(count('https://git.acme.com/api/graphql')).toBe(25);
-    expect(count('https://api.github.com/graphql')).toBe(15);
+    const counts = (url: string) => requests.filter((r) => r.url === url).map((r) => aliases((r.body as { query: string }).query).length);
+    expect(counts('https://git.acme.com/api/graphql')).toEqual([10, 10, 5]);
+    expect(counts('https://api.github.com/graphql')).toEqual([15]);
     expect(gitlab.results.size).toBe(25);
     expect(github.results.size).toBe(15);
     expect(requests.find((r) => r.url.includes('api.github.com'))?.headers.authorization).toBe('Bearer gho_abc');
   });
 
-  it('splits 120 repositories into requests of 50, 50 and 20 aliases, one after another', async () => {
+  it('splits 120 repositories on github.com into requests of 50, 50 and 20 aliases, one after another', async () => {
     const order: string[] = [];
     server.use(
-      http.post('https://git.acme.com/api/graphql', async ({ request }) => {
+      http.post('https://api.github.com/graphql', async ({ request }) => {
         const query = ((await request.json()) as { query: string }).query;
         const n = aliases(query).length;
         order.push(`start ${n}`);
         await new Promise((r) => setTimeout(r, 20));
         order.push(`end ${n}`);
-        return statusAnswer('gitlab', query);
+        return statusAnswer('github', query);
       }),
     );
-    const answer = await new GitLabProvider(new Http(), 'git.acme.com', 'https://git.acme.com').reviewStates(items(120, 'payments'), GL, {});
+    const answer = await new GitHubProvider(new Http(), 'github.com', 'https://github.com').reviewStates(items(120, 'acme'), GH, {});
     expect(order).toEqual(['start 50', 'end 50', 'start 50', 'end 50', 'start 20', 'end 20']);
     expect(answer.requests).toBe(3);
     expect(answer.results.size).toBe(120);
@@ -101,5 +106,90 @@ describe('Batched review status', () => {
       kind: 'review',
       review: { provider: 'github', number: 311, pipeline: 'FAILURE', reviewDecision: 'CHANGES_REQUESTED', autoMerge: false },
     });
+  });
+});
+
+describe('GitLab chunk limit matrix', () => {
+  const URL_GQL = 'https://git.acme.com/api/graphql';
+  const tooLarge = () => HttpResponse.json({ errors: [{ message: 'Query too large' }] }, { status: 422 });
+  const tooComplex = () => HttpResponse.json({ errors: [{ message: 'Query has complexity of 260, which exceeds max complexity of 250' }] });
+  const sizes = () => requests.filter((r) => r.url === URL_GQL).map((r) => aliases((r.body as { query: string }).query).length);
+
+  /** Loads `n` repositories through the loader; the first request is answered by `first`, every other one with the recorded MR. */
+  async function load(n: number, first?: () => Response) {
+    let sent = 0;
+    server.use(
+      http.post(URL_GQL, async ({ request }) => {
+        const query = ((await request.json()) as { query: string }).query;
+        const answer = sent++ === 0 ? first : undefined;
+        return answer ? answer() : statusAnswer('gitlab', query);
+      }),
+    );
+    const rows = new Map(
+      Array.from({ length: n }, (_, i) =>
+        row({
+          id: `file:///acme/repo-${i}`,
+          name: `repo-${i}`,
+          headSha: 'c3d4e5f',
+          hosted: { host: 'git.acme.com', projectPath: `payments/repo-${i}`, webUrl: `https://git.acme.com/payments/repo-${i}` },
+          head: { kind: 'branch', name: 'feature/ABC-12-notes', upstream: 'origin/feature/ABC-12-notes', ahead: 0, behind: 0 },
+        }),
+      ).map((r) => [r.id, r]),
+    );
+    const stored: string[] = [];
+    const logged: string[] = [];
+    const loader = new ReviewLoader({
+      row: (id) => rows.get(id),
+      provider: (kind, host, origin) => new ProviderFactory(new Http()).get(kind, host, origin),
+      credential: async () => GL,
+      rejected: async () => undefined,
+      selection: () => ({}),
+      saveSelection: async () => undefined,
+      store: (id) => void stored.push(id),
+      now: () => Date.now(),
+      log: (message) => void logged.push(message),
+    });
+    const outcome = await loader.load('git.acme.com', [...rows.keys()]);
+    return { outcome, stored, logged };
+  }
+
+  it('refreshes 10 repositories from one answer', async () => {
+    const { outcome, stored, logged } = await load(10);
+    expect(sizes()).toEqual([10]);
+    expect(outcome).toEqual({ ok: true });
+    expect(stored).toHaveLength(10);
+    expect(logged).toEqual([]);
+  });
+
+  it('splits 10 aliases into two requests of 5 after Query too large', async () => {
+    const { outcome, stored, logged } = await load(10, tooLarge);
+    expect(sizes()).toEqual([10, 5, 5]);
+    expect(outcome).toEqual({ ok: true });
+    expect(stored).toHaveLength(10);
+    expect(logged).toEqual([]);
+  });
+
+  it('splits 10 aliases into two requests of 5 after a complexity error', async () => {
+    const { outcome, stored, logged } = await load(10, tooComplex);
+    expect(sizes()).toEqual([10, 5, 5]);
+    expect(outcome).toEqual({ ok: true });
+    expect(stored).toHaveLength(10);
+    expect(logged).toEqual([]);
+  });
+
+  it('fails a single alias that is still too large and logs the GitLab message', async () => {
+    const { outcome, stored, logged } = await load(1, tooLarge);
+    expect(sizes()).toEqual([1]);
+    expect(outcome).toEqual({ ok: false });
+    expect(stored).toEqual([]);
+    expect(logged).toEqual(['Review request to git.acme.com failed: Query too large']);
+  });
+
+  it('does not split after a 502 and logs HTTP 502', async () => {
+    const { outcome, stored, logged } = await load(10, () => new HttpResponse(null, { status: 502 }));
+    expect(sizes()).toEqual([10]);
+    expect(outcome).toEqual({ ok: false });
+    expect(stored).toEqual([]);
+    expect(logged).toEqual(['Review request to git.acme.com failed: HTTP 502']);
   });
 });

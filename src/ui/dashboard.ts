@@ -50,12 +50,31 @@ export interface FirstPaint {
 }
 
 function nameClickSetting(): NameClick {
-  const value = vscode.workspace.getConfiguration('repohangar').get<string>('dashboard.nameClick', 'explorer');
-  return value === 'gitGraph' || value === 'sourceControl' ? value : 'explorer';
+  const value = vscode.workspace.getConfiguration('repohangar').get<string>('dashboard.nameClick', 'auto');
+  return value === 'explorer' || value === 'gitGraph' || value === 'sourceControl' ? value : 'auto';
+}
+
+/** The longest `open` waits for VS Code to restore a shown dashboard tab before it creates a panel. */
+const RESTORE_WAIT_MS = 2_000;
+
+/** The editor group focus commands, by the group's position in `tabGroups.all`. */
+const FOCUS_GROUP_COMMANDS = ['First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Seventh', 'Eighth'].map(
+  (n) => `workbench.action.focus${n}EditorGroup`,
+);
+
+/** A dashboard tab in any editor group, including one whose webview VS Code has not restored yet. */
+function dashboardTab(): vscode.Tab | undefined {
+  for (const group of vscode.window.tabGroups.all) {
+    const tab = group.tabs.find((t) => t.input instanceof vscode.TabInputWebview && t.input.viewType.endsWith(DASHBOARD_VIEW_TYPE));
+    if (tab) return tab;
+  }
+  return undefined;
 }
 
 export class DashboardController implements vscode.Disposable, vscode.WebviewPanelSerializer, ResultView {
   private panel: vscode.WebviewPanel | undefined;
+  /** A panel was set up and a dashboard tab is still listed: every dashboard tab is that panel's, even one closing */
+  private hadPanel = false;
   private panelDisposables: vscode.Disposable[] = [];
   private readonly disposables: vscode.Disposable[] = [];
   private ready = false;
@@ -111,6 +130,9 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
       registry.onDidChangeRepositories(() => this.postSnapshotIfStateChanged()),
       viewState.onDidChangeGrouping(() => this.postSnapshot()),
       graph.onDidChange(() => this.postSnapshot()),
+      vscode.window.tabGroups.onDidChangeTabs(() => {
+        if (!this.panel && !dashboardTab()) this.hadPanel = false;
+      }),
       ...(providers ? [providers.onDidChangeFirstRun(() => this.postSnapshotIfFirstRunChanged())] : []),
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (
@@ -126,10 +148,7 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
 
   /** True when a dashboard panel exists or was restored, including a background tab not yet revived. */
   get exists(): boolean {
-    if (this.panel || this.restored) return true;
-    return vscode.window.tabGroups.all.some((group) =>
-      group.tabs.some((tab) => tab.input instanceof vscode.TabInputWebview && tab.input.viewType.endsWith(DASHBOARD_VIEW_TYPE)),
-    );
+    return !!this.panel || this.restored || dashboardTab() !== undefined;
   }
 
   get current(): vscode.WebviewPanel | undefined {
@@ -156,6 +175,44 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
       this.panel.reveal(undefined, preserveFocus);
       return;
     }
+    // A dashboard tab restored after a reload has no panel until VS Code shows it (Dashboard tab matrix R3, R4). A tab
+    // listed after a panel was set up is that panel's, still closing.
+    const tab = this.hadPanel ? undefined : dashboardTab();
+    if (tab) {
+      void this.showTab(tab).then(async (shown) => {
+        if (shown) await this.panelWithin(RESTORE_WAIT_MS);
+        if (!this.panel) this.createPanel(preserveFocus);
+      });
+      return;
+    }
+    this.createPanel(preserveFocus);
+  }
+
+  /** Resolves once a panel is set up (VS Code restored the shown tab), or after `ms`. */
+  private panelWithin(ms: number): Promise<void> {
+    const started = Date.now();
+    return new Promise((resolve) => {
+      const check = () => (this.panel || Date.now() - started >= ms ? resolve() : setTimeout(check, 50));
+      check();
+    });
+  }
+
+  /** Makes a dashboard tab active, which makes VS Code restore its webview (design D-1); false when it cannot. */
+  private async showTab(tab: vscode.Tab): Promise<boolean> {
+    const position = vscode.window.tabGroups.all.indexOf(tab.group);
+    const focusGroup = FOCUS_GROUP_COMMANDS[position];
+    const index = tab.group.tabs.indexOf(tab);
+    if (!focusGroup || index < 0) return false;
+    try {
+      await vscode.commands.executeCommand(focusGroup);
+      await vscode.commands.executeCommand('workbench.action.openEditorAtIndex', index);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private createPanel(preserveFocus: boolean): void {
     const panel = vscode.window.createWebviewPanel(
       DASHBOARD_VIEW_TYPE,
       'RepoHangar',
@@ -225,6 +282,12 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
   }
 
   async deserializeWebviewPanel(panel: vscode.WebviewPanel): Promise<void> {
+    // One dashboard per window: a second restored panel is closed (Dashboard tab matrix R5, design D-2).
+    if (this.panel) {
+      panel.dispose();
+      this.panel.reveal(undefined, true);
+      return;
+    }
     this.restored = true;
     this.openedAt = Date.now();
     panel.webview.options = this.webviewOptions();
@@ -244,6 +307,7 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
 
   private setup(panel: vscode.WebviewPanel): void {
     this.panel = panel;
+    this.hadPanel = true;
     this.ready = false;
     panel.webview.html = this.html(panel.webview);
     let pinned = false;

@@ -1,4 +1,4 @@
-// explorer-reveal :: Name click matrix (R1–R3) and Reveal with e; explorer-open-in-git-graph :: Show a filtered-out
+// explorer-reveal :: Name click matrix (R1–R3, R5) and Reveal with e; explorer-open-in-git-graph :: Show a filtered-out
 // repository (the dashboard side: filter cleared, All active, group expanded, focus on the row).
 
 import { expect, test, type FrameLocator, type Page } from '@playwright/test';
@@ -72,6 +72,13 @@ test('R3 nameClick sourceControl: a click on ledger shows it in Source Control',
   await row(frame, 'ledger').locator('.repo-name').click();
   await expect(selectedRepository(page)).toContainText('ledger');
   await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest('#workbench\\.view\\.scm'))).toBe(true);
+});
+
+test('R5 nameClick auto without Git Graph: a click on ledger reveals it in the Explorer', async () => {
+  await nameClick('auto');
+  await expect(frame.locator('.dashboard')).toHaveAttribute('data-graph', 'sourceControlGraph');
+  await row(frame, 'ledger').locator('.repo-name').click();
+  await expectExplorerOnLedger();
 });
 
 test('Reveal with e: the Explorer selects acme/backend/ledger and has focus', async () => {

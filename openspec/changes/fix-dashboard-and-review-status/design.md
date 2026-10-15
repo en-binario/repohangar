@@ -31,7 +31,8 @@ Four fixes found on a 53-repository workspace (see proposal.md):
 - A setting for the chunk size, or remembering a smaller chunk size per host (10 already fits every measured limit;
   splitting covers a host with lower limits at the cost of one extra request per chunk).
 - Refreshing review states after a fetch (Provider refresh triggers are unchanged).
-- The horizontal scrollbar on a narrow panel: the grid has minimum column widths and scrolls sideways by design.
+- Removing the horizontal scrollbar on a narrow panel: the grid has minimum column widths and scrolls sideways by
+  design (it no longer adds a vertical scrollbar, D-3).
 
 ## Decisions
 
@@ -43,7 +44,12 @@ type (the same test as `exists`). If it finds one, it focuses that tab's editor 
 `workbench.action.openEditorAtIndex` with the tab's index. Showing the tab makes VS Code call
 `deserializeWebviewPanel`, which sets up the panel as after a reload, so the webview's saved state (filter, chips,
 selection, expanded rows) comes back; `reveal()` and `showBatchResult(…, true)` keep working because their messages
-wait for `ready`. Only when no such tab exists (or the group is past the eighth) does `openPanel` create a panel.
+wait for `ready`. When no such tab exists, the group is past the eighth, or VS Code has not restored the shown tab
+within 2 s, `openPanel` creates a panel.
+
+The lookup is skipped while a tab of a panel RepoHangar set up is still listed: `panel.dispose()` fires `onDidDispose`
+before `tabGroups` drops the closing tab, so closing and reopening the dashboard at once would otherwise "reveal" a tab
+that is going away. The flag clears on `tabGroups.onDidChangeTabs` once no dashboard tab is listed.
 
 Alternative considered: close the old tab and create a new panel. Rejected: the closed tab's webview state is lost, so
 the restored filter and selection would disappear.
@@ -53,11 +59,17 @@ the restored filter and selection would disappear.
 `deserializeWebviewPanel` disposes the panel it receives when `this.panel` is already set, and reveals the existing
 one. This covers two dashboard tabs saved by an earlier version, and the D-1 fallback racing a late restore.
 
-### D-3. Page height
+### D-3. Page height from the layout viewport, not `100vh`
 
-`.dashboard` gets `min-height: calc(100vh - 12px)` so that, with the body's 12 px bottom padding, the page is exactly
-`100vh` when the rows fit. `.grid` keeps `flex: 1`, which pushes the footer to the bottom. The bottom padding stays on
-`body` so the empty states and the first-run panel keep their spacing.
+`100vh` includes the scrollbars, so any `100vh`-based height overflows by the horizontal scrollbar's 15 px on a panel
+narrower than the grid (measured in VS Code: `innerHeight` 903, `clientHeight` 888). Instead, `html` is `height: 100%`
+(the panel without its scrollbars), and while the page shows the dashboard (`body:has(> #root > .dashboard)`) `body` is
+a `border-box` flex column with `min-height: 100%`, so its 12 px bottom padding is inside that height; `#root` and
+`.dashboard` take `flex: 1`. `.grid` keeps `flex: 1`, which pushes the footer to the bottom. Scoping by `:has` leaves
+the empty states, the first-run panel and the profile editor (which shares `styles.css`) as they were.
+
+Alternative considered: `.dashboard { min-height: calc(100vh - 12px) }`. Rejected: correct only without a horizontal
+scrollbar; the Playwright test at a narrow window caught it.
 
 ### D-4. `"auto"` is resolved in the webview from the graph variant
 

@@ -8,7 +8,7 @@ import { dirname, join } from 'node:path';
 import * as vscode from 'vscode';
 import type { TestApi } from '../../../../src/extension';
 import { TOGGLE_COMMAND_PREFIX } from '../../../../src/integrations/scmSelection';
-import { graphLabel } from '../../../../src/shared/graph';
+import { graphLabel, nameClickAction } from '../../../../src/shared/graph';
 import {
   commandIds,
   idOf,
@@ -56,6 +56,20 @@ describe('Open in Git Graph', () => {
   afterEach(async () => {
     stop();
     await setConfig('scm.repositories.selectionMode', undefined);
+  });
+
+  // explorer-reveal :: Name click matrix R4: the default nameClick runs Open in Git Graph while Git Graph is installed.
+  it('a click on the repository name opens Git Graph by default when Git Graph is installed', async () => {
+    api.dashboard.recordMessages = true;
+    try {
+      api.dashboard.postSnapshot();
+      const snapshot = api.dashboard.postedMessages.filter((m) => m.type === 'snapshot').pop();
+      assert.equal(snapshot?.type === 'snapshot' && snapshot.nameClick, 'auto');
+      assert.equal(snapshot?.type === 'snapshot' && snapshot.graph, 'gitGraph');
+      assert.equal(snapshot?.type === 'snapshot' && nameClickAction(snapshot.nameClick, snapshot.graph), 'graph');
+    } finally {
+      api.dashboard.recordMessages = false;
+    }
   });
 
   it('R1 g and Ctrl+Alt+J open Git Graph on the repository and the items read Open in Git Graph', async () => {

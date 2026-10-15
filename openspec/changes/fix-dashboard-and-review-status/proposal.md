@@ -6,7 +6,8 @@ Using the dashboard on a 53-repository workspace showed four problems:
    restores it only once it is shown. Until then `repohangar.open` (`Ctrl+Alt+H`) finds no panel and creates a second
    one. The dashboard spec already says "at most one dashboard panel per window".
 2. **A vertical scrollbar with two rows.** `.dashboard` is `min-height: 100vh` and `body` has a 12 px bottom padding, so
-   the page is always 12 px taller than the panel and shows a scrollbar it does not need.
+   the page is always 12 px taller than the panel and shows a scrollbar it does not need. On a panel narrower than the
+   grid's minimum width, the horizontal scrollbar adds 15 px more, because `100vh` includes it.
 3. **The name click.** A click on the repository name reveals the folder in the Explorer (`repohangar.dashboard.nameClick`,
    default `"explorer"`). The graph is what people want from a click on a repository, and Git Graph is the reason many of
    them use RepoHangar (it absorbs Git Graph Opener). Without Git Graph, the Explorer is still the better default (the

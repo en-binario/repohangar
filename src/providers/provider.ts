@@ -67,6 +67,11 @@ export interface ReviewOptions {
 }
 
 export const CHUNK_SIZE = 50;
+/**
+ * GitLab rejects a query over 10,000 characters or over its complexity limit (250 with a token); one alias costs about
+ * 285 characters and 19 points (hosting-providers: Batched review status, design D-5).
+ */
+export const GITLAB_CHUNK_SIZE = 10;
 export const MAX_REDUCTIONS = 3;
 
 /** `https://<host>[:<port>]` of a web URL. */

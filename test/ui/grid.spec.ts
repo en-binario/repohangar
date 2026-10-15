@@ -1,4 +1,5 @@
-// The dashboard grid in a real VS Code window: columns, row order, groups, filtering and the open keybinding.
+// The dashboard grid in a real VS Code window: columns, row order, groups, filtering, the open keybinding and the page
+// height (dashboard: Dashboard height).
 
 import { expect, test } from '@playwright/test';
 import { createMainFixture } from '../integration/fixtures/repos';
@@ -76,3 +77,56 @@ test('keeps the selection while filtering', async () => {
   await page.keyboard.press('Escape');
   await expect(frame.locator('.selected-count')).toHaveCount(0);
 });
+
+/** Sets the size of the VS Code window. */
+async function windowSize(width: number, height: number): Promise<void> {
+  await vscode.app.evaluate(({ BrowserWindow }, [w, h]) => BrowserWindow.getAllWindows()[0]?.setSize(w as number, h as number), [width, height]);
+  await vscode.page.waitForTimeout(500);
+}
+
+/** The webview page's scroll and client heights, and where its footer ends. */
+async function pageHeights(frame: ReturnType<typeof dashboard>) {
+  return frame.locator('body').evaluate(() => {
+    const page = document.scrollingElement as HTMLElement;
+    const footer = (document.querySelector('.footer') as HTMLElement).getBoundingClientRect();
+    return {
+      scroll: page.scrollHeight,
+      client: page.clientHeight,
+      wide: page.scrollWidth > page.clientWidth,
+      footerBottom: Math.round(footer.bottom),
+    };
+  });
+}
+
+// Both widths: a panel narrower than the grid's minimum scrolls sideways, and that scrollbar adds no vertical one.
+for (const width of [2000, 1400]) {
+  test(`shows no vertical scrollbar when the rows fit the panel (window ${width} px wide)`, async () => {
+    await windowSize(width, 1000);
+    try {
+      const frame = await openDashboard(vscode.page);
+      await frame.locator('input.filter').fill('stashed');
+      await expect(frame.locator('[data-repo]')).toHaveCount(2);
+      const heights = await pageHeights(frame);
+      expect(heights.wide).toBe(width === 1400);
+      expect(heights.scroll).toBe(heights.client);
+      expect(Math.abs(heights.footerBottom - (heights.client - 12))).toBeLessThanOrEqual(1);
+      await frame.locator('input.filter').fill('');
+    } finally {
+      await windowSize(1280, 800);
+    }
+  });
+}
+
+test('shows a vertical scrollbar when the rows are taller than the panel', async () => {
+  await windowSize(1400, 400);
+  try {
+    const frame = await openDashboard(vscode.page);
+    await frame.locator('input.filter').fill('');
+    const heights = await pageHeights(frame);
+    expect(heights.scroll).toBeGreaterThan(heights.client);
+    expect(heights.footerBottom).toBeLessThanOrEqual(heights.client);
+  } finally {
+    await windowSize(1280, 800);
+  }
+});
+

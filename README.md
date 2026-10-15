@@ -44,8 +44,8 @@ Rows update as soon as the Git extension sees a change; RepoHangar never polls.
 | `b` | Switch branch in the focused row with VS Code's branch picker, or in the selected rows |
 | `n` | Create a branch in the focused row, or in the selected rows |
 
-A click on a repository name reveals it in the Explorer (`repohangar.dashboard.nameClick`); a click on the Changes
-cell shows it in Source Control.
+A click on a repository name opens it in Git Graph when Git Graph is installed, else reveals it in the Explorer
+(`repohangar.dashboard.nameClick`); a click on the Changes cell shows it in Source Control.
 
 The `⋯` button at the right of a hovered row (or `.`) opens its menu: Open in Git Graph, Reveal in Explorer, Show in
 Source Control, Open terminal, the stash and discard actions, Reveal in File Explorer, Copy path, Copy branch name and
@@ -307,7 +307,7 @@ installed, RepoHangar hides its own Explorer item and offers once to uninstall G
 | `repohangar.statusBar.enabled` | `true` | Show the status bar summary |
 | `repohangar.hosts` | `{}` | Provider of self-hosted hosts, for example `{ "git.acme.com": "gitlab" }`; entries of user and workspace settings add up |
 | `repohangar.providers.refreshMinutes` | `3` | Minutes between status refreshes while a pipeline runs and the window is focused |
-| `repohangar.dashboard.nameClick` | `"explorer"` | What a click on a repository name does: `explorer`, `gitGraph` or `sourceControl` |
+| `repohangar.dashboard.nameClick` | `"auto"` | What a click on a repository name does: `auto` (Git Graph when installed, else the Explorer), `explorer`, `gitGraph` or `sourceControl` |
 | `repohangar.gitGraph.whenMissing` | `"sourceControlGraph"` | Without Git Graph: `sourceControlGraph`, `offerInstall` or `hide` |
 | `repohangar.gitGraph.revealSourceControl` | `true` | Show Source Control after Open in Git Graph |
 | `repohangar.gitGraph.syncSourceControlSelection` | `true` | Select the repository in Source Control after Open in Git Graph |

@@ -3,9 +3,9 @@
 // No vscode import.
 
 import type { ReviewState } from '../shared/model';
-import { HttpError, type Credential, type Http } from './http';
+import { HttpError, type Credential, type Http, type HttpResponse } from './http';
 import {
-  CHUNK_SIZE,
+  GITLAB_CHUNK_SIZE,
   MAX_REDUCTIONS,
   chunks,
   gqlString,
@@ -68,18 +68,31 @@ export class GitLabProvider implements HostingProvider {
     let changed = false;
     let requests = 0;
     const results = new Map<string, ReviewResult>();
-    for (const chunk of chunks(items, CHUNK_SIZE)) {
+    // A chunk GitLab rejects for its size or complexity is replaced by its two halves (GitLab chunk limit matrix).
+    const queue = chunks(items, GITLAB_CHUNK_SIZE);
+    for (let chunk = queue.shift(); chunk; chunk = queue.shift()) {
       for (let attempt = 0; ; attempt++) {
         requests++;
-        const answer = await this.http.request<{ data?: Record<string, unknown> | null; errors?: unknown }>({
-          method: 'POST',
-          url: this.graphqlUrl,
-          credential,
-          body: { query: this.query(chunk, selection) },
-        });
+        let answer: HttpResponse<{ data?: Record<string, unknown> | null; errors?: unknown }>;
+        try {
+          answer = await this.http.request({ method: 'POST', url: this.graphqlUrl, credential, body: { query: this.query(chunk, selection) } });
+        } catch (error) {
+          if (chunk.length > 1 && error instanceof HttpError && error.kind === 'status' && error.status === 422 && tooBig(error.message)) {
+            queue.unshift(...halves(chunk));
+            break;
+          }
+          throw error;
+        }
         const missing = missingFields(answer.json?.errors);
         if (missing.length === 0) {
-          if (!answer.json?.data && answer.json?.errors) throw new HttpError('status', graphqlMessage(answer.json.errors), answer.status);
+          if (!answer.json?.data && answer.json?.errors) {
+            const message = graphqlMessage(answer.json.errors);
+            if (chunk.length > 1 && tooBig(message)) {
+              queue.unshift(...halves(chunk));
+              break;
+            }
+            throw new HttpError('status', message, answer.status);
+          }
           chunk.forEach((item, i) => results.set(item.key, mapGraphql(answer.json?.data?.[`r${i}`], selection)));
           break;
         }
@@ -314,6 +327,16 @@ export class GitLabProvider implements HostingProvider {
     });
     return Array.isArray(answer.json) ? answer.json.map((u) => String(u.username)) : [];
   }
+}
+
+/** GitLab's answer to a query over its size or complexity limit. */
+function tooBig(message: string): boolean {
+  return /Query too large|exceeds max complexity/i.test(message);
+}
+
+function halves<T>(chunk: T[]): [T[], T[]] {
+  const middle = Math.ceil(chunk.length / 2);
+  return [chunk.slice(0, middle), chunk.slice(middle)];
 }
 
 /** The selection without the missing fields, or `rest` when a required field or the connection itself is missing. */

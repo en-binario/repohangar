@@ -39,17 +39,24 @@ has not restored yet, and a second dashboard panel that VS Code restores while o
 
 ### Requirement: Dashboard height
 The dashboard SHALL fill the height of its panel and SHALL show a vertical scrollbar only when the toolbar, the batch
-result panel, the grid and the footer together are taller than the panel. The footer SHALL stay at the bottom of the
-panel when the rows fit.
+result panel, the grid and the footer together are taller than the panel, also when the grid is wider than the panel
+and the panel shows a horizontal scrollbar. The footer SHALL stay at the bottom of the panel when the rows fit.
 
 #### Scenario: Rows that fit the panel
-- **GIVEN** the dashboard shows 2 rows in a panel 900 px high
+- **GIVEN** the filter `stashed` leaves 2 rows in a window 1000 px high
 - **WHEN** the grid is rendered
 - **THEN** the page's `scrollHeight` equals its `clientHeight` and the panel shows no vertical scrollbar
-- **AND** the bottom edge of the footer is at the bottom edge of the panel
+- **AND** the bottom edge of the footer is 12 px above the bottom edge of the panel's visible area
+
+#### Scenario: Rows that fit a panel narrower than the grid
+- **GIVEN** the filter `stashed` leaves 2 rows in a window 1000 px high whose panel is narrower than the grid's minimum
+  width
+- **WHEN** the grid is rendered
+- **THEN** the panel shows a horizontal scrollbar
+- **AND** the page's `scrollHeight` equals its `clientHeight` and the panel shows no vertical scrollbar
 
 #### Scenario: Rows taller than the panel
-- **GIVEN** the dashboard shows 14 rows in a panel 300 px high
+- **GIVEN** the dashboard shows every row of the 14 repositories in a window 400 px high
 - **WHEN** the grid is rendered
 - **THEN** the page's `scrollHeight` is greater than its `clientHeight` and the panel shows a vertical scrollbar
 - **AND** the footer is visible at the bottom edge of the panel

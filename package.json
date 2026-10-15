@@ -683,16 +683,18 @@
         "repohangar.dashboard.nameClick": {
           "type": "string",
           "enum": [
+            "auto",
             "explorer",
             "gitGraph",
             "sourceControl"
           ],
           "enumDescriptions": [
+            "Open the repository in Git Graph when it is installed, else reveal it in the Explorer.",
             "Reveal the repository in the Explorer.",
             "Open the repository in Git Graph, or in the Source Control Graph without Git Graph.",
             "Show the repository in Source Control."
           ],
-          "default": "explorer",
+          "default": "auto",
           "description": "What a click on a repository name in the dashboard does.",
           "scope": "window"
         },
