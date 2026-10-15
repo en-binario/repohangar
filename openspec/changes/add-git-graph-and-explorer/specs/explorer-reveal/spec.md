@@ -54,12 +54,15 @@ Repository in Explorer*) for the active repository. The footer SHALL add `e expl
 
 ### Requirement: Repository name click
 A click on the repository name in the Repository cell SHALL run the action that `repohangar.dashboard.nameClick`
-(default `"explorer"`) names.
+(default `"auto"`) names. `"auto"` SHALL run **Open in Git Graph** when Git Graph (`mhutchie.git-graph`) is installed
+and **Reveal in Explorer** when it is not.
 
 #### Scenario: Name click matrix
 
-| # | `repohangar.dashboard.nameClick` | Click on `ledger` runs |
-| :--- | :--- | :--- |
-| R1 | `explorer` | **Reveal in Explorer** |
-| R2 | `gitGraph` | **The graph action of `explorer-open-in-git-graph`** |
-| R3 | `sourceControl` | **Show in Source Control (`source-control-reveal`)** |
+| # | `repohangar.dashboard.nameClick` | Git Graph installed | Click on `ledger` runs |
+| :--- | :--- | :--- | :--- |
+| R1 | `explorer` | *Any* | **Reveal in Explorer** |
+| R2 | `gitGraph` | *Any* | **The graph action of `explorer-open-in-git-graph`** |
+| R3 | `sourceControl` | *Any* | **Show in Source Control (`source-control-reveal`)** |
+| R4 | `auto` | Yes | **Open in Git Graph (`explorer-open-in-git-graph`)** |
+| R5 | `auto` | No | **Reveal in Explorer** |

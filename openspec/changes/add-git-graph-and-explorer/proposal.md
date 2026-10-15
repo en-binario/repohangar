@@ -22,7 +22,7 @@ It implements §9.1–§9.5, W3 (row detail buttons), W11, W12, Appendix D and d
   Graph** and open VS Code's built-in graph; `"offerInstall"` and `"hide"` are the alternatives. RepoHangar never
   installs anything by itself.
 - **Reveal in Explorer** (§9.3) from `e`, the `▤` hover button, the `⋯` menu, the row details, a click on the
-  repository name (`repohangar.dashboard.nameClick`, default `"explorer"`), the Source Control Repositories menu and
+  repository name (`repohangar.dashboard.nameClick`, default `"auto"`: Git Graph when installed, else the Explorer; revised by `fix-dashboard-and-review-status`), the Source Control Repositories menu and
   `repohangar.revealInExplorer`; `repohangar.explorer.collapseBeforeReveal`; and, for repositories outside every
   workspace folder, `repohangar.explorer.outsideWorkspace` (`"ask"`, add to workspace, new window, OS file manager).
 - **Explorer context menu** (§9.4, W11): **Open in Git Graph** (or **Open in Source Control Graph**) at
