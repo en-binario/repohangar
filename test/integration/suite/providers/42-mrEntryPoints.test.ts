@@ -1,5 +1,5 @@
-// mr-creation :: Entry point matrix (R1–R8): which triggers create with defaults, show the quick create input or open
-// the drawer, with repohangar.mr.quickCreate "direct" and "confirm".
+// mr-creation :: Entry point matrix (R1–R12): which triggers create with defaults, show the quick create input or open
+// the drawer, with repohangar.mr.quickCreate "direct", "confirm" and the default "drawer".
 
 import * as assert from 'node:assert/strict';
 import * as vscode from 'vscode';
@@ -14,7 +14,7 @@ describe('Merge request entry points', () => {
   let api: TestApi;
   let session: CreateSession;
 
-  const press = (name: string, action: 'createMr' | 'createMrDirect' | 'createMrEdit') =>
+  const press = (name: string, action: 'createMr' | 'createMrEdit') =>
     api.dashboard.receiveForTest({ type: 'runAction', id: idOf(api, name), action });
   const created = (repo: string) => api.notifier.shown.filter((n) => n.text.startsWith(`Created !142 in ${repo}`));
   const drawers = () => api.dashboard.postedMessages.flatMap((m) => (m.type === 'drawer' && m.data ? [m.data as DrawerData] : []));
@@ -91,16 +91,24 @@ describe('Merge request entry points', () => {
     assert.equal(session.creates().length, 0);
   });
 
-  for (const mode of ['direct', 'confirm']) {
-    it(`R6 [Create MR] in the MR / PR cell creates with defaults, no dialog ("${mode}")`, async () => {
-      await setConfig('repohangar.mr.quickCreate', mode);
-      await session.branch('billing-api', `feature/ABC-12-entry-r6-${mode}`);
-      await waitFor(() => rowReviewCell(rowNamed(api, 'billing-api') as RowData, Date.now()).text === '[Create MR]', 'the [Create MR] cell');
-      await press('billing-api', 'createMrDirect');
-      assert.equal(session.creates().length, 1);
-      assert.equal(session.quickInputs.length, 0);
-    });
+  /** Opens the dashboard and waits for its snapshot. */
+  async function openDashboard(): Promise<void> {
+    await vscode.commands.executeCommand('repohangar.open');
+    await waitFor(() => api.dashboard.postedMessages.some((m) => m.type === 'snapshot'), 'the dashboard');
   }
+
+  /** [Create MR] in the MR / PR cell of billing-api sends the row action createMr. */
+  async function clickCreateCell(branch: string): Promise<void> {
+    await session.branch('billing-api', branch);
+    await waitFor(() => rowReviewCell(rowNamed(api, 'billing-api') as RowData, Date.now()).text === '[Create MR]', 'the [Create MR] cell');
+    await press('billing-api', 'createMr');
+  }
+
+  it('R6 [Create MR] in the MR / PR cell with "direct" creates with defaults, no dialog', async () => {
+    await clickCreateCell('feature/ABC-12-entry-r6');
+    assert.equal(session.creates().length, 1);
+    assert.equal(session.quickInputs.length, 0);
+  });
 
   it('R7 M on the focused row opens the drawer', async () => {
     await session.branch('billing-api', 'feature/ABC-12-entry-r7');
@@ -126,6 +134,46 @@ describe('Merge request entry points', () => {
     await waitFor(() => dashboardTabs().length === 1, 'the dashboard tab');
     const drawer = await waitFor(() => drawers()[0], 'the drawer');
     assert.equal(drawer.id, idOf(api, 'billing-api'));
+    assert.equal(session.creates().length, 0);
+  });
+
+  it('R9 m on the focused row with the default "drawer" opens the pre-filled drawer', async () => {
+    await setConfig('repohangar.mr.quickCreate', undefined);
+    await session.branch('billing-api', 'feature/ABC-12-entry-r9');
+    await openDashboard();
+    await press('billing-api', 'createMr');
+    const drawer = await waitFor(() => drawers()[0], 'the drawer');
+    assert.equal(drawer.heading, 'Create merge request — billing-api');
+    assert.equal(drawer.id, idOf(api, 'billing-api'));
+    assert.equal(session.creates().length, 0);
+    assert.equal(session.quickInputs.length, 0);
+  });
+
+  it('R10 [Create MR] in the MR / PR cell with the default "drawer" opens the pre-filled drawer', async () => {
+    await setConfig('repohangar.mr.quickCreate', undefined);
+    await openDashboard();
+    await clickCreateCell('feature/ABC-12-entry-r10');
+    const drawer = await waitFor(() => drawers()[0], 'the drawer');
+    assert.equal(drawer.id, idOf(api, 'billing-api'));
+    assert.equal(session.creates().length, 0);
+  });
+
+  it('R11 Ctrl+Alt+M with the default "drawer" and the dashboard closed opens it with the drawer', async () => {
+    await setConfig('repohangar.mr.quickCreate', undefined);
+    await session.branch('billing-api', 'feature/ABC-12-entry-r11');
+    await closeAllEditors();
+    await editFileOf('billing-api');
+    await vscode.commands.executeCommand('repohangar.mr.create');
+    await waitFor(() => dashboardTabs().length === 1, 'the dashboard tab');
+    const drawer = await waitFor(() => drawers()[0], 'the drawer');
+    assert.equal(drawer.id, idOf(api, 'billing-api'));
+    assert.equal(session.creates().length, 0);
+  });
+
+  it('R12 [Create MR] in the MR / PR cell with "confirm" shows the quick create input', async () => {
+    await setConfig('repohangar.mr.quickCreate', 'confirm');
+    await clickCreateCell('feature/ABC-12-entry-r12');
+    assert.equal(session.quickInputs.length, 1);
     assert.equal(session.creates().length, 0);
   });
 });

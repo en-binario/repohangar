@@ -101,7 +101,7 @@ describe('smoke', () => {
     const config = vscode.workspace.getConfiguration('repohangar');
     assert.deepEqual(config.get('mr.profiles'), { default: {} });
     assert.deepEqual(config.get('mr.rules'), []);
-    assert.equal(config.get('mr.quickCreate'), 'direct');
+    assert.equal(config.get('mr.quickCreate'), 'drawer');
     assert.equal(config.get('mr.ticketPattern'), '[A-Z][A-Z0-9]+-\\d+');
     assert.deepEqual(config.get('mr.typeMap'), { feature: 'feat', bugfix: 'fix', hotfix: 'fix', chore: 'chore' });
     assert.equal(config.get('gitlab.usePushOptions'), 'whenNoToken');

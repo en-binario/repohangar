@@ -19,7 +19,8 @@ result panel and **Retry failed**).
 - **`m` on a selection**, the toolbar button `⤴ Create MRs (3)` and `repohangar.mr.create` run from the dashboard with
   rows selected create one merge request or pull request per selected repository, in parallel through the job pool,
   each with the profile its own rules choose and its own guards. A guard that stops one repository records
-  `skipped: <reason>` and the others go on. With `repohangar.mr.quickCreate: "confirm"`, one confirmation comes first.
+  `skipped: <reason>` and the others go on. Unless `repohangar.mr.quickCreate` is `"direct"`, one confirmation comes
+  first.
 - **Related links**: after the batch, every review created or found in it gets a `Related:` section listing the
   others, through one description update per review, placed where `{related}` stands, or at the end. Re-running
   replaces the section instead of adding a second one.

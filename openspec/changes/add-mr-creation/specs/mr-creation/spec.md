@@ -16,15 +16,16 @@ applied, and offers Undo.
 ## ADDED Requirements
 
 ### Requirement: Create entry points
-The system SHALL create a merge request with the resolved defaults from `m` on the focused row while no row is
-selected, the **[Create MR]** button of the MR / PR cell, the **Create MR** hover button (`⤴`), the command
-`repohangar.mr.create` (*RepoHangar: Create Merge Request (Defaults)*, on the active repository of `git-operations`,
-default keybinding `Ctrl+Alt+M`, `Ctrl+Cmd+M` on macOS), and the item **Create MR** of the Source Control Repositories
-menu and of the Explorer **RepoHangar** submenu. It SHALL open the Create MR drawer from `M` on the focused row, the
-command `repohangar.mr.createEdit` (*RepoHangar: Create Merge Request…*, default keybinding `Ctrl+Alt+Shift+M`,
-`Ctrl+Cmd+Shift+M` on macOS) and the item **Create MR…** of both menus, opening the dashboard first when it is closed.
-With `repohangar.mr.quickCreate` (default `"direct"`) set to `"confirm"`, the triggers of create with defaults SHALL
-show the quick create input instead.
+The triggers of create with defaults are `m` on the focused row while no row is selected, the **[Create MR]** button of
+the MR / PR cell, the **Create MR** hover button (`⤴`), the command `repohangar.mr.create` (*RepoHangar: Create Merge
+Request (Defaults)*, on the active repository of `git-operations`, default keybinding `Ctrl+Alt+M`, `Ctrl+Cmd+M` on
+macOS), and the item **Create MR** of the Source Control Repositories menu and of the Explorer **RepoHangar** submenu.
+They SHALL act as `repohangar.mr.quickCreate` (default `"drawer"`) says: `"drawer"` SHALL open the Create MR drawer,
+pre-filled with the resolved values, opening the dashboard first when it is closed; `"confirm"` SHALL show the quick
+create input; `"direct"` SHALL create the merge request with the resolved defaults and no dialog. The system SHALL open
+the Create MR drawer from `M` on the focused row, the command `repohangar.mr.createEdit` (*RepoHangar: Create Merge
+Request…*, default keybinding `Ctrl+Alt+Shift+M`, `Ctrl+Cmd+Shift+M` on macOS) and the item **Create MR…** of both
+menus, whatever the setting, opening the dashboard first when it is closed.
 
 #### Scenario: Entry point matrix
 
@@ -35,9 +36,13 @@ show the quick create input instead.
 | R3 | **Create MR** in the Source Control Repositories menu of `ledger` | `"direct"` | **Create with defaults for `ledger`, no dialog** |
 | R4 | `m` on the focused row, no row selected | `"confirm"` | **The quick create input** |
 | R5 | `Ctrl+Alt+M` in an editor | `"confirm"` | **The quick create input** |
-| R6 | **[Create MR]** in the MR / PR cell | *Any* | **Create with defaults, no dialog** |
+| R6 | **[Create MR]** in the MR / PR cell | `"direct"` | **Create with defaults, no dialog** |
 | R7 | `M` on the focused row | *Any* | **The drawer** |
 | R8 | `Ctrl+Alt+Shift+M` with the dashboard closed | *Any* | **The dashboard opens with the drawer for the active repository** |
+| R9 | `m` on the focused row, no row selected | `"drawer"` | **The drawer, pre-filled; no request** |
+| R10 | **[Create MR]** in the MR / PR cell | `"drawer"` | **The drawer, pre-filled; no request** |
+| R11 | `Ctrl+Alt+M` with the dashboard closed | `"drawer"` | **The dashboard opens with the drawer for the active repository; no request** |
+| R12 | **[Create MR]** in the MR / PR cell | `"confirm"` | **The quick create input** |
 
 ### Requirement: Existing review opens instead
 Before creating through the provider API, the system SHALL send one review request for the repository (`hosting-providers`) and, when the branch

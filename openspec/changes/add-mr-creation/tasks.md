@@ -50,3 +50,13 @@
 
 - [x] 7.1 Update the README (MR profiles with the §7.1 example, rules, placeholders, `m` / `M` / `Ctrl+Alt+M`, push options and what they cannot set); run `npm run build`, `npm test`, the integration and UI suites and `openspec validate add-mr-creation --strict`; all pass
 - [x] 7.2 Add `Added` entries under `## Unreleased` in `CHANGELOG.md` (docs/versioning.md): MR profiles and rules, create with defaults (`m`, `Ctrl+Alt+M`) with Undo, the Create MR drawer (`M`, `Ctrl+Alt+Shift+M`) and quick input, the menu items, GitLab push options without a token, and the six settings; verify the entries start with `- **Added`
+
+## 8. Revision: the Create MR drawer by default (2026-10-15)
+
+`repohangar.mr.quickCreate` gets the value `"drawer"`, now the default: the triggers of create with defaults, including
+**[Create MR]** in the MR / PR cell, open the pre-filled drawer; `"direct"` keeps the creation with no dialog. Revised in
+place because `mr-creation` is not archived yet (docs/openspec.md §5).
+
+- [x] 8.1 Route `createWithDefaults` by `repohangar.mr.quickCreate` (`"drawer"` → `openDrawer`, `"confirm"` → the quick input, `"direct"` → create), send `createMr` from the **[Create MR]** cell and remove the `createMrDirect` row action; declare `"drawer"` (with enum descriptions) and the default `"drawer"` in `package.json`; verify `npm run typecheck`
+- [x] 8.2 `Entry point matrix` (mr-creation) → `test/integration/suite/providers/42-mrEntryPoints.test.ts`: R6 with `"direct"`, and new cases for R9–R12; `startCreating` pins `"direct"` for the creation flows under test; `00-smoke.test.ts` reads the default `"drawer"`
+- [x] 8.3 README (create with defaults, the setting row) and CHANGELOG (`Added` for the value `"drawer"`, `Changed` for the default); run `npm test`, the integration suite, the MR Playwright specs and `openspec validate add-mr-creation --strict`; all pass

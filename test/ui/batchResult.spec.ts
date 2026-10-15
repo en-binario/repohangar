@@ -103,6 +103,8 @@ test.describe('Copy all links', () => {
     commit(ledger, 'notes.md', 'Add notes to ledger entries');
     git(ledger, 'push', '-u', 'origin', 'feature/ABC-12-notes');
     vscode = await launch(fixture, {
+      // m on the selection creates at once, with no confirmation.
+      settings: { 'repohangar.mr.quickCreate': 'direct' },
       env: {
         REPOHANGAR_HTTP_STUB: stub.url,
         REPOHANGAR_TEST_TOKENS: JSON.stringify({ 'git.acme.com': 'glpat-x1y2', 'github.acme.com': 'ghp_a1b2' }),

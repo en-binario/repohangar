@@ -789,7 +789,7 @@ function ReviewCellView(props: {
 }) {
   const cell = rowReviewCell(props.row, props.now);
   if (cell.kind === 'create' || cell.kind === 'pushed') {
-    const action: RowAction = cell.kind === 'create' ? 'createMrDirect' : 'openReview';
+    const action: RowAction = cell.kind === 'create' ? 'createMr' : 'openReview';
     return (
       <button
         type="button"

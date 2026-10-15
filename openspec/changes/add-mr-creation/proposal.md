@@ -36,7 +36,9 @@ items).
   menu and the Explorer **RepoHangar** submenu. It checks for an existing review first and opens it instead, runs the
   guards, pushes or publishes when needed, creates the MR or PR with every resolved value, and shows
   `Created !142 in billing-api (pushed 2 commits): …` with **Open MR**, **Copy link** and **Undo** (30 s, closes it).
-- **`repohangar.mr.quickCreate`** (default `"direct"`): `"confirm"` shows one quick input (W5) before creating.
+- **`repohangar.mr.quickCreate`** (default `"drawer"` since the revision of 2026-10-15): `"drawer"` opens
+  the pre-filled Create MR drawer, `"confirm"` shows one quick input (W5) before creating, `"direct"` creates with no
+  dialog.
 - **Create MR drawer** (W4): `M`, `repohangar.mr.createEdit` (`Ctrl+Alt+Shift+M`), **Create MR…** in both menus; every
   field pre-filled, user suggestions, `Ctrl+Enter` creates.
 - **Reviewers and assignees** (§7.5): usernames resolved to GitLab user IDs once per host; `@me`; the author removed

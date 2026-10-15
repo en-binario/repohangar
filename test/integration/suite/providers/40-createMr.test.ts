@@ -63,6 +63,8 @@ describe('Create with defaults', () => {
     ui = stubAuthUi(api, { pasted: ['glpat-x1y2'] });
     http = answerHttp(api, [...gitlabCreateRoutes(), users({ gho_session: 'ana-perez' }), ...githubCreateRoutes()]);
     assert.equal(await api.providers.auth.signIn('git.acme.com'), true);
+    // These flows create with no dialog (the default "drawer" is covered by 42-mrEntryPoints).
+    await setConfig('repohangar.mr.quickCreate', 'direct');
     opened = [];
     api.mr.openUrl = async (url) => opened.push(url);
     // repository.push of the Git extension, recorded; `failPush` makes it fail like Git does.
@@ -83,6 +85,7 @@ describe('Create with defaults', () => {
     restorePush();
     api.mr.now = () => Date.now();
     await setConfig('repohangar.mr.profiles', undefined);
+    await setConfig('repohangar.mr.quickCreate', undefined);
     await api.providers.signOut('git.acme.com');
     await api.providers.signOut('github.com');
     for (const { path, branch: name, back } of branches.reverse()) {

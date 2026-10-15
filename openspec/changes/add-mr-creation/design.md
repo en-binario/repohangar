@@ -138,8 +138,11 @@ view marks as edited), `drawerSearchUsers` (debounced 300 ms), `drawerCreate` wi
 
 The `scm.` and `explorer.` commands run `repohangar.mr.create`, `repohangar.mr.createEdit` and `repohangar.mr.open`
 with the menu's argument; they exist only to carry the menu titles (`Create MR`, `Create MR…`, `Open MR`) and are hidden
-from the Command Palette. The `[Create MR]` cell sends the row action `createMrDirect`, which creates with defaults
-whatever `repohangar.mr.quickCreate` says (`Entry point matrix` R6); `m` and the hover button send `createMr`.
+from the Command Palette. The `[Create MR]` cell, `m` and the hover button send the row action `createMr`, which does
+what `repohangar.mr.quickCreate` says (`Entry point matrix`); `M` sends `createMrEdit`. The cell's former
+`createMrDirect` action (always create, whatever the setting) was removed when the default became `"drawer"`
+(revision of 2026-10-15, tasks §8): a one-click creation from the grid is what the drawer default is
+meant to stop.
 
 `scmProviderRootUri` is a URI string, so `repohangar.hostedRoots` is published twice: as `fsPath` strings for the
 Explorer and as `rootUri.toString()` strings under `repohangar.hostedRootUris` for the SCM menu (task 5.3 verifies the
@@ -148,8 +151,8 @@ form `when` clauses compare). Keybindings: `ctrl+alt+m` / mac `ctrl+cmd+m` and `
 
 ## Risks / Trade-offs
 
-- [A one-keystroke MR is created by mistake] → Undo for 30 s, `repohangar.mr.quickCreate: "confirm"`, and the
-  `draft` profile key (§16.1).
+- [A one-keystroke MR is created by mistake] → the default `repohangar.mr.quickCreate: "drawer"` shows every value
+  before anything is sent; with `"direct"`, Undo for 30 s and the `draft` profile key (§16.1).
 - [GitLab's reviewer-limit error text changes] → the read-back of applied reviewers still reports the difference; the
   retry only shortens the list.
 - [The push-options path bypasses VS Code's askpass] → it only runs without a token or with `"always"`; an

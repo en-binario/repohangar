@@ -117,6 +117,7 @@ describe('merge requests on a selection', () => {
   });
 
   it('creates 3 linked merge requests in two keystrokes', async () => {
+    await setConfig('repohangar.mr.quickCreate', 'direct');
     const billing = await open('gitlab', 'mr-billing');
     const ledger = await open('gitlab', 'mr-ledger');
     const web = await open('github', 'mr-web');
@@ -175,7 +176,18 @@ describe('merge requests on a selection', () => {
     ]);
     assert.deepEqual(http.requests, []);
     assert.ok(!api.gitProcessLog.slice(processes).some((c) => c.args[0] === 'push'));
+    await setConfig('repohangar.mr.quickCreate', 'direct');
+  });
+
+  it('asks once before a selection with the default "drawer"', async () => {
     await setConfig('repohangar.mr.quickCreate', undefined);
+    const [billing, ledger, web] = repos as [TempRepo, TempRepo, TempRepo];
+    confirmAnswer = false;
+    http.requests.length = 0;
+    await pressM([billing, ledger, web]);
+    assert.deepEqual(confirms.map((c) => c.title), ['Create merge requests in 3 repositories']);
+    assert.deepEqual(http.requests, []);
+    await setConfig('repohangar.mr.quickCreate', 'direct');
   });
 
   it('retries a failed push, then links all three merge requests again', async () => {

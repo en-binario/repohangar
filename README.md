@@ -112,8 +112,9 @@ settings, logs or the dashboard. A token the host rejects is deleted and RepoHan
 
 Press `m` on a row, click **[Create MR]** (**[Create PR]** on GitHub) in its MR / PR cell or `⤴` in its hover
 buttons, or run **RepoHangar: Create Merge Request (Defaults)** (`Ctrl+Alt+M`, `Ctrl+Cmd+M` on macOS) on the
-repository of the active editor. RepoHangar creates the merge request with the values of the repository's MR profile,
-with no dialog:
+repository of the active editor. RepoHangar opens the **Create MR drawer** (below), every field filled in from the
+repository's MR profile, so you can check them and press `Ctrl+Enter`. With `repohangar.mr.quickCreate` set to
+`"direct"`, it creates the merge request with those values and no dialog. Either way, creating it does this:
 
 1. It asks the host once whether the branch already has one, and opens it instead of creating a duplicate.
 2. It stops, with a button that fixes it, when the branch is not ready: an operation in progress, a detached HEAD, the
@@ -125,11 +126,11 @@ with no dialog:
    **Open MR**, **Copy link** and **Undo**. Undo closes the merge request within 30 s and keeps the branch.
 
 The Sync cell shows `⟳ creating MR` while it runs; pressing `m` again does nothing. With `repohangar.mr.quickCreate`
-set to `"confirm"`, `m`, the hover button and `Ctrl+Alt+M` show a quick input first: `Enter` creates with the title you
-typed, and it offers **Edit all fields…**, the other profiles and **Create as draft**.
+set to `"confirm"`, `m`, **[Create MR]**, the hover button and `Ctrl+Alt+M` show a quick input instead: `Enter` creates
+with the title you typed, and it offers **Edit all fields…**, the other profiles and **Create as draft**.
 
-`M`, **RepoHangar: Create Merge Request…** (`Ctrl+Alt+Shift+M`, `Ctrl+Cmd+Shift+M` on macOS) open the **Create MR
-drawer** beside the grid, every field filled in from the profile: profile, target, title, description, reviewers,
+`M` and **RepoHangar: Create Merge Request…** (`Ctrl+Alt+Shift+M`, `Ctrl+Cmd+Shift+M` on macOS) always open the
+**Create MR drawer** beside the grid, opening the dashboard first when it is closed, every field filled in from the profile: profile, target, title, description, reviewers,
 assignees, labels, squash, delete source branch and draft. Under **Reviewers** and **Labels**, `recent: luis.gomez ·
 team:backend` offers the last 10 you sent on that host, one click each. `Ctrl+Enter` creates, `Esc` closes it. **Create MR**,
 **Create MR…** and **Open MR** are also in the Source Control Repositories menu and the Explorer **RepoHangar**
@@ -139,9 +140,9 @@ submenu of GitLab and GitHub repositories.
 
 Select the repositories of a feature (filter by its ticket and press `Ctrl+A`) and press `m`, click **⤴ Create MRs (3)**
 in the toolbar, or run **RepoHangar: Create Merge Request (Defaults)** while the dashboard has rows selected. RepoHangar
-creates one merge request or pull request per repository, in parallel and with no dialog, each with the profile its own
-rules choose and its own checks: a repository that is not ready is skipped with its reason, and the others go on. With
-`repohangar.mr.quickCreate` set to `"confirm"`, one quick pick lists them all first.
+creates one merge request or pull request per repository, in parallel, each with the profile its own rules choose and
+its own checks: a repository that is not ready is skipped with its reason, and the others go on. One quick pick lists
+them all first; with `repohangar.mr.quickCreate` set to `"direct"`, they are created with no dialog.
 
 When they are created, each description gets a **Related:** section that links the others, on GitLab and GitHub alike:
 
@@ -318,7 +319,7 @@ installed, RepoHangar hides its own Explorer item and offers once to uninstall G
 | `repohangar.repositoryScanDepth` | `3` | Folder levels scanned for repository folders below each workspace folder; `0` scans only the folder itself |
 | `repohangar.mr.profiles` | `{ "default": {} }` | MR profiles: named defaults for new merge requests and pull requests |
 | `repohangar.mr.rules` | `[]` | Rules that choose a profile by repository (`<host>/<project path>` glob) and branch glob |
-| `repohangar.mr.quickCreate` | `"direct"` | `direct` creates with defaults; `confirm` shows the quick input first |
+| `repohangar.mr.quickCreate` | `"drawer"` | What `m`, **[Create MR]**, `⤴`, `Ctrl+Alt+M` and **Create MR** do: `drawer` opens the pre-filled Create MR drawer, `confirm` shows the quick input first, `direct` creates with no dialog. A selection asks once unless `direct` |
 | `repohangar.mr.ticketPattern` | `[A-Z][A-Z0-9]+-\d+` | Regular expression of `{ticket}` in the branch name |
 | `repohangar.mr.typeMap` | `{ "feature": "feat", … }` | Branch prefix → `{type}` |
 | `repohangar.gitlab.usePushOptions` | `"whenNoToken"` | Create GitLab merge requests with push options: `whenNoToken`, `always` or `never` |

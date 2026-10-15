@@ -269,11 +269,18 @@ export class MrService implements vscode.Disposable {
   // -------------------------------------------------------------------------------------------------------------
   // Create with defaults, the quick input and the job
 
-  /** `m`, [Create MR], the hover button, `repohangar.mr.create` and the menus (mr-creation: Create entry points). */
+  /**
+   * `m`, [Create MR], the hover button, `repohangar.mr.create` and the menus (mr-creation: Create entry points): the
+   * pre-filled drawer by default, the quick input with `"confirm"`, no dialog with `"direct"`.
+   */
   async createWithDefaults(id: string): Promise<void> {
-    const mode = vscode.workspace.getConfiguration('repohangar').get<string>('mr.quickCreate', 'direct');
+    const mode = quickCreateMode();
+    if (mode === 'direct') {
+      await this.runCreate(id, {});
+      return;
+    }
     if (mode === 'confirm') return this.quickCreate(id);
-    await this.runCreate(id, {});
+    await this.openDrawer(id);
   }
 
   /** The quick create input (mr-creation: Quick create input). */
@@ -429,10 +436,12 @@ export class MrService implements vscode.Disposable {
   // -------------------------------------------------------------------------------------------------------------
   // Merge requests for a selection (mr-creation: Create merge requests on a selection, Related links)
 
-  /** With `repohangar.mr.quickCreate` `"confirm"`, one quick pick for the whole selection; no request is sent before it. */
+  /**
+   * Unless `repohangar.mr.quickCreate` is `"direct"`, one quick pick for the whole selection (a selection has no drawer);
+   * no request is sent before it.
+   */
   private async confirmBatch(ids: readonly string[]): Promise<boolean> {
-    const mode = vscode.workspace.getConfiguration('repohangar').get<string>('mr.quickCreate', 'direct');
-    if (mode !== 'confirm') return true;
+    if (quickCreateMode() === 'direct') return true;
     const items = await Promise.all(
       ids.map(async (id) => {
         const row = this.store.get(id);
@@ -695,4 +704,10 @@ export function drawerData(
 function concurrency(): number {
   const value = vscode.workspace.getConfiguration('repohangar').get<number>('concurrency', 6);
   return Number.isFinite(value) ? Math.min(32, Math.max(1, Math.floor(value))) : 6;
+}
+
+/** `repohangar.mr.quickCreate`: `"drawer"` (the default), `"confirm"` or `"direct"`. */
+function quickCreateMode(): 'drawer' | 'confirm' | 'direct' {
+  const mode = vscode.workspace.getConfiguration('repohangar').get<string>('mr.quickCreate', 'drawer');
+  return mode === 'confirm' || mode === 'direct' ? mode : 'drawer';
 }

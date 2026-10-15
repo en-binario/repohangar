@@ -100,7 +100,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<TestAp
     openPipeline: (id) => providers.openPipeline(id),
     afterPush: (id) => providers.afterPush(id),
     createMr: (id) => mr.createWithDefaults(id),
-    createMrDirect: async (id) => void (await mr.runCreate(id, {})),
     createMrEdit: (id) => mr.openDrawer(id),
   };
   dashboard = new DashboardController(context.extensionUri, store, registry, git, viewState, actions, {

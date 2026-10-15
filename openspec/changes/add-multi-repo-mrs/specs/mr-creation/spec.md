@@ -5,9 +5,10 @@ The system SHALL create one merge request or pull request per selected repositor
 toolbar button `⤴ Create MRs (<n>)`, and `repohangar.mr.create` run while the dashboard is the active editor and rows
 are selected. Each repository SHALL resolve its own profile through its own rules, go through the review check, the
 guards, the push and the create request of the single-repository flow, and record one result, running as jobs of the
-job pool. With `repohangar.mr.quickCreate` (default `"direct"`) set to `"confirm"`, a quick pick titled
+job pool. Unless `repohangar.mr.quickCreate` (default `"drawer"`) is `"direct"`, a quick pick titled
 `Create merge requests in <n> repositories` with the item **Create <n>** (detail: `<repository> <target> ← <branch>`
-per repository, joined with ` · `) SHALL come first, and `Esc` SHALL send no request.
+per repository, joined with ` · `) SHALL come first, and `Esc` SHALL send no request; a selection has no drawer, so
+`"drawer"` asks as `"confirm"` does.
 
 **Constraints:**
 - At most `repohangar.concurrency` (default `6`) repositories are created at a time
@@ -39,7 +40,8 @@ per repository, joined with ` · `) SHALL come first, and `Esc` SHALL send no re
 | R10 | 3 uncommitted files, 1 commit ahead | **`ok: created !144`** | **`✓ ledger  !144  git.acme.com/payments/ledger  (3 uncommitted files not included)`** |
 
 #### Scenario: Confirmation before a selection
-- **GIVEN** `repohangar.mr.quickCreate` is `"confirm"` and `billing-api`, `ledger` and `web-shop` are selected
+- **GIVEN** `repohangar.mr.quickCreate` is `"confirm"`, or not set (`"drawer"`), and `billing-api`, `ledger` and
+  `web-shop` are selected
 - **WHEN** the user presses `m`
 - **THEN** a quick pick titled `Create merge requests in 3 repositories` shows the item `Create 3`
 - **AND WHEN** the user presses `Esc`

@@ -141,7 +141,6 @@ export type RowAction =
   | 'openCompare'
   | 'openPipeline'
   | 'createMr'
-  | 'createMrDirect'
   | 'createMrEdit';
 
 export const ROW_ACTIONS: readonly RowAction[] = [
@@ -165,7 +164,6 @@ export const ROW_ACTIONS: readonly RowAction[] = [
   'openCompare',
   'openPipeline',
   'createMr',
-  'createMrDirect',
   'createMrEdit',
 ];
 

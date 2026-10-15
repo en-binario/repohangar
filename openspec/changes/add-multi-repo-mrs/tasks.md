@@ -19,3 +19,10 @@
 - [x] 4.1 Update the README (multi-repository merge requests and related links); run `npm run build`, `npm test`, the integration and UI suites and `openspec validate add-multi-repo-mrs --strict`; all pass
 - [x] 4.2 Add an `Added` entry under `## Unreleased` in `CHANGELOG.md`: merge requests for a selection with related links and the result panel; verify it starts with `- **Added`
 - [ ] 4.3 After archiving, edit the `## Purpose` non-goals of `openspec/specs/mr-creation/spec.md` so they no longer list merge requests for several repositories as "no capability yet"; verify `openspec validate --specs --strict` passes
+
+## Revision: confirmation by default (2026-10-15)
+
+With `repohangar.mr.quickCreate` defaulting to `"drawer"` (`add-mr-creation` tasks §8), a selection asks for one
+confirmation unless the setting is `"direct"`.
+
+- [x] R.1 `confirmBatch` confirms unless `"direct"`; verify `130-multiMr.test.ts` covers *Confirmation before a selection* with `"confirm"` and with the default, and pins `"direct"` for *Three linked merge requests in two keystrokes*; `test/ui/batchResult.spec.ts` pins `"direct"`

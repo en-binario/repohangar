@@ -626,11 +626,17 @@
         "repohangar.mr.quickCreate": {
           "type": "string",
           "enum": [
-            "direct",
-            "confirm"
+            "drawer",
+            "confirm",
+            "direct"
           ],
-          "default": "direct",
-          "markdownDescription": "`direct`: `m` and `Ctrl+Alt+M` create the merge request with no dialog. `confirm`: they show one quick input first.",
+          "enumDescriptions": [
+            "Open the Create MR form, pre-filled with the MR profile's values; a selection asks for one confirmation.",
+            "Show one quick input with the title first; a selection asks for one confirmation.",
+            "Create with the MR profile's values, with no dialog."
+          ],
+          "default": "drawer",
+          "markdownDescription": "What `m`, `Ctrl+Alt+M`, **[Create MR]**, the `⤴` hover button and **Create MR** in the menus do: `drawer` opens the pre-filled Create MR form, `confirm` shows one quick input first, `direct` creates with no dialog.",
           "scope": "window"
         },
         "repohangar.mr.ticketPattern": {

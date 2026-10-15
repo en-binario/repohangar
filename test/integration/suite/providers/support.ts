@@ -246,6 +246,8 @@ export async function startCreating(api: TestApi, options: { signedIn?: boolean;
   const ui = stubAuthUi(api, { pasted: ['glpat-x1y2'] });
   const http = answerHttp(api, [...(options.routes ?? []), ...gitlabCreateRoutes()]);
   if (options.signedIn !== false) await api.providers.auth.signIn('git.acme.com');
+  // The creation flows under test create with no dialog; the entry point tests set the mode they check.
+  await vscode.workspace.getConfiguration('repohangar').update('mr.quickCreate', 'direct', vscode.ConfigurationTarget.Global);
   const opened: string[] = [];
   api.mr.openUrl = async (url) => opened.push(url);
   const quickInputs: QuickCreateModel[] = [];
