@@ -331,8 +331,8 @@ note and the guard warnings. **Create** (`Ctrl+Enter`) SHALL create with the val
 close it with no request. Choosing another profile SHALL resolve the values again and keep the fields the user edited.
 
 **Constraints:**
-- User suggestions: GitLab `GET /api/v4/projects/<id>/members/all?query=<text>`, GitHub
-  `GET /repos/<owner>/<repo>/assignees` filtered locally; at most one request per 300 ms of typing
+- User suggestions in **Reviewers** and **Assignees**: as **Find users in the Reviewers and Assignees fields**
+  specifies (GitLab `members/all?query=`, GitHub GraphQL `assignableUsers(query:)`, one request per 300 ms of typing)
 
 #### Scenario: Drawer actions matrix
 
