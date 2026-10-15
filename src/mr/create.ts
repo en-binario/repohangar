@@ -16,7 +16,7 @@ import { EMPTY_RELATED } from './related';
 import { createdText, existingText, pushedText, type Applied } from './result';
 import { chooseRule, missingProfileText, type Rule } from './rules';
 import { renderDescription, renderTarget, renderTitle, type TemplateContext, type TemplateFiles } from './templates';
-import { prepareUsers } from './users';
+import { prepareUsers, userName } from './users';
 
 export interface MrSettings {
   profiles: Map<string, ExplicitProfile>;
@@ -428,8 +428,8 @@ export class CreateFlow {
     if (!reported) return stop(`Pushed ${p.branch}, but ${p.host} reported no merge request. Sign in to ${p.host} to create it.`, 'Sign In…');
     const pushed = row.head.kind === 'branch' && row.head.upstream ? (row.head.ahead ?? 0) : p.commitsAhead;
     const ref = `!${reported.iid}`;
-    const reviewers = p.values.reviewers.filter((r) => r !== '@me');
-    const assignees = p.values.assignees.filter((a) => a !== '@me').slice(1);
+    const reviewers = p.values.reviewers.map(userName).filter((r) => r !== '@me');
+    const assignees = p.values.assignees.map(userName).filter((a) => a !== '@me').slice(1);
     return {
       kind: 'pushed',
       host: p.host,

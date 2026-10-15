@@ -50,6 +50,13 @@ describe('Reviewer resolution matrix', () => {
     expect(notices).toEqual([['Reviewer jdoe not found on git.acme.com.', 'Open Settings']]);
   });
 
+  it('R4 finds a reviewer written with a leading @ and in another case', async () => {
+    server.use(...noOpenReviews(), gitlabProject(), gitlabUsers(), gitlabCreate({ premium: true }));
+    const { notices } = await gitlab(['@ana.perez', 'Luis.Gomez'], 'carla.ruiz', { premium: true });
+    expect(createBody().reviewer_ids).toEqual([11, 12]);
+    expect(notices).toEqual([]);
+  });
+
   it('R5 reports the reviewer GitLab Free did not apply, read back from the answer', async () => {
     server.use(...noOpenReviews(), gitlabProject(), gitlabUsers(), gitlabCreate());
     const { notices } = await gitlab(['ana.perez', 'luis.gomez'], 'carla.ruiz');

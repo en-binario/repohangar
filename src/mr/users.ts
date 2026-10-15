@@ -13,6 +13,12 @@ export interface PreparedUsers {
   notices: Notice[];
 }
 
+/** A username as the APIs expect it: `@jtapiap` → `jtapiap`; `@me` is kept. */
+export function userName(entry: string): string {
+  const name = entry.trim();
+  return name !== '@me' && name.startsWith('@') ? name.slice(1) : name;
+}
+
 /** Replaces `@me`, removes the author from the reviewers and splits off `team:<slug>` (GitHub only). */
 export function prepareUsers(
   provider: 'gitlab' | 'github',
@@ -22,7 +28,10 @@ export function prepareUsers(
   me: string,
 ): PreparedUsers {
   const notices: Notice[] = [];
-  const replace = (name: string) => (name === '@me' ? me : name);
+  const replace = (entry: string) => {
+    const name = userName(entry);
+    return name === '@me' ? me : name;
+  };
   const unique = (names: string[]) => [...new Set(names.filter((n) => n.length > 0))];
   const people: string[] = [];
   const teams: string[] = [];

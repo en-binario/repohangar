@@ -5,6 +5,7 @@ import { Fragment } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { recentOffer } from '../src/mr/recent';
 import type { SaveTarget } from '../src/mr/saveDefaults';
+import { userName } from '../src/mr/users';
 import type { DrawerData, DrawerEdits } from '../src/shared/drawer';
 import type { ViewMessage } from '../src/shared/protocol';
 
@@ -209,7 +210,7 @@ export function Chips(props: {
   const [text, setText] = useState('');
   const label = props.name.charAt(0).toUpperCase() + props.name.slice(1);
   const add = (value: string) => {
-    const v = value.trim();
+    const v = props.name === 'labels' ? value.trim() : userName(value);
     if (v && !props.values.includes(v)) props.onChange([...props.values, v]);
     setText('');
   };

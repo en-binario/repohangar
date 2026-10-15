@@ -203,7 +203,7 @@ export class GitLabProvider implements HostingProvider {
         url: `${this.restUrl}/users?username=${encodeURIComponent(name)}`,
         credential,
       });
-      const user = Array.isArray(answer.json) ? answer.json.find((u) => u.username === name) : undefined;
+      const user = Array.isArray(answer.json) ? answer.json.find((u) => typeof u.username === 'string' && u.username.toLowerCase() === name.toLowerCase()) : undefined;
       if (typeof user?.id === 'number') {
         ids.set(name, user.id);
         stores.setUserId(this.host, name, user.id);
@@ -266,8 +266,9 @@ export class GitLabProvider implements HostingProvider {
     const names = (list: Created['reviewers']) => (Array.isArray(list) ? list.map((u) => String(u.username)) : []);
     const appliedReviewers = names(created.reviewers);
     const appliedAssignees = names(created.assignees);
-    const missingReviewers = wantedReviewers.filter((n) => !appliedReviewers.includes(n));
-    const missingAssignees = wantedAssignees.filter((n) => !appliedAssignees.includes(n));
+    const missing = (wanted: string[], applied: string[]) => wanted.filter((n) => !applied.some((a) => a.toLowerCase() === n.toLowerCase()));
+    const missingReviewers = missing(wantedReviewers, appliedReviewers);
+    const missingAssignees = missing(wantedAssignees, appliedAssignees);
     if (missingReviewers.length) notices.push(limitNotice('reviewer', appliedReviewers, missingReviewers));
     if (missingAssignees.length) notices.push(limitNotice('assignee', appliedAssignees, missingAssignees));
     const number = Number(created.iid);

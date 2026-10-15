@@ -168,6 +168,9 @@ All notable changes to RepoHangar are recorded here. Entries are written and cla
   no `[Create MR]`): GitLab rejected the batched status request as too large or too complex (`HTTP 422`). Requests now
   carry at most 10 repositories and are split further when GitLab still rejects them, and the RepoHangar log shows
   GitLab's message (`Query too large`) instead of `HTTP 422`.
+- **Fixed:** a reviewer or assignee written as `@jtapiap` (with the leading `@`), or in a different case than the
+  GitLab username, was left out of the merge request with `Reviewer @jtapiap not found on <host>.` The `@` is now
+  dropped (`@me` still means you) and GitLab usernames match regardless of case.
 - **Added:** the value `"drawer"` of `repohangar.mr.quickCreate`: create with defaults opens the Create MR drawer,
   pre-filled from the MR profile.
 - **Changed:** `m`, **[Create MR]** in the MR / PR cell, the `⤴` hover button, `Ctrl+Alt+M` and **Create MR** in the

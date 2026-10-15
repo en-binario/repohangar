@@ -16,12 +16,12 @@ export function noOpenReviews() {
   ];
 }
 
-/** `GET /users?username=` for the known users; others are unknown. */
+/** `GET /users?username=` for the known users, matched without case like GitLab; others are unknown. */
 export function gitlabUsers() {
   return http.get(`${GL}/users`, ({ request }) => {
-    const name = new URL(request.url).searchParams.get('username') ?? '';
-    const id = USERS[name];
-    return HttpResponse.json(id ? [{ id, username: name }] : []);
+    const asked = (new URL(request.url).searchParams.get('username') ?? '').toLowerCase();
+    const name = Object.keys(USERS).find((u) => u.toLowerCase() === asked);
+    return HttpResponse.json(name ? [{ id: USERS[name], username: name }] : []);
   });
 }
 
