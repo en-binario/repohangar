@@ -13,7 +13,8 @@ export interface StubRequest {
   body?: unknown;
 }
 
-export type StubRoute = (request: StubRequest) => { status?: number; body: unknown } | undefined;
+/** `delayMs` holds the answer back, for the states a UI shows while a request runs. */
+export type StubRoute = (request: StubRequest) => { status?: number; body: unknown; delayMs?: number } | undefined;
 
 export async function startProviderStub(
   routes: StubRoute[] = [],
@@ -33,8 +34,10 @@ export async function startProviderStub(
       };
       requests.push(request);
       const answer = routes.map((route) => route(request)).find((a) => a !== undefined) ?? { status: 404, body: { message: '404 Not Found' } };
-      response.writeHead(answer.status ?? 200, { 'Content-Type': 'application/json' });
-      response.end(JSON.stringify(answer.body));
+      setTimeout(() => {
+        response.writeHead(answer.status ?? 200, { 'Content-Type': 'application/json' });
+        response.end(JSON.stringify(answer.body));
+      }, answer.delayMs ?? 0);
     });
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));

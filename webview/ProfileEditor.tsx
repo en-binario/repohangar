@@ -21,7 +21,9 @@ import {
   type ProfilesState,
   type ProfilesViewMessage,
   type ScopeData,
+  type SearchRepoChoice,
 } from '../src/shared/profileEditor';
+import type { UserAnswer, UserField } from '../src/mr/users';
 import { Chips, type ListKey } from './Drawer';
 
 export interface ProfilesApi {
@@ -69,6 +71,10 @@ export function ProfilesApp({ api }: { api: ProfilesApi }) {
   const [newName, setNewName] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState<string | undefined>(undefined);
   const [ruleOpen, setRuleOpen] = useState<number | null>(null);
+  /** Search users in (mr-profiles: Find users in the profile editor): the choices, the chosen one and its answers */
+  const [searchRepos, setSearchRepos] = useState<SearchRepoChoice[]>([]);
+  const [searchRepo, setSearchRepo] = useState<string | null>(null);
+  const [users, setUsers] = useState<Partial<Record<UserField, UserAnswer>>>({});
   /** The scope of the Save whose new state the host sends next; the other scope keeps its edits */
   const savingScope = useRef<EditorScope | null>(null);
   const lastDirty = useRef(false);
@@ -87,6 +93,10 @@ export function ProfilesApp({ api }: { api: ProfilesApi }) {
           return { original: { ...next, [other]: prev.original[other] }, draft: { ...next, [other]: prev.draft[other] } };
         });
         setMemory(message.state.memory);
+        const repos = message.state.searchRepos;
+        setSearchRepos(repos);
+        // The user's choice stays while it is still listed.
+        setSearchRepo((prev) => (prev !== null && repos.some((r) => r.id === prev) ? prev : message.state.searchDefault));
         setBanner(false);
         if (!message.state.workspace) setScope('user');
       } else if (message.type === 'profilesBanner') {
@@ -95,6 +105,8 @@ export function ProfilesApp({ api }: { api: ProfilesApi }) {
         setMemory(message.memory);
       } else if (message.type === 'profilesPreview') {
         setPreviews((p) => ({ ...p, [message.template]: message.text }));
+      } else if (message.type === 'profilesUsers') {
+        setUsers((u) => ({ ...u, [message.answer.field]: message.answer }));
       } else if (message.type === 'profilesDeleteConfirmed') {
         setDoc((prev) => {
           const data = prev?.draft[message.scope];
@@ -420,9 +432,42 @@ export function ProfilesApp({ api }: { api: ProfilesApi }) {
                   />
                 )}
               </div>
+              <label class="pfield search-users">
+                <span>Search users in</span>
+                {searchRepo !== null ? (
+                  <select
+                    value={searchRepo}
+                    data-field="searchRepo"
+                    onChange={(e) => {
+                      setSearchRepo((e.currentTarget as HTMLSelectElement).value);
+                      setUsers({});
+                    }}
+                  >
+                    {searchRepos.map((r) => (
+                      <option key={r.id} value={r.id}>{`${r.name} (${r.host})`}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <span class="note" data-note="searchUsers">
+                    Add a GitLab or GitHub repository to search users.
+                  </span>
+                )}
+              </label>
               {(['reviewers', 'assignees', 'labels'] as ListKey[]).map((key) => (
                 <div key={key} {...fieldProps(key)}>
-                  <Chips name={key} values={view.effective[key]} suggestions={[]} onChange={(values) => setKey(key, values)} onSearch={() => undefined} />
+                  <Chips
+                    name={key}
+                    values={view.effective[key]}
+                    onChange={(values) => setKey(key, values)}
+                    search={
+                      key === 'labels' || searchRepo === null
+                        ? undefined
+                        : {
+                            answer: users[key],
+                            onSearch: (text) => api.postMessage({ type: 'profilesSearchUsers', repo: searchRepo, field: key, text }),
+                          }
+                    }
+                  />
                   {reset(key)}
                 </div>
               ))}

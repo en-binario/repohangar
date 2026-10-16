@@ -18,6 +18,7 @@ import { JobRunner } from './jobs/runner';
 import { RepoHangarLog } from './log';
 import { ProfileEditor } from './mr/profileEditor';
 import { MrService } from './mr/service';
+import { UserSearch } from './mr/userSearch';
 import { ProviderService } from './providers/service';
 import { RowStore } from './state/store';
 import { Actions, commandArgument } from './ui/actions';
@@ -89,9 +90,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<TestAp
   const repositoryRoots = new RepositoryRoots(git, registry.onDidChangeRepositories);
   const legacyOpener = new LegacyOpenerGuard(context.globalState, notifier, commands);
   const providers = new ProviderService(context, store, registry, notifier, log);
+  const userSearch = new UserSearch({
+    repo: (id) => {
+      const row = store.get(id);
+      if (!row?.hosted || (row.provider !== 'gitlab' && row.provider !== 'github')) return undefined;
+      const provider = providers.factory.get(row.provider, row.hosted.host, new URL(row.hosted.webUrl).origin);
+      return { host: row.hosted.host, projectPath: row.hosted.projectPath, search: (path, text, credential) => provider.searchUsers(path, text, credential) };
+    },
+    credential: (host) => providers.auth.credential(host),
+    log: (message) => log.debug(message),
+  });
+  context.subscriptions.push({ dispose: () => userSearch.dispose() });
   const mr = new MrService(context, store, registry, runner, providers, notifier, log, () => git.current?.git.path ?? 'git', (id, action) =>
     actions.runRowAction(id, action),
   commands,
+  userSearch,
   );
   actions.review = {
     openReview: (id) => providers.openReview(id),
@@ -125,10 +138,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<TestAp
       return row?.head.kind === 'branch' ? { repo: row.name, branch: row.head.name } : undefined;
     },
     memory: mr.repoMemory,
+    focusedId: () => panel.focused,
+    hostedRepos: () =>
+      store
+        .all()
+        .flatMap((row) => (row.hosted && (row.provider === 'gitlab' || row.provider === 'github') ? [{ id: row.id, name: row.name, host: row.hosted.host }] : []))
+        .sort((a, b) => a.name.localeCompare(b.name, 'en')),
+    userSearch,
   });
   actions.resultView = panel;
   actions.mrBatch = mr.mrBatch;
-  mr.dashboard = { open: () => panel.open(), postDrawer: (data) => panel.showDrawer(data), postDrawerUsers: (id, users) => panel.postDrawerUsers(id, users) };
+  mr.dashboard = { open: () => panel.open(), postDrawer: (data) => panel.showDrawer(data), postDrawerUsers: (id, answer) => panel.postDrawerUsers(id, answer) };
   /** Runs a merge request command on its repository: the argument, else the active repository. */
   const onRepository = (run: (id: string) => Promise<void>) => async (arg?: unknown) => {
     const id = await actions.resolveActive(arg);

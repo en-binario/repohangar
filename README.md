@@ -132,7 +132,11 @@ with the title you typed, and it offers **Edit all fields…**, the other profil
 `M` and **RepoHangar: Create Merge Request…** (`Ctrl+Alt+Shift+M`, `Ctrl+Cmd+Shift+M` on macOS) always open the
 **Create MR drawer** beside the grid, opening the dashboard first when it is closed, every field filled in from the profile: profile, target, title, description, reviewers,
 assignees, labels, squash, delete source branch and draft. Under **Reviewers** and **Labels**, `recent: luis.gomez ·
-team:backend` offers the last 10 you sent on that host, one click each. `Ctrl+Enter` creates, `Esc` closes it. **Create MR**,
+team:backend` offers the last 10 you sent on that host, one click each. In **Reviewers** and **Assignees**, type part of
+a name or username and pick from the list of the project's users (`Jhon Wilber Tapia Pinto @jtapiap`): `↑` `↓` move,
+`Enter` or a click adds the username, `Esc` closes the list. `Enter` with no match adds what you typed (a leading `@`
+is dropped), so `team:<slug>` still works on GitHub. On GitHub the search matches names as well as logins.
+`Ctrl+Enter` creates, `Esc` closes it. **Create MR**,
 **Create MR…** and **Open MR** are also in the Source Control Repositories menu and the Explorer **RepoHangar**
 submenu of GitLab and GitHub repositories.
 
@@ -171,7 +175,9 @@ You rarely need to write them by hand:
   default profile** in the first-run panel open a form with a **User** / **Workspace** switch. It lists the profiles of
   that scope (`★ default` first), the rules in order (**New rule**, move, delete) and every field of the selected
   profile, with a live preview of the title for the focused dashboard row. A field the profile does not set shows the
-  inherited value, dimmed, with *Inherited from …* as its tooltip. **Save** writes that scope only, through VS Code's
+  inherited value, dimmed, with *Inherited from …* as its tooltip. **Reviewers** and **Assignees** search users like
+  the drawer, in the repository chosen in **Search users in** (the focused dashboard row's repository when it is on
+  GitLab or GitHub, else the first one by name). **Save** writes that scope only, through VS Code's
   own settings editing, so the rest of `settings.json` and its comments stay as they are (comments *inside* the
   `repohangar.mr.profiles` value are not kept; use **Open settings.json** for those). If the settings change elsewhere
   while you have unsaved edits, the editor asks before reloading.

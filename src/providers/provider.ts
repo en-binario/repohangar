@@ -176,6 +176,12 @@ export type CreateOutcome =
   | { kind: 'exists'; number?: number; url?: string }
   | { kind: 'failed'; status?: number; message: string };
 
+/** A user offered in the Reviewers and Assignees lists; `name` is empty when the provider gives none. */
+export interface UserMatch {
+  username: string;
+  name: string;
+}
+
 export interface ReviewWriter {
   projectInfo(projectPath: string, credential: Credential): Promise<ProjectInfo>;
   createReview(input: CreateInput, credential: Credential, stores: UserStores): Promise<CreateOutcome>;
@@ -185,7 +191,7 @@ export interface ReviewWriter {
    * with `body` (mr-creation: Related links); throws an `HttpError` when the host refuses it.
    */
   updateDescription(projectPath: string, number: number, description: string, credential: Credential): Promise<void>;
-  /** Usernames that match the text, for the drawer's suggestions */
-  searchUsers(projectPath: string, text: string, credential: Credential): Promise<string[]>;
+  /** Users of the project whose username or name matches the text, at most 10 (mr-creation: Find users …) */
+  searchUsers(projectPath: string, text: string, credential: Credential): Promise<UserMatch[]>;
   reviewUrl(projectPath: string, number: number): string;
 }

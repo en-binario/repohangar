@@ -1,5 +1,6 @@
 // mr-profiles :: New profile name matrix (R1–R4), and the editing model of the profile editor (design D-2): explicit
 // and inherited values, what Save writes, and the messages from the editor webview.
+// mr-profiles :: Search users in default matrix (R1–R4).
 
 import { describe, expect, it } from 'vitest';
 import {
@@ -14,6 +15,7 @@ import {
   rulesValue,
   scopeChanges,
   scopeData,
+  searchDefault,
   setSummary,
   validateProfileName,
   type ScopeData,
@@ -136,6 +138,11 @@ describe('Profile editor messages', () => {
     expect(parseProfilesMessage(message)).toEqual(message);
   });
 
+  it('accepts a user search in Reviewers', () => {
+    const message = { type: 'profilesSearchUsers', repo: 'file:///a', field: 'reviewers', text: 'jhon' };
+    expect(parseProfilesMessage(message)).toEqual(message);
+  });
+
   it.each<[string, unknown]>([
     ['an unknown profile key', { type: 'profilesSave', scope: 'user', changed: { docs: { colour: 'blue' } }, deleted: [], rules: null }],
     ['a value of the wrong type', { type: 'profilesSave', scope: 'user', changed: { docs: { squash: 'yes' } }, deleted: [], rules: null }],
@@ -145,7 +152,25 @@ describe('Profile editor messages', () => {
     ['a missing field', { type: 'profilesDelete', scope: 'user' }],
     ['an extra field', { type: 'profilesReload', now: true }],
     ['an unknown type', { type: 'eval', code: '1' }],
+    ['a user search without a field', { type: 'profilesSearchUsers', repo: 'file:///a', text: 'jhon' }],
+    ['a user search in Labels', { type: 'profilesSearchUsers', repo: 'file:///a', field: 'labels', text: 'jhon' }],
+    ['a user search with an extra key', { type: 'profilesSearchUsers', repo: 'file:///a', field: 'assignees', text: 'jhon', id: 'x' }],
   ])('refuses %s', (_name, message) => {
     expect(parseProfilesMessage(message)).toBeUndefined();
+  });
+});
+
+describe('Search users in default matrix', () => {
+  const BILLING = { id: 'file:///code/billing-api', name: 'billing-api', host: 'git.acme.com' };
+  const WEB = { id: 'file:///code/web-shop', name: 'web-shop', host: 'github.com' };
+  const NOTES = 'file:///code/notes';
+
+  it.each([
+    ['R1 the focused row when it is hosted', WEB.id, [BILLING, WEB], WEB.id],
+    ['R2 the first hosted repository by name when the focused row is not hosted', NOTES, [BILLING, WEB], BILLING.id],
+    ['R3 the first hosted repository by name without a focused row', undefined, [WEB, BILLING], BILLING.id],
+    ['R4 none without a hosted repository', NOTES, [], null],
+  ])('%s', (_name, focused, repos, expected) => {
+    expect(searchDefault(focused, repos)).toBe(expected);
   });
 });

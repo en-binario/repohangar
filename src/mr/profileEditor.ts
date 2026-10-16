@@ -11,15 +11,18 @@ import {
   profilesValue,
   rulesValue,
   scopeData,
+  searchDefault,
   type EditorScope,
   type ProfilesHostMessage,
   type ProfilesState,
   type ProfilesViewMessage,
   type ScopeChanges,
+  type SearchRepoChoice,
 } from '../shared/profileEditor';
 import { memoryLines, type RepoMemoryStore } from './memory';
 import { mergeScopes, resolveProfile, type RawProfiles } from './profiles';
 import { DEFAULT_TICKET_PATTERN, DEFAULT_TYPE_MAP, renderTitle } from './templates';
+import type { UserSearch } from './userSearch';
 
 export const PROFILES_VIEW_TYPE = 'repohangar.profiles';
 
@@ -30,6 +33,11 @@ export interface ProfileEditorPort {
   /** The focused dashboard row's repository name and branch, for the title preview */
   focused(): { repo: string; branch: string } | undefined;
   memory: RepoMemoryStore;
+  /** The focused dashboard row's id (mr-profiles: Find users in the profile editor) */
+  focusedId(): string | undefined;
+  /** The dashboard repositories whose provider is `gitlab` or `github`, by name */
+  hostedRepos(): SearchRepoChoice[];
+  userSearch: UserSearch;
 }
 
 interface StoredScope {
@@ -137,6 +145,11 @@ export class ProfileEditor implements vscode.Disposable {
       case 'profilesOpenSettings':
         await vscode.commands.executeCommand(message.scope === 'user' ? 'workbench.action.openSettingsJson' : 'workbench.action.openWorkspaceSettingsFile');
         return;
+      case 'profilesSearchUsers':
+        this.port.userSearch.search(`profiles:${message.field}`, message.repo, message.field, message.text, (answer) =>
+          this.post({ type: 'profilesUsers', answer }),
+        );
+        return;
     }
   }
 
@@ -173,6 +186,7 @@ export class ProfileEditor implements vscode.Disposable {
   }
 
   private state(): ProfilesState {
+    const searchRepos = this.port.hostedRepos();
     const user = this.stored('user');
     const workspace = this.stored('workspace');
     this.sent = { user, workspace };
@@ -181,6 +195,8 @@ export class ProfileEditor implements vscode.Disposable {
       user: scopeData(user.profiles, user.rules),
       workspace: hasWorkspace() ? scopeData(workspace.profiles, workspace.rules) : null,
       memory: this.memory(),
+      searchRepos,
+      searchDefault: searchDefault(this.port.focusedId(), searchRepos),
     };
   }
 

@@ -3,6 +3,7 @@
 
 import { FIX_IDS, type BatchPanel, type FixId, type ResultLine } from './batchResult';
 import { SAVE_TARGETS, type SaveTarget } from '../mr/saveDefaults';
+import { USER_FIELDS, type UserAnswer, type UserField } from '../mr/users';
 import { parseEdits, type DrawerData, type DrawerEdits } from './drawer';
 import type { GraphVariant, NameClick } from './graph';
 import {
@@ -43,7 +44,8 @@ export type HostMessage =
   | { type: 'reveal'; id: string }
   /** The Create MR drawer (mr-creation), or null to close it */
   | { type: 'drawer'; data: DrawerData | null }
-  | { type: 'drawerUsers'; id: string; users: string[] }
+  /** The answer to a search in the drawer's Reviewers or Assignees field (mr-creation: Find users …) */
+  | { type: 'drawerUsers'; id: string; answer: UserAnswer }
   /** The result panel of the last batch, or null to close it (batch-operations: Batch result panel, design D-6) */
   | { type: 'batchResult'; panel: BatchPanel | null }
   /** One line of the result panel after a fix button or Retry failed */
@@ -84,7 +86,7 @@ export type ViewMessage =
   | { type: 'drawerChange'; id: string; profile: string; edits: DrawerEdits }
   | { type: 'drawerCreate'; id: string; profile: string; edits: DrawerEdits }
   | { type: 'drawerClose' }
-  | { type: 'drawerSearchUsers'; id: string; text: string }
+  | { type: 'drawerSearchUsers'; id: string; field: UserField; text: string }
   /** Save as defaults ▾ in the drawer (mr-profiles: Save as defaults) */
   | { type: 'drawerSaveDefaults'; id: string; profile: string; edits: DrawerEdits; target: SaveTarget };
 
@@ -96,7 +98,7 @@ export const BATCH_ACTIONS: readonly BatchAction[] = ['fetch', 'pullFf'];
 const MAX_STRING = 4096;
 const MAX_IDS = 10_000;
 
-type Field = 'string' | 'count' | 'grouping' | 'rowAction' | 'batchAction' | 'ids' | 'edits' | 'text' | 'fix' | 'saveTarget';
+type Field = 'string' | 'count' | 'grouping' | 'rowAction' | 'batchAction' | 'ids' | 'edits' | 'text' | 'fix' | 'saveTarget' | 'userField';
 
 const SHAPES: Record<ViewMessage['type'], Record<string, Field>> = {
   ready: {},
@@ -124,7 +126,7 @@ const SHAPES: Record<ViewMessage['type'], Record<string, Field>> = {
   drawerChange: { id: 'string', profile: 'string', edits: 'edits' },
   drawerCreate: { id: 'string', profile: 'string', edits: 'edits' },
   drawerClose: {},
-  drawerSearchUsers: { id: 'string', text: 'text' },
+  drawerSearchUsers: { id: 'string', field: 'userField', text: 'text' },
   drawerSaveDefaults: { id: 'string', profile: 'string', edits: 'edits', target: 'saveTarget' },
 };
 
@@ -146,6 +148,8 @@ function fieldValid(kind: Field, value: unknown): boolean {
       return parseEdits(value) !== undefined;
     case 'saveTarget':
       return typeof value === 'string' && (SAVE_TARGETS as readonly string[]).includes(value);
+    case 'userField':
+      return typeof value === 'string' && (USER_FIELDS as readonly string[]).includes(value);
     case 'text':
       return typeof value === 'string' && value.length <= 256;
     case 'ids':

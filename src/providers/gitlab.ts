@@ -21,6 +21,7 @@ import {
   type ReviewResult,
   type Selection,
   type UserInfo,
+  type UserMatch,
   type UserStores,
 } from './provider';
 import { isLimitError, limitNotice, notFoundNotice } from '../mr/users';
@@ -321,12 +322,16 @@ export class GitLabProvider implements HostingProvider {
     await this.http.request({ method: 'PUT', url: `${this.project(projectPath)}/merge_requests/${number}`, credential, body: { description } });
   }
 
-  async searchUsers(projectPath: string, text: string, credential: Credential): Promise<string[]> {
-    const answer = await this.http.request<{ username?: unknown }[]>({
+  async searchUsers(projectPath: string, text: string, credential: Credential): Promise<UserMatch[]> {
+    const answer = await this.http.request<{ username?: unknown; name?: unknown; state?: unknown }[]>({
       url: `${this.project(projectPath)}/members/all?query=${encodeURIComponent(text)}&per_page=20`,
       credential,
     });
-    return Array.isArray(answer.json) ? answer.json.map((u) => String(u.username)) : [];
+    if (!Array.isArray(answer.json)) return [];
+    return answer.json
+      .filter((u) => typeof u.username === 'string' && u.state === 'active')
+      .slice(0, 10)
+      .map((u) => ({ username: u.username as string, name: typeof u.name === 'string' ? u.name : '' }));
   }
 }
 

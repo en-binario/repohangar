@@ -33,6 +33,8 @@ import { closedText, resultPlan, undoExpiredText, UNDO_WINDOW_MS } from './resul
 import { readRules } from './rules';
 import { planSaveDefaults, type SaveTarget } from './saveDefaults';
 import { DEFAULT_TICKET_PATTERN, DEFAULT_TYPE_MAP } from './templates';
+import type { UserSearch } from './userSearch';
+import type { UserAnswer, UserField } from './users';
 
 const PROJECT_INFO_MS = 60 * 60_000;
 const REMOTE_HEAD = 1;
@@ -118,7 +120,7 @@ export interface MrDashboard {
   open(): void;
   /** Posts the drawer to the webview, or closes it */
   postDrawer(data: DrawerData | null): void;
-  postDrawerUsers(id: string, users: string[]): void;
+  postDrawerUsers(id: string, answer: UserAnswer): void;
 }
 
 export class MrService implements vscode.Disposable {
@@ -131,7 +133,6 @@ export class MrService implements vscode.Disposable {
   readonly repoMemory: RepoMemoryStore;
   private readonly projectInfos = new Map<string, { info: ProjectInfo | undefined; at: number }>();
   private drawer: { id: string; profile: string; edits: DrawerEdits } | undefined;
-  private searchTimer: ReturnType<typeof setTimeout> | undefined;
   /** The last selection batch, one entry per repository: its lines, Retry failed and the related links. */
   private readonly batchEntries = new Map<string, MrBatchEntry>();
   /** What the dashboard's batches ask of merge request creation (`Actions.mrBatch`). */
@@ -171,6 +172,7 @@ export class MrService implements vscode.Disposable {
     /** Runs a row action (the Pull and Push fix buttons) */
     private readonly rowAction: (id: string, action: 'pull' | 'push') => Promise<void>,
     private readonly commands: CommandRunner,
+    private readonly userSearch: UserSearch,
   ) {
     const stores: UserStores = {
       userId: (host, name) => context.globalState.get<Record<string, number>>(`repohangar.gitlab.userIds.${host}`, {})[name],
@@ -608,26 +610,13 @@ export class MrService implements vscode.Disposable {
     this.drawer = undefined;
   }
 
-  drawerSearchUsers(id: string, text: string): void {
-    if (this.searchTimer) clearTimeout(this.searchTimer);
-    this.searchTimer = setTimeout(() => void this.searchUsers(id, text), 300);
-  }
-
-  private async searchUsers(id: string, text: string): Promise<void> {
-    const row = this.store.get(id);
-    if (!row?.hosted || (row.provider !== 'gitlab' && row.provider !== 'github') || !text) return;
-    const credential = await this.providers.auth.credential(row.hosted.host);
-    if (!credential) return;
-    try {
-      const users = await this.providers.factory.get(row.provider, row.hosted.host, new URL(row.hosted.webUrl).origin).searchUsers(row.hosted.projectPath, text, credential);
-      this.dashboard?.postDrawerUsers(id, users.slice(0, 10));
-    } catch (error) {
-      this.log.debug(`User search on ${row.hosted.host} failed: ${(error as Error).message}`);
-    }
+  /** A search in the drawer's Reviewers or Assignees field (mr-creation: Find users in the Reviewers and Assignees fields). */
+  drawerSearchUsers(id: string, field: UserField, text: string): void {
+    this.userSearch.search(`drawer:${field}`, id, field, text, (answer) => this.dashboard?.postDrawerUsers(id, answer));
   }
 
   dispose(): void {
-    if (this.searchTimer) clearTimeout(this.searchTimer);
+    // The user search is disposed with the extension context.
   }
 }
 

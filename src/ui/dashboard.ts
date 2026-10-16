@@ -9,6 +9,7 @@ import { dashboardState } from '../shared/format';
 import type { GraphVariant, NameClick } from '../shared/graph';
 import type { BatchPanel } from '../shared/batchResult';
 import type { SaveTarget } from '../mr/saveDefaults';
+import type { UserAnswer, UserField } from '../mr/users';
 import type { DrawerData, DrawerEdits } from '../shared/drawer';
 import type { FirstRunPanel } from '../shared/model';
 import { parseViewMessage, type HostMessage, type Snapshot, type ViewMessage } from '../shared/protocol';
@@ -40,7 +41,7 @@ export interface DashboardDrawer {
   drawerChange(id: string, profile: string, edits: DrawerEdits): Promise<void>;
   drawerCreate(id: string, profile: string, edits: DrawerEdits): Promise<void>;
   drawerClose(): void;
-  drawerSearchUsers(id: string, text: string): void;
+  drawerSearchUsers(id: string, field: UserField, text: string): void;
   drawerSaveDefaults(id: string, profile: string, edits: DrawerEdits, target: SaveTarget): Promise<void>;
 }
 
@@ -270,8 +271,8 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
     this.post({ type: 'batchResult', panel });
   }
 
-  postDrawerUsers(id: string, users: string[]): void {
-    this.post({ type: 'drawerUsers', id, users });
+  postDrawerUsers(id: string, answer: UserAnswer): void {
+    this.post({ type: 'drawerUsers', id, answer });
   }
 
   private flushReveal(): void {
@@ -430,7 +431,7 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
         this.drawer?.drawerClose();
         return;
       case 'drawerSearchUsers':
-        this.drawer?.drawerSearchUsers(message.id, message.text);
+        this.drawer?.drawerSearchUsers(message.id, message.field, message.text);
         return;
       case 'drawerSaveDefaults':
         await this.drawer?.drawerSaveDefaults(message.id, message.profile, message.edits, message.target);

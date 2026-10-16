@@ -2,6 +2,7 @@
 // add-profile-editor design D-2). Shared by the extension host and the editor webview; no vscode import.
 
 import type { MemoryLine } from '../mr/memory';
+import { USER_FIELDS, type UserAnswer, type UserField } from '../mr/users';
 import { BUILT_IN, explicitValues, mergeScopes, PROFILE_KEYS, type ProfileKey, type ProfileValues } from '../mr/profiles';
 
 export type EditorScope = 'user' | 'workspace';
@@ -31,6 +32,23 @@ export interface ProfilesState {
   /** Null without an open folder or workspace */
   workspace: ScopeData | null;
   memory: MemoryLine[];
+  /** The hosted repositories **Search users in** lists, by name (mr-profiles: Find users in the profile editor) */
+  searchRepos: SearchRepoChoice[];
+  /** The repository **Search users in** starts on; null without a hosted repository */
+  searchDefault: string | null;
+}
+
+/** A dashboard repository whose provider is `gitlab` or `github`: `billing-api (git.acme.com)`. */
+export interface SearchRepoChoice {
+  id: string;
+  name: string;
+  host: string;
+}
+
+/** The focused dashboard row's repository when it is hosted, else the first hosted repository by name. */
+export function searchDefault(focusedId: string | undefined, repos: readonly SearchRepoChoice[]): string | null {
+  if (focusedId !== undefined && repos.some((r) => r.id === focusedId)) return focusedId;
+  return [...repos].sort((a, b) => a.name.localeCompare(b.name, 'en'))[0]?.id ?? null;
 }
 
 export const PROFILE_NAME_MESSAGE = 'Use letters, digits, ".", "_" or "-" (up to 40).';
@@ -221,7 +239,9 @@ export type ProfilesHostMessage =
   /** The rendered title template (`→ feat: ABC-12 Add notes`) */
   | { type: 'profilesPreview'; template: string; text: string }
   /** Delete was confirmed; the view removes the profile from its draft */
-  | { type: 'profilesDeleteConfirmed'; scope: EditorScope; name: string };
+  | { type: 'profilesDeleteConfirmed'; scope: EditorScope; name: string }
+  /** The answer to a search in Reviewers or Assignees */
+  | { type: 'profilesUsers'; answer: UserAnswer };
 
 export type ProfilesViewMessage =
   | { type: 'ready' }
@@ -232,7 +252,9 @@ export type ProfilesViewMessage =
   | { type: 'profilesPreview'; template: string }
   | { type: 'profilesDelete'; scope: EditorScope; name: string }
   | { type: 'profilesForget'; key: string }
-  | { type: 'profilesOpenSettings'; scope: EditorScope };
+  | { type: 'profilesOpenSettings'; scope: EditorScope }
+  /** Typing in Reviewers or Assignees, searching the repository chosen in Search users in */
+  | { type: 'profilesSearchUsers'; repo: string; field: UserField; text: string };
 
 const MAX_STRING = 4096;
 const MAX_ITEMS = 1000;
@@ -285,6 +307,11 @@ const SHAPES: Record<ProfilesViewMessage['type'], Record<string, (value: unknown
   profilesDelete: { scope: isScope, name: (v) => isString(v) },
   profilesForget: { key: (v) => isString(v) },
   profilesOpenSettings: { scope: isScope },
+  profilesSearchUsers: {
+    repo: (v) => isString(v),
+    field: (v) => typeof v === 'string' && (USER_FIELDS as readonly string[]).includes(v),
+    text: (v) => typeof v === 'string' && v.length <= 256,
+  },
 };
 
 /** Returns the message when it matches the protocol exactly (no missing, extra or mistyped fields), else undefined. */

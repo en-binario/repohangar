@@ -171,6 +171,14 @@ All notable changes to RepoHangar are recorded here. Entries are written and cla
 - **Fixed:** a reviewer or assignee written as `@jtapiap` (with the leading `@`), or in a different case than the
   GitLab username, was left out of the merge request with `Reviewer @jtapiap not found on <host>.` The `@` is now
   dropped (`@me` still means you) and GitLab usernames match regardless of case.
+- **Added — find users for Reviewers and Assignees.** Typing in **Reviewers** or **Assignees** in the Create MR drawer
+  lists the project's users by name and username (`Jhon Wilber Tapia Pinto @jtapiap`); `↑` `↓` and `Enter` or a click
+  add one, and `Esc` closes the list without closing the drawer. The list says `Searching…`,
+  `No users on <host> match "<text>".`, `Sign in to <host> to search users.` or `User search failed: <message>.`
+- **Added:** **Search users in** in the MR profile editor: **Reviewers** and **Assignees** search the users of the
+  chosen GitLab or GitHub repository, the focused dashboard row's by default.
+- **Changed:** user suggestions on GitHub match names as well as logins, and are no longer limited to the first 100
+  assignable users of the repository.
 - **Added:** the value `"drawer"` of `repohangar.mr.quickCreate`: create with defaults opens the Create MR drawer,
   pre-filled from the MR profile.
 - **Changed:** `m`, **[Create MR]** in the MR / PR cell, the `⤴` hover button, `Ctrl+Alt+M` and **Create MR** in the

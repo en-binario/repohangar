@@ -1,5 +1,6 @@
 // mr-creation :: Drawer actions matrix (R1–R5), and the note of Squash policy matrix R1 (mr-profiles) under the box.
 // mr-profiles :: Save as defaults matrix (R1–R3), end to end with the notifications.
+// mr-creation :: User selection matrix (R1–R10), with the user search answered by the provider stub.
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { expect, test, type FrameLocator, type Page } from '@playwright/test';
@@ -224,5 +225,155 @@ test.describe('Save as defaults matrix', () => {
     await page.keyboard.press('Shift+M');
     await expect(chips('reviewers')).toHaveText(['ana.perez✕', 'carla.ruiz✕']);
     await expect(field('squash')).toBeChecked();
+  });
+});
+
+test.describe('User selection matrix', () => {
+  const MEMBERS = '/api/v4/projects/payments%2Fbilling-api/members/all?query=';
+  /** `jhon` matches two active members; `jdoe` matches nobody, answered after 2 s so `Searching…` shows first. */
+  const members = (request: StubRequest) => {
+    if (request.method !== 'GET' || !request.path.startsWith(MEMBERS)) return undefined;
+    const query = decodeURIComponent(request.path.slice(MEMBERS.length).split('&')[0] ?? '');
+    if (query === 'jhon') {
+      return {
+        body: [
+          { id: 21, username: 'jtapiap', name: 'Jhon Wilber Tapia Pinto', state: 'active' },
+          { id: 22, username: 'jruiz', name: 'Jhon Ruiz', state: 'active' },
+        ],
+      };
+    }
+    return { body: [], delayMs: 2_000 };
+  };
+  const input = (name: string) => drawer().locator(`[aria-label="Add to ${name}"]`);
+  const list = (name: string) => drawer().locator(`[data-users="${name}"]`);
+  const options = (name: string) => list(name).locator('[role="option"]');
+  const chips = (name: string) => drawer().locator(`[data-chips="${name}"] .chip-value`);
+
+  test.beforeAll(async () => {
+    stub = await startProviderStub([members, routes('never')]);
+    vscode = await launch(createProvidersFixture(), {
+      env: {
+        REPOHANGAR_HTTP_STUB: stub.url,
+        REPOHANGAR_TEST_TOKENS: JSON.stringify({ 'git.acme.com': 'glpat-x1y2', 'github.acme.com': 'ghp_a1b2' }),
+      },
+      settings: { 'repohangar.mr.profiles': { default: { squash: true } } },
+    });
+    page = vscode.page;
+  });
+
+  /** Every row starts with the drawer of billing-api and no reviewers. */
+  test.beforeEach(async () => {
+    frame = await openDashboard(page);
+    await expect(frame.locator('[data-repo="billing-api"] [data-col="review"]')).toHaveText('[Create MR]', { timeout: 30_000 });
+    await focusRow(frame, 'billing-api');
+    await page.keyboard.press('Shift+M');
+    await expect(drawer()).toBeVisible({ timeout: 15_000 });
+    await expect(chips('reviewers')).toHaveCount(0);
+  });
+
+  test.afterAll(async () => {
+    await vscode?.close();
+    await stub?.close();
+  });
+
+  /** `jhon` typed in Reviewers, its two users listed, the first highlighted. */
+  const typeJhon = async () => {
+    await input('reviewers').fill('jhon');
+    await expect(options('reviewers')).toHaveText(['Jhon Wilber Tapia Pinto @jtapiap', 'Jhon Ruiz @jruiz']);
+    await expect(options('reviewers').first()).toHaveAttribute('aria-selected', 'true');
+  };
+  const closeDrawer = async () => {
+    if (await drawer().isVisible()) await drawer().locator('[data-button="cancel"]').click();
+  };
+  const addedAndClosed = async (chip: string) => {
+    await expect(chips('reviewers')).toHaveText([`${chip}✕`]);
+    await expect(input('reviewers')).toHaveValue('');
+    await expect(list('reviewers')).toHaveCount(0);
+    await expect(drawer()).toBeVisible();
+    await closeDrawer();
+  };
+
+  test('R1 adds the highlighted first user with Enter', async () => {
+    await typeJhon();
+    await input('reviewers').press('Enter');
+    await addedAndClosed('jtapiap');
+  });
+
+  test('R2 adds the second user after ↓', async () => {
+    await typeJhon();
+    await input('reviewers').press('ArrowDown');
+    await input('reviewers').press('Enter');
+    await addedAndClosed('jruiz');
+  });
+
+  test('R3 wraps to the last user with ↑', async () => {
+    await typeJhon();
+    await input('reviewers').press('ArrowUp');
+    await input('reviewers').press('Enter');
+    await addedAndClosed('jruiz');
+  });
+
+  test('R4 adds the user clicked in the list', async () => {
+    await typeJhon();
+    await options('reviewers').filter({ hasText: '@jruiz' }).click();
+    await addedAndClosed('jruiz');
+  });
+
+  test('R5 adds the typed text without its @ while the search runs', async () => {
+    await input('reviewers').fill('@jdoe');
+    await expect(list('reviewers')).toHaveText('Searching…');
+    await input('reviewers').press('Enter');
+    await addedAndClosed('jdoe');
+  });
+
+  test('R6 adds the typed text when no user matches', async () => {
+    await input('reviewers').fill('jdoe');
+    await expect(list('reviewers')).toHaveText('No users on git.acme.com match "jdoe".');
+    await input('reviewers').press('Enter');
+    await addedAndClosed('jdoe');
+  });
+
+  test('R7 closes only the list with Esc', async () => {
+    await typeJhon();
+    await input('reviewers').press('Escape');
+    await expect(list('reviewers')).toHaveCount(0);
+    await expect(chips('reviewers')).toHaveCount(0);
+    await expect(input('reviewers')).toHaveValue('jhon');
+    await expect(drawer()).toBeVisible();
+    await closeDrawer();
+  });
+
+  test('R8 closes the drawer with Esc when the list is closed, and sends nothing', async () => {
+    const before = creates().length;
+    await typeJhon();
+    await input('reviewers').press('Escape');
+    await expect(list('reviewers')).toHaveCount(0);
+    await input('reviewers').press('Escape');
+    await expect(drawer()).toHaveCount(0);
+    expect(creates().length).toBe(before);
+  });
+
+  test('R10 closes the list and keeps the text when the focus moves to Assignees', async () => {
+    await typeJhon();
+    // The open list covers Assignees, so the focus moves there without a click.
+    await input('assignees').focus();
+    await expect(input('assignees')).toBeFocused();
+    await expect(list('reviewers')).toHaveCount(0);
+    await expect(chips('reviewers')).toHaveCount(0);
+    await expect(input('reviewers')).toHaveValue('jhon');
+    await expect(drawer()).toBeVisible();
+    await closeDrawer();
+  });
+
+  // Last: it creates the merge request.
+  test('R9 creates with the values shown on Ctrl+Enter, without the typed text', async () => {
+    const before = creates().length;
+    await typeJhon();
+    await input('reviewers').press('Control+Enter');
+    await expect(drawer()).toHaveCount(0);
+    await expect(notification(page, 'Created !142 in billing-api')).toBeVisible({ timeout: 15_000 });
+    const sent = creates().slice(before);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.body).not.toHaveProperty('reviewer_ids');
   });
 });

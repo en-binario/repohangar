@@ -19,6 +19,8 @@ describe('parseViewMessage', () => {
     [{ type: 'fix', id: 'file:///a', fix: 'stashAndPull' }],
     [{ type: 'retryFailed' }],
     [{ type: 'closeBatchResult' }],
+    [{ type: 'drawerSearchUsers', id: 'file:///a', field: 'reviewers', text: '@jhon' }],
+    [{ type: 'drawerSearchUsers', id: 'file:///a', field: 'assignees', text: '' }],
   ])('accepts %j', (message) => {
     expect(parseViewMessage(message)).toEqual(message);
   });
@@ -43,6 +45,10 @@ describe('parseViewMessage', () => {
     ['a switch run with runBatch, without a branch', { type: 'runBatch', action: 'switch', ids: ['file:///a'] }],
     ['an unknown fix button', { type: 'fix', id: 'file:///a', fix: 'forcePull' }],
     ['a fix button without a repository', { type: 'fix', fix: 'openScm' }],
+    ['a user search without a field', { type: 'drawerSearchUsers', id: 'file:///a', text: 'jhon' }],
+    ['a user search in Labels', { type: 'drawerSearchUsers', id: 'file:///a', field: 'labels', text: 'jhon' }],
+    ['a user search with an extra key', { type: 'drawerSearchUsers', id: 'file:///a', field: 'reviewers', text: 'jhon', host: 'git.acme.com' }],
+    ['a user search text over 256 characters', { type: 'drawerSearchUsers', id: 'file:///a', field: 'reviewers', text: 'j'.repeat(257) }],
     ['more than 10 000 ids', { type: 'setSelection', ids: Array.from({ length: 10_001 }, (_, i) => `file:///r${i}`) }],
   ])('rejects %s', (_name, message) => {
     expect(parseViewMessage(message)).toBeUndefined();

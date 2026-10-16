@@ -5,13 +5,15 @@ import { Fragment } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { recentOffer } from '../src/mr/recent';
 import type { SaveTarget } from '../src/mr/saveDefaults';
-import { userName } from '../src/mr/users';
+import { userName, type UserAnswer, type UserField } from '../src/mr/users';
 import type { DrawerData, DrawerEdits } from '../src/shared/drawer';
 import type { ViewMessage } from '../src/shared/protocol';
+import { UserPicker, type UserSearchProps } from './UserPicker';
 
 interface Props {
   data: DrawerData;
-  users: string[];
+  /** The latest user search answer of each field */
+  users: Partial<Record<UserField, UserAnswer>>;
   post(message: ViewMessage): void;
   onClose(): void;
 }
@@ -129,10 +131,13 @@ export function Drawer({ data, users, post, onClose }: Props) {
           key={key}
           name={key}
           values={value(key)}
-          suggestions={key === 'labels' ? [] : users}
           recent={key === 'reviewers' || key === 'labels' ? data.recent[key] : []}
           onChange={(values) => edit({ [key]: values })}
-          onSearch={(text) => key !== 'labels' && post({ type: 'drawerSearchUsers', id: data.id, text })}
+          search={
+            key === 'labels'
+              ? undefined
+              : { answer: users[key], onSearch: (text) => post({ type: 'drawerSearchUsers', id: data.id, field: key, text }) }
+          }
         />
       ))}
       <div class="checks">
@@ -201,11 +206,11 @@ export function Drawer({ data, users, post, onClose }: Props) {
 export function Chips(props: {
   name: ListKey;
   values: string[];
-  suggestions: string[];
   /** Recent values of the host, offered first (mr-profiles: Recent reviewers and labels) */
   recent?: string[];
   onChange(values: string[]): void;
-  onSearch(text: string): void;
+  /** The user search of Reviewers and Assignees; without it the field takes typed text only */
+  search?: UserSearchProps;
 }) {
   const [text, setText] = useState('');
   const label = props.name.charAt(0).toUpperCase() + props.name.slice(1);
@@ -214,8 +219,8 @@ export function Chips(props: {
     if (v && !props.values.includes(v)) props.onChange([...props.values, v]);
     setText('');
   };
-  const listId = `suggest-${props.name}`;
   const offer = recentOffer(props.recent ?? [], props.values);
+  const userField = props.name === 'labels' ? undefined : props.name;
   return (
     <div class="field chips-field" data-chips={props.name}>
       <span>{label}</span>
@@ -228,31 +233,23 @@ export function Chips(props: {
             </button>
           </span>
         ))}
-        <input
-          type="text"
-          value={text}
-          placeholder="+ add…"
-          aria-label={`Add to ${props.name}`}
-          list={props.suggestions.length ? listId : undefined}
-          onInput={(e) => {
-            const next = (e.currentTarget as HTMLInputElement).value;
-            setText(next);
-            props.onSearch(next);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !(e.ctrlKey || e.metaKey)) {
-              e.preventDefault();
-              e.stopPropagation();
-              add(text);
-            }
-          }}
-        />
-        {props.suggestions.length > 0 && (
-          <datalist id={listId}>
-            {props.suggestions.map((s) => (
-              <option key={s} value={s} />
-            ))}
-          </datalist>
+        {userField && props.search ? (
+          <UserPicker name={userField} values={props.values} onAdd={add} answer={props.search.answer} onSearch={props.search.onSearch} />
+        ) : (
+          <input
+            type="text"
+            value={text}
+            placeholder="+ add…"
+            aria-label={`Add to ${props.name}`}
+            onInput={(e) => setText((e.currentTarget as HTMLInputElement).value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !(e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                e.stopPropagation();
+                add(text);
+              }
+            }}
+          />
         )}
       </span>
       {offer.length > 0 && (

@@ -65,7 +65,9 @@ The protocol changes:
   and the same shape as `profilesUsers` without `id`. `text` is the search text after `searchText()`.
 
 The view keeps `{ text, answer }` per field and renders an answer only when `answer.text === searchText(field text)`.
-An answer for `jho` that arrives after the user typed `jhon` is dropped (spec *Answer for older text*). The view's own
+An answer for `jho` that arrives after the user typed `jhon` is dropped (spec *Answer for older text*). The view
+keeps one answer per field, so an older answer arriving *after* the newer one would replace it. `UserSearch` therefore
+also remembers the latest text per key and posts only the answer for that text. The view's own
 "posted but no matching answer yet" state renders `Searching…`. Request ids and `AbortController` would also work, but
 text equality needs no extra state in the host, and an aborted GitLab request still counts against its rate limit.
 

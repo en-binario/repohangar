@@ -17,6 +17,7 @@ import { nameClickAction, type GraphVariant } from '../src/shared/graph';
 import type { ChipId, FirstRunButton, FirstRunPanel, GroupingMode, RowAction, RowData, RowDetails } from '../src/shared/model';
 import type { HostMessage, Snapshot, ViewMessage } from '../src/shared/protocol';
 import type { DrawerData } from '../src/shared/drawer';
+import type { UserAnswer, UserField } from '../src/mr/users';
 import { compareState, openReviewLabel, reviewDetails, rowReviewCell } from '../src/shared/review';
 import { detailsButtons } from '../src/shared/rowMenu';
 import { layout, rowKey, type GridItem } from './layout';
@@ -112,7 +113,8 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
   const [revealId, setRevealId] = useState<string | null>(null);
   /** The Create MR drawer and the user suggestions for it (mr-creation: Create MR drawer) */
   const [drawer, setDrawer] = useState<DrawerData | null>(null);
-  const [drawerUsers, setDrawerUsers] = useState<string[]>([]);
+  /** The latest user search answer per field, for the drawer of repository `id` */
+  const [drawerUsers, setDrawerUsers] = useState<{ id: string; answers: Partial<Record<UserField, UserAnswer>> }>({ id: '', answers: {} });
   /** The result panel of the last batch (batch-operations: Batch result panel) */
   const [batchPanel, setBatchPanel] = useState<BatchPanel | null>(null);
   const focusRequested = useRef(false);
@@ -146,9 +148,9 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
         setRevealId(message.id);
       } else if (message.type === 'drawer') {
         setDrawer(message.data);
-        setDrawerUsers([]);
       } else if (message.type === 'drawerUsers') {
-        setDrawerUsers(message.users);
+        const { id, answer } = message;
+        setDrawerUsers((current) => ({ id, answers: { ...(current.id === id ? current.answers : {}), [answer.field]: answer } }));
       } else if (message.type === 'batchResult') {
         setBatchPanel(message.panel);
       } else if (message.type === 'batchResultLine') {
@@ -584,7 +586,7 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
         <span class="hints">{`${ACTION_HINTS} · ${KEY_HINTS}`}</span>
       </div>
 
-      {drawer && <Drawer data={drawer} users={drawerUsers} post={(m) => api.postMessage(m)} onClose={() => setDrawer(null)} />}
+      {drawer && <Drawer data={drawer} users={drawerUsers.id === drawer.id ? drawerUsers.answers : {}} post={(m) => api.postMessage(m)} onClose={() => setDrawer(null)} />}
 
       {helpOpen && (
         <div class="help" role="dialog" aria-label="Keyboard shortcuts">

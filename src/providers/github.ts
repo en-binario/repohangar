@@ -22,9 +22,13 @@ import {
   type ReviewResult,
   type Selection,
   type UserInfo,
+  type UserMatch,
 } from './provider';
 import { notFoundNotice } from '../mr/users';
 import { selectionSet, valueAt, withoutField } from './selection';
+
+const ASSIGNABLE_USERS =
+  'query($owner: String!, $name: String!, $q: String!) { repository(owner: $owner, name: $name) { assignableUsers(query: $q, first: 10) { nodes { login name } } } }';
 
 const ROLLUP = 'commits(last: 1).nodes.commit.statusCheckRollup.state';
 
@@ -242,10 +246,22 @@ export class GitHubProvider implements HostingProvider {
     await this.http.request({ method: 'PATCH', url: `${this.repoUrl(projectPath)}/pulls/${number}`, credential, headers: this.headers(), body: { body: description } });
   }
 
-  async searchUsers(projectPath: string, text: string, credential: Credential): Promise<string[]> {
-    const answer = await this.http.request<{ login?: unknown }[]>({ url: `${this.repoUrl(projectPath)}/assignees?per_page=100`, credential, headers: this.headers() });
-    const needle = text.toLowerCase();
-    return Array.isArray(answer.json) ? answer.json.map((u) => String(u.login)).filter((l) => l.toLowerCase().includes(needle)) : [];
+  /** One GraphQL `assignableUsers(query:)`, which matches the login and the name (add-user-picker design D-3). */
+  async searchUsers(projectPath: string, text: string, credential: Credential): Promise<UserMatch[]> {
+    const [owner, name] = splitProject(projectPath);
+    type Answer = { data?: { repository?: { assignableUsers?: { nodes?: ({ login?: unknown; name?: unknown } | null)[] } } | null }; errors?: unknown };
+    const answer = await this.http.request<Answer>({
+      method: 'POST',
+      url: this.graphqlUrl,
+      credential,
+      body: { query: ASSIGNABLE_USERS, variables: { owner, name, q: text } },
+    });
+    if (!answer.json?.data && answer.json?.errors) throw new HttpError('status', graphqlMessage(answer.json.errors), answer.status);
+    const nodes = answer.json?.data?.repository?.assignableUsers?.nodes ?? [];
+    return nodes
+      .filter((u): u is { login: string; name?: unknown } => typeof u?.login === 'string')
+      .slice(0, 10)
+      .map((u) => ({ username: u.login, name: typeof u.name === 'string' ? u.name : '' }));
   }
 }
 
