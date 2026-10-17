@@ -1,0 +1,34 @@
+## 1. Sort logic
+
+- [ ] 1.1 Add `src/shared/sort.ts` (no `vscode` import): `SortColumn`, `Sort`, `DEFAULT_SORT`, `FIRST_DIRECTION`, `nextSort(current, clicked)`, `sortKey(row, column, now)` built on the cell functions the grid renders, and `compareRows(sort, now)` with the repository-name tie-break that is never reversed (design D-1). Verify `npm run typecheck`
+- [ ] 1.2 `Sort cycle matrix` (dashboard: Sort by column) → Vitest `it.each` over `nextSort` in `test/unit/sort.test.ts`, one case per R1–R11, asserting the sort after and the header arrow text; R12 is covered by task 4.3
+- [ ] 1.3 `Sort order matrix` (dashboard: Sort by column) → Vitest `it.each` over `compareRows` in `test/unit/sort.test.ts` with the five `backend` rows of the scenario built in `test/unit/rows.ts`, one case per R1–R12, asserting the repository names top to bottom. Add one case for an unknown pipeline state ranking with "a review with no pipeline or checks" (design, Risks)
+- [ ] 1.4 Pass `sort` into `layout` (`webview/layout.ts`) in place of the fixed `compareNames` order, and give each group item `ids` (the rows it counts, also when collapsed) plus a `matchingIds` result for the select-all header (design D-3). Add `test/unit/layout.test.ts` cases for *Groups keep their order under a sort* and for `ids` of a collapsed group
+
+## 2. Sort remembered per workspace
+
+- [ ] 2.1 `ViewState` gains `sort` and `chooseSort(sort)` over `repohangar.view.sort`, reading an invalid value as `DEFAULT_SORT` (`src/ui/viewState.ts`); the snapshot carries `sort`; `src/shared/protocol.ts` adds `setSort { column, direction }` with new field kinds; `src/ui/dashboard.ts` handles it and posts a snapshot (design D-2). Add `test/unit/protocol.test.ts` cases that reject an unknown column, an unknown direction and an extra key
+- [ ] 2.2 *Sort kept across a reload and a reopen* and *Sort kept when the grouping changes* (dashboard: Sort remembered per workspace) → Playwright cases in `test/ui/restore.spec.ts`, asserting the header text `Fetched ▼` after the reload and after `repohangar.open`, and for the second that the workspace `settings.json` is unchanged after picking `None`
+
+## 3. Selection
+
+- [ ] 3.1 Add `selectionState(covered, selected)` (`'none' | 'some' | 'all' | 'empty'`) and `applyToggle(covered, selected)` next to `layout`, and a pure `rangeIds(items, anchor, clicked)` returning the shown row ids between two rows or `null` when the anchor is not shown (design D-3, D-5). Verify `npm run typecheck`
+- [ ] 3.2 `Group checkbox matrix` (dashboard: Group selection) → Vitest `it.each` over `layout` + `selectionState` + `applyToggle` in `test/unit/selection.test.ts`, one case per R1–R6, asserting the checkbox state before and after and the selected ids
+- [ ] 3.3 `Select-all checkbox matrix` (dashboard: Select all matching rows from the column header) → Vitest `it.each` in `test/unit/selection.test.ts` over `matchingIds` + `selectionState` + `applyToggle`, one case per R1–R7, asserting the checkbox state (`empty` for R6) and the selected ids
+- [ ] 3.4 `Range selection matrix` (dashboard: Range selection with Shift+click) → Vitest `it.each` over `rangeIds` and the anchor rules in `test/unit/selection.test.ts`, one case per R1–R7, asserting the selected ids and the anchor after
+- [ ] 3.5 Webview: the group header row becomes a check cell and a name cell with `aria-colspan={6}` (design D-4); the check cells of group headers and of the column header render `selectionState` with `checked`, `indeterminate`, `aria-checked="mixed"`, `disabled` and the accessible names `Select group <group>` and `Select all matching repositories`; `Space` on a group header toggles its rows; the row checkbox records the anchor and handles Shift+click with `preventDefault()` on Shift+`mousedown`; `KEY_HELP` lists `Space` with `Select or clear the focused row, or every row of the focused group` (`webview/App.tsx`, `webview/styles.css`). Verify `npm run typecheck`
+- [ ] 3.6 *Group checkbox matrix* R1, R2, R4 and R5, *Group checkbox leaves other groups alone*, *Group name click still collapses*, *Selection changes update the group checkbox* and *Select-all checkbox matrix* R2, R4 and R6 (dashboard) → Playwright cases in `test/ui/grid.spec.ts`, asserting the checkbox `aria-checked`, the header text, the footer text and the `setSelection` ids; plus one Shift+click case for *Range selection matrix* R4 asserting the selected rows and that no text is selected in the page
+
+## 4. Sorting in the webview
+
+- [ ] 4.1 Column headers: each sortable `columnheader` holds a `tabIndex={-1}` button `Label ▲` / `Label ▼` with `aria-sort` on the sorted column only; a click applies `nextSort` at once and posts `setSort`; the webview keeps focus and selection by id across re-sorts (design D-6, D-7) (`webview/App.tsx`, `webview/styles.css`). Verify `npm run typecheck`
+- [ ] 4.2 `S` moves focus to the sorted column header; a header-row `keydown` handler takes `←` `→` `Enter` `Space` `↓` `Esc` and stops propagation; `KEY_HELP` lists `S` with `Sort by a column (then ← → and Enter)` (design D-6)
+- [ ] 4.3 `Header key matrix` (dashboard: Sort from the keyboard) → Playwright cases in `test/ui/keys.spec.ts`, one per R1–R11, asserting the focused element, the header text, the filter text and the footer; plus `Sort cycle matrix` R12 (a click on the selection column header leaves `Sync ▼`)
+- [ ] 4.4 *Column headers and default row order*, *Groups keep their order under a sort*, *Sorting keeps selection, filter and focus* and *A row moves when its sort key changes* (dashboard: Grid columns and row order, Sort by column) → Playwright cases in `test/ui/grid.spec.ts`; replace the case `shows the column headers and orders rows by name` with the first one (header `Repository ▲`, `aria-sort="ascending"`); the last one fetches into `ledger` from the bare remote fixture and asserts the new order within 1 s and the focused row
+
+## 5. Specs, docs and release notes
+
+- [ ] 5.1 Edit the Purpose of `openspec/specs/dashboard/spec.md` directly, in the implementation commit: the non-goal "Sorting by column and choosing columns: no capability does yet." becomes "Choosing columns: no capability does yet." (a delta cannot change a Purpose). Verify `openspec validate --specs --strict`
+- [ ] 5.2 README: the dashboard paragraph mentions the group and select-all checkboxes, Shift+click and sorting by a column header or `S`
+- [ ] 5.3 Add an `Added` entry under `## Unreleased` in `CHANGELOG.md` (docs/versioning.md) for selecting a whole group or every matching row with a checkbox, Shift+click ranges, and sorting by column (click or `S`), remembered per workspace. Verify it starts with `- **Added`
+- [ ] 5.4 Run `npm run typecheck`, `npm test`, `npx playwright test test/ui/grid.spec.ts test/ui/keys.spec.ts test/ui/restore.spec.ts` and `openspec validate add-group-selection-and-sorting --strict`; all pass
