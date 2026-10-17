@@ -361,6 +361,10 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
         await this.viewState.toggleGroup(message.group);
         this.postSnapshot();
         return;
+      case 'setSort':
+        await this.viewState.chooseSort({ column: message.column, direction: message.direction });
+        this.postSnapshot();
+        return;
       case 'loadDetails': {
         const details = await this.registry.loadDetails(message.id);
         if (!details) return;
@@ -450,6 +454,7 @@ export class DashboardController implements vscode.Disposable, vscode.WebviewPan
       rows: this.store.all(),
       grouping: this.viewState.grouping,
       collapsed: this.viewState.collapsed,
+      sort: this.viewState.sort,
       staleFetchHours: vscode.workspace.getConfiguration('repohangar').get<number>('staleFetchHours', 1),
       platform: process.platform,
       graph: this.graph.variant,

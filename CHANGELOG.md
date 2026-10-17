@@ -186,3 +186,10 @@ All notable changes to RepoHangar are recorded here. Entries are written and cla
   (`repohangar.mr.quickCreate` now defaults to `"drawer"`), and `m` on a selection asks once before creating. Set
   `"direct"` to create with no dialog as before. **[Create MR]** now follows the setting too, so with `"confirm"` it
   shows the quick input.
+- **Added — select a group and sort by column.** A checkbox on each group header selects every repository of the group
+  that the filter shows, or clears them (`−` when only some are selected); `Space` on a group header does the same, and
+  the checkbox above the rows selects every repository the filter shows. Shift+click a row's checkbox to select the
+  rows from the last one clicked. A click on a column header sorts the rows within each group: the first click puts
+  what needs attention on top (most behind, most changes, oldest fetch, failed pipeline; A→Z for names), a second click
+  reverses it and a third returns to repository name A→Z. `S` sorts from the keyboard. The sort is remembered for the
+  workspace.

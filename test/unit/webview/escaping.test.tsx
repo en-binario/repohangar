@@ -31,6 +31,7 @@ describe('dashboard webview escaping', () => {
       rows: [row({ id: 'file:///weird', name: markup, path: `/home/dev/code/${markup}` })],
       grouping: 'none',
       collapsed: [],
+      sort: { column: 'repository', direction: 'asc' },
       staleFetchHours: 1,
       platform: 'win32',
       graph: 'gitGraph',

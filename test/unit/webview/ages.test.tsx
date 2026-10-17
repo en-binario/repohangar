@@ -23,6 +23,7 @@ describe('dashboard webview ages', () => {
       rows: [row({ name: 'ledger', lastFetch: Date.now() - 59 * 60_000 })],
       grouping: 'none',
       collapsed: [],
+      sort: { column: 'repository', direction: 'asc' },
       staleFetchHours: 1,
       platform: 'win32',
       graph: 'gitGraph',

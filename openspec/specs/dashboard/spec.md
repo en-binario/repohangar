@@ -15,7 +15,7 @@ repository is visible in one view.
   `explorer-reveal`.
 - The MR / PR column, the Has MR and Pipeline failed chips, and the merge request keys (`m` `M` `o`), owned by
   `hosting-providers` and `mr-creation`.
-- Sorting by column and choosing columns: no capability does yet.
+- Choosing columns: no capability does yet.
 
 ## Requirements
 

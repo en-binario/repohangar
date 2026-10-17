@@ -16,6 +16,7 @@ import {
   type RowData,
   type RowDetails,
 } from './model';
+import { SORT_COLUMNS, SORT_DIRECTIONS, type SortColumn, type SortDirection } from './sort';
 
 export interface Snapshot {
   type: 'snapshot';
@@ -23,6 +24,8 @@ export interface Snapshot {
   rows: RowData[];
   grouping: GroupingMode;
   collapsed: string[];
+  /** The row order chosen for the workspace (dashboard: Sort by column) */
+  sort: { column: SortColumn; direction: SortDirection };
   staleFetchHours: number;
   /** `process.platform` of the extension host */
   platform: string;
@@ -56,6 +59,8 @@ export type ViewMessage =
   | { type: 'firstPaint'; rows: number }
   | { type: 'setGrouping'; mode: GroupingMode }
   | { type: 'toggleGroup'; group: string }
+  /** A click on a column header or `Enter` on it (dashboard: Sort by column, Sort remembered per workspace) */
+  | { type: 'setSort'; column: SortColumn; direction: SortDirection }
   | { type: 'loadDetails'; id: string }
   | { type: 'openSettings' }
   | { type: 'runAction'; id: string; action: RowAction }
@@ -98,13 +103,27 @@ export const BATCH_ACTIONS: readonly BatchAction[] = ['fetch', 'pullFf'];
 const MAX_STRING = 4096;
 const MAX_IDS = 10_000;
 
-type Field = 'string' | 'count' | 'grouping' | 'rowAction' | 'batchAction' | 'ids' | 'edits' | 'text' | 'fix' | 'saveTarget' | 'userField';
+type Field =
+  | 'string'
+  | 'count'
+  | 'grouping'
+  | 'sortColumn'
+  | 'sortDirection'
+  | 'rowAction'
+  | 'batchAction'
+  | 'ids'
+  | 'edits'
+  | 'text'
+  | 'fix'
+  | 'saveTarget'
+  | 'userField';
 
 const SHAPES: Record<ViewMessage['type'], Record<string, Field>> = {
   ready: {},
   firstPaint: { rows: 'count' },
   setGrouping: { mode: 'grouping' },
   toggleGroup: { group: 'string' },
+  setSort: { column: 'sortColumn', direction: 'sortDirection' },
   loadDetails: { id: 'string' },
   openSettings: {},
   runAction: { id: 'string', action: 'rowAction' },
@@ -138,6 +157,10 @@ function fieldValid(kind: Field, value: unknown): boolean {
       return typeof value === 'number' && Number.isInteger(value) && value >= 0;
     case 'grouping':
       return typeof value === 'string' && (GROUPING_MODES as readonly string[]).includes(value);
+    case 'sortColumn':
+      return typeof value === 'string' && (SORT_COLUMNS as readonly string[]).includes(value);
+    case 'sortDirection':
+      return typeof value === 'string' && (SORT_DIRECTIONS as readonly string[]).includes(value);
     case 'rowAction':
       return typeof value === 'string' && (ROW_ACTIONS as readonly string[]).includes(value);
     case 'batchAction':

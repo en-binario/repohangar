@@ -93,7 +93,7 @@ test('Show a filtered-out repository: filter cleared, All active, backend expand
   await frame.locator('input.filter').fill('bill');
   await frame.locator('[data-chip="ahead"]').click();
   const backend = frame.locator('.row.group', { hasText: 'backend' });
-  await backend.locator('.cell').click();
+  await backend.locator('.group-name').click();
   await expect(backend).toHaveText(/^▸ backend/);
   await expect(row(frame, 'ledger')).toHaveCount(0);
 

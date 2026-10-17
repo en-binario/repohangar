@@ -23,14 +23,23 @@ extension opened:
 
 Rows update as soon as the Git extension sees a change; RepoHangar never polls.
 
+Click a column header to sort the rows within each group: the first click puts what needs attention on top (most
+behind, most changes, oldest fetch, failed pipeline; A→Z for names), a second click reverses it, and a third click
+goes back to repository name A→Z. The sort is remembered for the workspace.
+
+The checkbox on a group header selects every repository of the group that the filter shows (`−` when only some are
+selected), and the checkbox above the rows does the same for every repository the filter shows. Shift+click a row's
+checkbox to select every row from the last one you clicked.
+
 ### Keys
 
 | Key | Action |
 |---|---|
 | `↑` `↓` / `j` `k` | Move |
-| `Space` | Toggle selection |
+| `Space` | Toggle selection of the focused row, or of every row of the focused group |
 | `Ctrl+A` | Select all shown rows |
 | `/` | Filter by name, branch or group |
+| `S` | Sort: focus the column headers, then `←` `→` and `Enter`; `↓` or `Esc` returns to the rows |
 | `Enter` | Row details, or collapse a group |
 | `1` – `7` | Chips All, Dirty, Behind, Ahead, Has MR, Pipeline ✗, No upstream |
 | `Esc` | Clear the filter, then the selection |

@@ -20,7 +20,9 @@ import type { DrawerData } from '../src/shared/drawer';
 import type { UserAnswer, UserField } from '../src/mr/users';
 import { compareState, openReviewLabel, reviewDetails, rowReviewCell } from '../src/shared/review';
 import { detailsButtons } from '../src/shared/rowMenu';
-import { layout, rowKey, type GridItem } from './layout';
+import { DEFAULT_SORT, headerText, nextSort, SORT_COLUMNS, type Sort, type SortColumn } from '../src/shared/sort';
+import { layout, matchingIds, rowKey, type GridItem } from './layout';
+import { applyToggle, checkboxClick, selectionState, type SelectionState } from './selection';
 import { BatchResult } from './BatchResult';
 import { Drawer } from './Drawer';
 import { BatchButtons, HoverActions, RowMenu, syncClickAction, type MenuPoint } from './RowActions';
@@ -51,9 +53,10 @@ export const KEY_HINTS = '↑↓ move · Space select · / filter · ⏎ details
 
 export const KEY_HELP: readonly [string, string][] = [
   ['↑ ↓ / j k', 'Move between rows and group headers'],
-  ['Space', 'Select or clear the focused row'],
+  ['Space', 'Select or clear the focused row, or every row of the focused group'],
   ['Ctrl+A', 'Select every shown row'],
   ['/', 'Filter by repository, branch or group'],
+  ['S', 'Sort by a column (then ← → and Enter)'],
   ['Enter', 'Open or close row details; collapse or expand a group'],
   ['1', 'All'],
   ['2', 'Dirty'],
@@ -92,6 +95,26 @@ function readView(api: VsCodeApi): PersistedView {
   return { ...EMPTY_VIEW, ...(saved ?? {}) };
 }
 
+/** A selection checkbox that can be mixed (dashboard: Group selection, Select all matching rows …). */
+function TriCheckbox(props: { state: SelectionState; label: string; onToggle(): void }) {
+  const { state } = props;
+  return (
+    <input
+      type="checkbox"
+      tabIndex={-1}
+      checked={state === 'all'}
+      indeterminate={state === 'some'}
+      disabled={state === 'empty'}
+      aria-checked={state === 'some' ? 'mixed' : state === 'all' ? 'true' : 'false'}
+      aria-label={props.label}
+      onClick={(e) => {
+        e.stopPropagation();
+        props.onToggle();
+      }}
+    />
+  );
+}
+
 function Symbol({ cell }: { cell: CellText }) {
   return (
     <span class="symbol" role="img" aria-label={cell.label} title={cell.label}>
@@ -117,6 +140,12 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
   const [drawerUsers, setDrawerUsers] = useState<{ id: string; answers: Partial<Record<UserField, UserAnswer>> }>({ id: '', answers: {} });
   /** The result panel of the last batch (batch-operations: Batch result panel) */
   const [batchPanel, setBatchPanel] = useState<BatchPanel | null>(null);
+  /** The row order, applied at once on a header click and confirmed by the next snapshot (design D-2) */
+  const [sort, setSort] = useState<Sort>(DEFAULT_SORT);
+  /** The Shift+click anchor: the last row toggled by a plain checkbox click or `Space` (design D-5) */
+  const anchor = useRef<string | null>(null);
+  /** The grid item that had the focus before `S` moved it to the column headers */
+  const headerReturn = useRef<string | null>(null);
   const focusRequested = useRef(false);
   const filterRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -128,6 +157,7 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
       const message = event.data;
       if (message.type === 'snapshot') {
         setSnapshot(message);
+        setSort(message.sort);
         setRows(new Map(message.rows.map((r) => [r.id, r])));
       } else if (message.type === 'patch') {
         setRows((current) => {
@@ -189,8 +219,8 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
 
   const allRows = useMemo(() => [...rows.values()], [rows]);
   const items = useMemo(
-    () => (snapshot ? layout(allRows, snapshot.grouping, snapshot.collapsed, view.filter, view.chips) : []),
-    [allRows, snapshot, view.filter, view.chips],
+    () => (snapshot ? layout(allRows, snapshot.grouping, snapshot.collapsed, view.filter, view.chips, sort, now) : []),
+    [allRows, snapshot, view.filter, view.chips, sort, now],
   );
 
   // Details that are open after a reload or a patch need their data again.
@@ -207,8 +237,21 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
     if (focusKey?.startsWith('row:')) api.postMessage({ type: 'setFocus', id: focusKey.slice('row:'.length) });
   }, [api, focusKey]);
 
+  // Whether keyboard focus was last on a grid row or group header (not the column headers or the toolbar).
+  const gridFocused = useRef(false);
+  useEffect(() => {
+    const onFocusIn = (e: FocusEvent) => {
+      const target = e.target as HTMLElement | null;
+      gridFocused.current = !!target?.closest('[data-key]') && !!gridRef.current?.contains(target);
+    };
+    document.addEventListener('focusin', onFocusIn);
+    return () => document.removeEventListener('focusin', onFocusIn);
+  }, []);
+
   useLayoutEffect(() => {
-    if (!focusRequested.current || !focusKey) return;
+    // A re-sort can move the focused row in the DOM, which drops the focus to the body: give it back (design D-7).
+    const lost = gridFocused.current && document.activeElement === document.body;
+    if ((!focusRequested.current && !lost) || !focusKey) return;
     focusRequested.current = false;
     gridRef.current?.querySelector<HTMLElement>(`[data-key="${CSS.escape(focusKey)}"] [data-focus]`)?.focus();
   });
@@ -235,7 +278,7 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
     if (revealId === null || !snapshot || !rows.has(revealId)) return;
     const key = rowKey(revealId);
     const inGrid = (filter: string, chips: ChipId[]) =>
-      layout(allRows, snapshot.grouping, snapshot.collapsed, filter, chips).some((i) => i.key === key);
+      layout(allRows, snapshot.grouping, snapshot.collapsed, filter, chips, sort, now).some((i) => i.key === key);
     if (!inGrid(view.filter, view.chips)) {
       if (!inGrid('', [])) return;
       update({ filter: '', chips: [] });
@@ -251,8 +294,49 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
   };
 
   // From the latest state: two quick presses of Space can arrive before a render.
-  const toggleSelected = (id: string) =>
+  const toggleSelected = (id: string) => {
+    anchor.current = id;
     setView((v) => ({ ...v, selected: v.selected.includes(id) ? v.selected.filter((s) => s !== id) : [...v.selected, id] }));
+  };
+
+  /** A click on a row's checkbox; with Shift, the range from the anchor (dashboard: Range selection with Shift+click). */
+  const clickCheckbox = (id: string, shift: boolean) =>
+    setView((v) => {
+      const result = checkboxClick(items, v.selected, anchor.current, id, shift);
+      anchor.current = result.anchor;
+      return { ...v, selected: result.selected };
+    });
+
+  /** The group checkbox, `Space` on a group header and the select-all checkbox (design D-3). */
+  const toggleCovered = (covered: readonly string[]) => setView((v) => ({ ...v, selected: applyToggle(covered, v.selected) }));
+
+  /** A click on a column header, or `Enter` / `Space` on it (dashboard: Sort by column). */
+  const sortBy = (column: SortColumn) => {
+    const next = nextSort(sort, column);
+    setSort(next);
+    api.postMessage({ type: 'setSort', column: next.column, direction: next.direction });
+  };
+
+  const focusSortHeader = (column: SortColumn) =>
+    gridRef.current?.querySelector<HTMLElement>(`.row.header [data-sort="${column}"]`)?.focus();
+
+  /** `←` `→` between the column headers; `↓` or `Esc` back to the grid (dashboard: Sort from the keyboard). */
+  const onHeaderKey = (e: KeyboardEvent) => {
+    const column = (e.target as HTMLElement | null)?.closest<HTMLElement>('[data-sort]')?.dataset.sort as SortColumn | undefined;
+    if (!column) return;
+    const index = SORT_COLUMNS.indexOf(column);
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      e.stopPropagation();
+      const next = SORT_COLUMNS[index + (e.key === 'ArrowLeft' ? -1 : 1)];
+      if (next) focusSortHeader(next);
+    } else if (e.key === 'ArrowDown' || e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      const back = headerReturn.current;
+      moveFocus(back !== null && items.some((i) => i.key === back) ? back : (items[0]?.key ?? null));
+    }
+  };
 
   const toggleExpanded = (id: string) => {
     if (view.expanded.includes(id)) return update({ expanded: view.expanded.filter((e) => e !== id) });
@@ -293,6 +377,7 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
     if (!item) return;
     if (item.kind === 'group') {
       if (key === 'Enter') toggleGroup(item.name);
+      else toggleCovered(item.ids);
     } else if (key === 'Enter') {
       toggleExpanded(item.row.id);
     } else {
@@ -369,6 +454,11 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
         e.preventDefault();
         filterRef.current?.focus();
         return;
+      case 'S':
+        e.preventDefault();
+        headerReturn.current = focusKey;
+        focusSortHeader(sort.column);
+        return;
       case 'Escape':
         e.preventDefault();
         if (view.filter || view.chips.length > 0) return update({ filter: '', chips: [] });
@@ -393,7 +483,7 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
       e.preventDefault();
       e.stopPropagation();
       update({ filter: '' });
-      const first = layout(allRows, snapshot?.grouping ?? 'none', snapshot?.collapsed ?? [], '', view.chips).find(
+      const first = layout(allRows, snapshot?.grouping ?? 'none', snapshot?.collapsed ?? [], '', view.chips, sort, now).find(
         (i) => i.kind === 'row',
       );
       moveFocus(first?.key ?? null);
@@ -416,7 +506,8 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
         return;
       }
       const target = e.target as HTMLElement | null;
-      if (target?.closest('input[type="text"], input[type="search"], select, [role="menu"], .batch-result')) return;
+      // A focused column header takes its own keys; Enter and Space click its button (onHeaderKey).
+      if (target?.closest('input[type="text"], input[type="search"], select, [role="menu"], .batch-result, .row.header')) return;
       onGridKey(e);
     };
     document.addEventListener('keydown', onKey);
@@ -451,6 +542,7 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
   const memberships = allRows.map(chipMembership);
   const chipCount = (id: ChipId | 'all') => (id === 'all' ? allRows.length : memberships.filter((m) => m[id]).length);
   const chipActive = (id: ChipId | 'all') => (id === 'all' ? view.chips.length === 0 : view.chips.includes(id));
+  const matching = matchingIds(allRows, view.filter, view.chips);
 
   return (
     <div class={drawer ? 'dashboard with-drawer' : 'dashboard'} data-graph={snapshot.graph} data-name-click={snapshot.nameClick} data-first-run-pending={snapshot.firstRunPending}>
@@ -520,22 +612,41 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
       )}
 
       <div class="grid" role="grid" aria-label="Repositories" aria-rowcount={items.length + 1} ref={gridRef}>
-        <div class="row header" role="row">
-          <span class="cell check" role="columnheader" aria-label="Selected" />
-          <span class="cell" role="columnheader">Repository</span>
-          <span class="cell" role="columnheader">Branch</span>
-          <span class="cell" role="columnheader">Sync</span>
-          <span class="cell" role="columnheader">Changes</span>
-          <span class="cell" role="columnheader">Fetched</span>
-          <span class="cell" role="columnheader">MR / PR</span>
+        <div class="row header" role="row" onKeyDown={onHeaderKey}>
+          <span class="cell check" role="columnheader" aria-label="Selected">
+            <TriCheckbox
+              state={selectionState(matching, view.selected)}
+              label="Select all matching repositories"
+              onToggle={() => toggleCovered(matching)}
+            />
+          </span>
+          {SORT_COLUMNS.map((column) => (
+            <span
+              key={column}
+              class="cell"
+              role="columnheader"
+              aria-sort={sort.column === column ? (sort.direction === 'asc' ? 'ascending' : 'descending') : undefined}
+            >
+              <button type="button" class="sort" data-sort={column} tabIndex={-1} onClick={() => sortBy(column)}>
+                {headerText(column, sort)}
+              </button>
+            </span>
+          ))}
         </div>
         {items.map((item) =>
           item.kind === 'group' ? (
             <div key={item.key} data-key={item.key} class="row group" role="row" aria-expanded={!item.collapsed}>
+              <span class="cell check" role="gridcell">
+                <TriCheckbox
+                  state={selectionState(item.ids, view.selected)}
+                  label={`Select group ${item.name}`}
+                  onToggle={() => toggleCovered(item.ids)}
+                />
+              </span>
               <span
-                class="cell"
+                class="cell group-name"
                 role="gridcell"
-                aria-colspan={7}
+                aria-colspan={6}
                 data-focus
                 tabIndex={item.key === focusKey ? 0 : -1}
                 onClick={() => {
@@ -563,7 +674,7 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
               menuOpen={menu?.id === item.row.id}
               menuAt={menu?.id === item.row.id ? menu.at : undefined}
               onFocus={() => update({ focus: item.key })}
-              onToggleSelected={() => toggleSelected(item.row.id)}
+              onToggleSelected={(shift) => clickCheckbox(item.row.id, shift)}
               onAction={(action) => runAction(item.row.id, action)}
               onMenu={(at) => {
                 update({ focus: item.key });
@@ -627,7 +738,8 @@ interface RowViewProps {
   /** Where a right-click opened the menu; none for the `⋯` button and the `.` key */
   menuAt: MenuPoint | undefined;
   onFocus(): void;
-  onToggleSelected(): void;
+  /** A click on the row's checkbox; `shift` selects the range from the anchor */
+  onToggleSelected(shift: boolean): void;
   onAction(action: RowAction): void;
   onMenu(at?: MenuPoint): void;
   onMenuChoose(action: RowAction): void;
@@ -666,9 +778,11 @@ function RowView(props: RowViewProps) {
             tabIndex={-1}
             checked={props.selected}
             aria-label={`Select ${row.name}`}
+            // Shift+click would otherwise select the text between the anchor and this row.
+            onMouseDown={(e) => e.shiftKey && e.preventDefault()}
             onClick={(e) => {
               e.stopPropagation();
-              props.onToggleSelected();
+              props.onToggleSelected(e.shiftKey);
             }}
           />
         </span>

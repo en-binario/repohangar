@@ -23,8 +23,11 @@ async function chipPressed(id: string): Promise<string | null> {
   return frame.locator(`[data-chip="${id}"]`).getAttribute('aria-pressed');
 }
 
-/** Clears filter, chips, selection and details, then focuses a row. */
+/** Restores the default sort, then clears filter, chips, selection and details, then focuses a row. */
 async function reset(focus = 'billing-api'): Promise<void> {
+  for (let i = 0; i < 3 && (await frame.locator('[data-sort="repository"]').textContent()) !== 'Repository ▲'; i++) {
+    await frame.locator('.row.header [aria-sort] button').click();
+  }
   await frame.locator('input.filter').fill('');
   await frame.locator('[data-chip="all"]').click();
   await focusRow(frame, focus);
@@ -254,6 +257,112 @@ test('types j into the filter box', async () => {
   await page.keyboard.press('j');
   await expect(frame.locator('input.filter')).toHaveValue('bilj');
   await expect(frame.locator('input.filter')).toBeFocused();
+});
+
+// dashboard :: Header key matrix R1–R11 and Sort cycle matrix R12. The fixture's rows stand in for the spec's names.
+
+const header = (column: string) => frame.locator(`.row.header [data-sort="${column}"]`);
+
+async function focusedSortHeader(): Promise<string | null> {
+  return frame.locator('body').evaluate(() => (document.activeElement as HTMLElement | null)?.dataset.sort ?? null);
+}
+
+test('moves focus to the Repository header with S under the default sort', async () => {
+  await focusRow(frame, 'ledger');
+  await page.keyboard.press('Shift+S');
+  expect(await focusedSortHeader()).toBe('repository');
+  await expect(header('repository')).toHaveText('Repository ▲');
+});
+
+test('moves focus to the sorted column header with S', async () => {
+  await header('changes').click();
+  await expect(header('changes')).toHaveText('Changes ▼');
+  await focusRow(frame, 'ledger');
+  await page.keyboard.press('Shift+S');
+  expect(await focusedSortHeader()).toBe('changes');
+});
+
+test('moves between column headers with the arrow keys and stops at both ends', async () => {
+  await page.keyboard.press('Shift+S');
+  await page.keyboard.press('ArrowRight');
+  expect(await focusedSortHeader()).toBe('branch');
+  await header('review').focus();
+  await page.keyboard.press('ArrowRight');
+  expect(await focusedSortHeader()).toBe('review');
+  await header('repository').focus();
+  await page.keyboard.press('ArrowLeft');
+  expect(await focusedSortHeader()).toBe('repository');
+});
+
+test('sorts by the focused header with Enter and Space', async () => {
+  await page.keyboard.press('Shift+S');
+  await header('sync').focus();
+  await page.keyboard.press('Enter');
+  await expect(header('sync')).toHaveText('Sync ▼');
+  expect(await focusedSortHeader()).toBe('sync');
+  await page.keyboard.press('Space');
+  await expect(header('sync')).toHaveText('Sync ▲');
+  expect(await focusedSortHeader()).toBe('sync');
+  await expect(frame.locator('.selected-count')).toHaveCount(0);
+});
+
+test('returns to the row it came from with ArrowDown', async () => {
+  await focusRow(frame, 'ledger');
+  await page.keyboard.press('Shift+S');
+  await page.keyboard.press('ArrowDown');
+  expect(await focusedKey(frame)).toBe(await keyOf('ledger'));
+});
+
+test('returns to the row with Esc and keeps the filter and the selection', async () => {
+  await page.keyboard.press('Space');
+  await focusRow(frame, 'ledger');
+  await page.keyboard.press('Space');
+  await frame.locator('input.filter').fill('l');
+  await focusRow(frame, 'ledger');
+  await page.keyboard.press('Shift+S');
+  await page.keyboard.press('Escape');
+  expect(await focusedKey(frame)).toBe(await keyOf('ledger'));
+  await expect(frame.locator('input.filter')).toHaveValue('l');
+  await expect(frame.locator('.selected-count')).toHaveText('2 selected');
+});
+
+test('types S into the filter box', async () => {
+  await frame.locator('input.filter').fill('bil');
+  await frame.locator('input.filter').focus();
+  await page.keyboard.press('Shift+S');
+  await expect(frame.locator('input.filter')).toHaveValue('bilS');
+  await expect(frame.locator('input.filter')).toBeFocused();
+});
+
+test('moves to the first shown item when the row it came from is no longer shown', async () => {
+  await focusRow(frame, 'detached');
+  await page.keyboard.press('Shift+S');
+  const infra = frame.locator('.row.group', { hasText: 'infra' });
+  await infra.locator('.group-name').click();
+  await expect(infra).toHaveText('▸ infra (3)');
+  await header('repository').focus();
+  await page.keyboard.press('ArrowDown');
+  expect(await focusedKey(frame)).toBe('group:backend');
+  await infra.locator('.group-name').click();
+  await expect(infra).toHaveText('▾ infra (3)');
+});
+
+test('keeps the sort on a click on the selection column header', async () => {
+  await header('sync').click();
+  await expect(header('sync')).toHaveText('Sync ▼');
+  await frame.locator('.row.header .cell.check').click({ position: { x: 2, y: 2 } });
+  await expect(header('sync')).toHaveText('Sync ▼');
+  await expect(frame.locator('.selected-count')).toHaveCount(0);
+});
+
+test('lists S in the key help overlay', async () => {
+  await page.keyboard.press('?');
+  const help = frame.getByRole('dialog', { name: 'Keyboard shortcuts' });
+  await expect(help.locator('tr').filter({ has: frame.locator('kbd', { hasText: /^S$/ }) })).toContainText('Sort by a column (then ← → and Enter)');
+  await expect(help.locator('tr').filter({ has: frame.locator('kbd', { hasText: /^Space$/ }) })).toContainText(
+    'Select or clear the focused row, or every row of the focused group',
+  );
+  await page.keyboard.press('Escape');
 });
 
 // git-operations :: Switch key with no row selected

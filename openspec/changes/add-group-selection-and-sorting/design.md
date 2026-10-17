@@ -44,8 +44,10 @@ What exists today (see proposal.md for the problems):
 - `FIRST_DIRECTION: Record<SortColumn, 'asc' | 'desc'>` and `nextSort(current, clicked): Sort` (the cycle of the
   `Sort cycle matrix`);
 - `sortKey(row, column, now)` returning a tuple of numbers or a lower-cased string, built from the same cell
-  functions the grid renders (`branchCell`, `shownSyncCell`, `changesCell`, the review cell of `src/shared/review.ts`),
-  so a row sorts by what it shows, including `—` for a Sync cell hidden by an operation in progress;
+  functions the grid renders (`branchCell`, `syncCell`, the change counts, the review cell of `src/shared/review.ts`),
+  so a row sorts by what it shows, including `—` for a Sync cell hidden by an operation in progress. Sync uses the
+  sync state, not the job text that replaces it while a job runs (`⟳ fetching`), so a running batch does not reorder
+  rows by job;
 - `compareRows(sort, now)` which compares keys, flips the sign for `desc`, and breaks ties with `compareNames` on the
   repository name without flipping.
 
@@ -120,8 +122,10 @@ space next to the Group menu).
 ### D-7. Live re-sort keeps focus and selection by id
 
 Focus (`view.focus` is `row:<id>`) and selection (ids) are keyed by repository, not position, so re-running `layout`
-after a patch moves rows without moving the focus or the selection. The existing focus effect re-focuses the same
-element, so keyboard users stay on the row they were on even when it moves.
+after a patch moves rows without moving the focus or the selection. Moving the focused row in the DOM can drop the
+browser focus to `body`; a `focusin` listener remembers whether the focus was on a grid row or group header, and the
+focus layout effect then gives it back to the focused row, so keyboard users stay on the row they were on even when it
+moves.
 
 ## Risks / Trade-offs
 

@@ -121,7 +121,33 @@ select {
   color: var(--rh-muted);
 }
 
-.row.group,
+/* A column header label sorts the rows (dashboard: Sort by column). */
+.row.header .sort {
+  max-width: 100%;
+  padding: 0;
+  overflow: hidden;
+  font: inherit;
+  color: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+
+.row.header .sort:hover {
+  color: var(--vscode-foreground);
+}
+
+.row.header .sort:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+.row.group {
+  grid-template-columns: 28px 1fr;
+}
+
 .row.details {
   grid-template-columns: 1fr;
 }
@@ -129,6 +155,10 @@ select {
 .row.group .cell {
   font-weight: 600;
   cursor: pointer;
+}
+
+.row.group .cell.check {
+  cursor: default;
 }
 
 .row.repo.selected {

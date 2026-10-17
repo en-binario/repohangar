@@ -1,12 +1,14 @@
-// Dashboard view state kept per workspace (design D-5): the Group menu choice and the collapsed groups.
-// The Group menu never writes `repohangar.groupBy`.
+// Dashboard view state kept per workspace (design D-5): the Group menu choice, the collapsed groups and the sort
+// (add-group-selection-and-sorting design D-2). The Group menu and the sort never write a setting.
 
 import * as vscode from 'vscode';
 import type { GroupingMode } from '../shared/model';
 import { GROUPING_MODES } from '../shared/protocol';
+import { DEFAULT_SORT, isSort, type Sort } from '../shared/sort';
 
 const GROUP_BY_KEY = 'repohangar.view.groupBy';
 const COLLAPSED_KEY = 'repohangar.view.collapsedGroups';
+const SORT_KEY = 'repohangar.view.sort';
 
 export function settingGrouping(): GroupingMode {
   const value = vscode.workspace.getConfiguration('repohangar').get<string>('groupBy', 'parentFolder');
@@ -39,6 +41,16 @@ export class ViewState implements vscode.Disposable {
   async chooseGrouping(mode: GroupingMode): Promise<void> {
     await this.memento.update(GROUP_BY_KEY, mode);
     this.changeEmitter.fire();
+  }
+
+  /** The sort chosen for this workspace; an absent or invalid value reads as the default. */
+  get sort(): Sort {
+    const value = this.memento.get<unknown>(SORT_KEY);
+    return isSort(value) ? { column: value.column, direction: value.direction } : DEFAULT_SORT;
+  }
+
+  async chooseSort(sort: Sort): Promise<void> {
+    await this.memento.update(SORT_KEY, { column: sort.column, direction: sort.direction });
   }
 
   get collapsed(): string[] {
