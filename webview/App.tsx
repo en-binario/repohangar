@@ -214,10 +214,15 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
 
   useEffect(() => api.setState(view), [api, view]);
 
-  // The host runs the batch commands on the selected rows.
-  useEffect(() => api.postMessage({ type: 'setSelection', ids: view.selected }), [api, view.selected]);
-
   const allRows = useMemo(() => [...rows.values()], [rows]);
+  /**
+   * The selected rows that are listed. The persisted selection can name repositories that are gone (removed from the
+   * workspace, or rows the host has not listed yet after a reload); they are kept but neither counted nor acted on.
+   */
+  const selected = useMemo(() => view.selected.filter((id) => rows.has(id)), [view.selected, rows]);
+
+  // The host runs the batch commands on the selected rows.
+  useEffect(() => api.postMessage({ type: 'setSelection', ids: selected }), [api, selected]);
   const items = useMemo(
     () => (snapshot ? layout(allRows, snapshot.grouping, snapshot.collapsed, view.filter, view.chips, sort, now) : []),
     [allRows, snapshot, view.filter, view.chips, sort, now],
@@ -349,19 +354,19 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
   const runAction = (id: string, action: RowAction) => api.postMessage({ type: 'runAction', id, action });
 
   const runBatch = (trigger: BatchTrigger) => {
-    const { action, ids } = batchTargets(trigger, view.selected, allRows.map((r) => r.id));
+    const { action, ids } = batchTargets(trigger, selected, allRows.map((r) => r.id));
     api.postMessage({ type: 'runBatch', action, ids });
   };
 
   /** One merge request per selected row that is still listed. */
   const createMrs = () => {
-    const ids = view.selected.filter((id) => rows.has(id));
+    const ids = selected;
     if (ids.length > 0) api.postMessage({ type: 'createMrs', ids });
   };
 
   /** Switch or create a branch in the selected rows, the focused row (`n`) or every row; false when there is none. */
   const runBranch = (trigger: BranchTrigger, focused?: string): boolean => {
-    const targets = branchTargets(trigger, view.selected, allRows.map((r) => r.id), focused);
+    const targets = branchTargets(trigger, selected, allRows.map((r) => r.id), focused);
     if (!targets || targets.ids.length === 0) return false;
     api.postMessage({ type: targets.action === 'switch' ? 'switchBranch' : 'createBranch', ids: targets.ids });
     return true;
@@ -409,7 +414,7 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
       M: 'createMrEdit',
     };
     // m with rows selected creates one merge request per selected row (mr-creation: Create merge requests on a selection).
-    if (e.key === 'm' && view.selected.length > 0) {
+    if (e.key === 'm' && selected.length > 0) {
       e.preventDefault();
       return createMrs();
     }
@@ -421,12 +426,12 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
       e.preventDefault();
       return runBatch('fetchAll');
     }
-    if ((e.key === 'f' || e.key === 'p') && view.selected.length > 0) {
+    if ((e.key === 'f' || e.key === 'p') && selected.length > 0) {
       e.preventDefault();
       return runBatch(e.key);
     }
     // b with rows selected and n (batch-operations: Branch keys); b alone switches the focused row below.
-    if ((e.key === 'b' && view.selected.length > 0) || e.key === 'n') {
+    if ((e.key === 'b' && selected.length > 0) || e.key === 'n') {
       if (runBranch(e.key, focusedRow?.id)) e.preventDefault();
       return;
     }
@@ -462,7 +467,7 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
       case 'Escape':
         e.preventDefault();
         if (view.filter || view.chips.length > 0) return update({ filter: '', chips: [] });
-        if (view.selected.length > 0) return update({ selected: [] });
+        if (selected.length > 0) return update({ selected: [] });
         return;
       case '?':
         e.preventDefault();
@@ -548,7 +553,7 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
     <div class={drawer ? 'dashboard with-drawer' : 'dashboard'} data-graph={snapshot.graph} data-name-click={snapshot.nameClick} data-first-run-pending={snapshot.firstRunPending}>
       <div class="toolbar" role="toolbar" aria-label="Filters">
         <BatchButtons
-          selected={view.selected.length}
+          selected={selected.length}
           onRun={(action) => {
             if (action === 'createMr') createMrs();
             else if (action === 'switch' || action === 'createBranch') runBranch(action === 'switch' ? 'switchBranch' : 'createBranch');
@@ -693,7 +698,7 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
       </div>
 
       <div class="footer">
-        {view.selected.length > 0 && <span class="selected-count">{`${view.selected.length} selected`}</span>}
+        {selected.length > 0 && <span class="selected-count">{`${selected.length} selected`}</span>}
         <span class="hints">{`${ACTION_HINTS} · ${KEY_HINTS}`}</span>
       </div>
 

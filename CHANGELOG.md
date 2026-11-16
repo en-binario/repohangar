@@ -164,6 +164,9 @@ All notable changes to RepoHangar are recorded here. Entries are written and cla
   the restored dashboard waited in a background tab; they now show that tab. A second dashboard restored from an
   earlier session is closed.
 - **Fixed:** the dashboard showed a vertical scrollbar when every row fit in the panel.
+- **Fixed:** after a reload, the dashboard footer and toolbar could read `2 selected` and `Fetch (2)` with no row
+  checked, when the rows selected in an earlier session were no longer listed; **Fetch (2)** then fetched every
+  repository. The count, the toolbar and the keys now use only the selected rows that are listed.
 - **Fixed:** MR / PR cells of a GitLab host with more than 13 repositories never refreshed (`Not refreshed since …`,
   no `[Create MR]`): GitLab rejected the batched status request as too large or too complex (`HTTP 422`). Requests now
   carry at most 10 repositories and are split further when GitLab still rejects them, and the RepoHangar log shows
