@@ -8,6 +8,8 @@ or GitHub pull requests with your team's defaults in one keystroke.
 
 ## Dashboard
 
+![Ctrl+Alt+H opens the dashboard; the / filter, the Behind chip, sorting by Sync and the key help](media/d1-dashboard.gif)
+
 Run **RepoHangar: Open Dashboard** (`Ctrl+Alt+H`, `Ctrl+Cmd+H` on macOS), click the status bar summary, or click
 **Open RepoHangar** in the Source Control title bar. The dashboard has one row per repository that the built-in Git
 extension opened:
@@ -62,6 +64,8 @@ Open compare page. A right-click anywhere on the row opens the same menu at the 
 
 ### Switch or create a branch across repositories
 
+![n creates a branch in three selected repositories; b switches them back to main, stashing the dirty one](media/d3-branches.gif)
+
 Select the repositories of a feature and press `b`, click **⎇ Switch…** in the toolbar or run **RepoHangar: Switch
 Branch in Repositories…** (`repohangar.switchBranch`). One quick pick lists the branches those repositories have, the
 most common first, with where each one is: `local in 2 · remote in 1 (tracking branch will be created)`. A branch only
@@ -79,6 +83,8 @@ and checked out from the current HEAD of each repository. Typing a new name in t
 every repository; `n` acts on the focused row.
 
 ### Batch results
+
+![Fetch all, then Pull (ff) on the repositories that are behind; Stash and pull fixes the one that was skipped](media/d2-fetch-pull.gif)
 
 When Fetch all, Pull all (ff), Switch or Create ends with a skipped or failed repository, a panel above the grid lists
 every repository with its result, failures first, and a button to fix it: **Stash and pull**, **Pull with rebase**,
@@ -119,6 +125,8 @@ settings, logs or the dashboard. A token the host rejects is deleted and RepoHan
 
 ## Creating merge requests and pull requests
 
+![m opens the Create MR drawer filled in from the profile; Ctrl+Enter pushes 2 commits and creates !142](media/d4-create-mr.gif)
+
 Press `m` on a row, click **[Create MR]** (**[Create PR]** on GitHub) in its MR / PR cell or `⤴` in its hover
 buttons, or run **RepoHangar: Create Merge Request (Defaults)** (`Ctrl+Alt+M`, `Ctrl+Cmd+M` on macOS) on the
 repository of the active editor. RepoHangar opens the **Create MR drawer** (below), every field filled in from the
@@ -150,6 +158,8 @@ is dropped), so `team:<slug>` still works on GitHub. On GitHub the search matche
 submenu of GitLab and GitHub repositories.
 
 ### Merge requests for several repositories
+
+![Three repositories of ABC-123 selected; m creates !142, !143 and #311, each description linking the others](media/d5-linked-mrs.gif)
 
 Select the repositories of a feature (filter by its ticket and press `Ctrl+A`) and press `m`, click **⤴ Create MRs (3)**
 in the toolbar, or run **RepoHangar: Create Merge Request (Defaults)** while the dashboard has rows selected. RepoHangar
@@ -268,11 +278,18 @@ left out and offers **Connect `<host>`**: sign in, and RepoHangar adds the revie
 
 ## Git Graph
 
+![g opens Git Graph with Source Control beside it, e reveals a repository in the Explorer, s shows its changes](media/d6-graph-explorer.gif)
+
 **Open in Git Graph** opens the [Git Graph](https://marketplace.visualstudio.com/items?itemName=mhutchie.git-graph)
 extension switched to the repository: `g` or the `◈` button on a row, the row's `⋯` menu and details, the Source
 Control Repositories menu, the Explorer context menu, and **RepoHangar: Open in Git Graph** (`Ctrl+Alt+J`,
 `Ctrl+Cmd+J` on macOS) for the repository of the active editor. Source Control is shown next to the graph with the
 same repository selected, and keyboard focus stays on Git Graph.
+
+With the dashboard on one side and Git Graph on the other, each click on a repository name shows that repository's
+graph:
+
+![The dashboard on the left and Git Graph on the right, switching repository with each click on a name](media/d7-split-graph.gif)
 
 Git Graph is optional. Without it the same items read **Open in Source Control Graph** and open VS Code's built-in
 graph (`repohangar.gitGraph.whenMissing`: `"offerInstall"` keeps **Open in Git Graph** and offers to install it,
