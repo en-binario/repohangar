@@ -1,0 +1,10 @@
+{
+  "extends": "@docusaurus/tsconfig",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "strict": true,
+    "noEmit": true
+  },
+  "include": ["src", "e2e", "docusaurus.config.ts", "sidebars.ts", "playwright.config.ts"],
+  "exclude": [".docusaurus", "build", "node_modules"]
+}

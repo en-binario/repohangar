@@ -239,6 +239,11 @@ A new setting is declared in `contributes.configuration` in `package.json` with 
 and documented in the README's Settings section. A new command gets a `repohangar.` id and, if users can reach it
 from the Command Palette, a title in the `RepoHangar` category.
 
+The documentation site, `https://repohangar.enbinario.com`, lives in [`site/`](../site/README.md) (Docusaurus). Its
+settings, commands and changelog pages are generated from `package.json` and `CHANGELOG.md` on every build, so they
+need no edit. Its guide pages (`site/docs/`) are written by hand: when a change alters what a page describes, update
+the page in the same pull request. The site deploys when a `v*` tag is pushed.
+
 ## Decision log
 
 - 2026-10-11: Guide written from the state of the repository after `add-profile-editor`. Running from source is

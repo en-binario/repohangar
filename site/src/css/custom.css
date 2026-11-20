@@ -1,0 +1,89 @@
+/*
+ * RepoHangar site theme on top of Docusaurus's Infima. Teal is RepoHangar's accent; every text colour below meets
+ * WCAG 2.2 AA on its background in both colour modes.
+ */
+:root {
+  --ifm-color-primary: #0f766e;
+  --ifm-color-primary-dark: #0d6a63;
+  --ifm-color-primary-darker: #0c645e;
+  --ifm-color-primary-darkest: #0a524d;
+  --ifm-color-primary-light: #118279;
+  --ifm-color-primary-lighter: #12887e;
+  --ifm-color-primary-lightest: #149a8f;
+  --ifm-font-family-base: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+  --ifm-font-family-monospace: ui-monospace, SFMono-Regular, 'Cascadia Code', Menlo, Consolas, monospace;
+  --ifm-code-font-size: 90%;
+  --ifm-navbar-shadow: none;
+  --docusaurus-highlighted-code-line-bg: rgb(15 118 110 / 12%);
+
+  --rh-muted: #475569;
+  --rh-hero-top: #f0fdfa;
+  --rh-band: #f8fafc;
+  --rh-badge-bg: #ccfbf1;
+  --rh-badge-text: #115e59;
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #2dd4bf;
+  --ifm-color-primary-dark: #22c5b0;
+  --ifm-color-primary-darker: #20baa6;
+  --ifm-color-primary-darkest: #1a9988;
+  --ifm-color-primary-light: #47dac7;
+  --ifm-color-primary-lighter: #55ddcb;
+  --ifm-color-primary-lightest: #7ee5d8;
+  --docusaurus-highlighted-code-line-bg: rgb(45 212 191 / 14%);
+
+  --rh-muted: #b4bcc8;
+  --rh-hero-top: #11302d;
+  --rh-band: #202124;
+  --rh-badge-bg: #134e4a;
+  --rh-badge-text: #99f6e4;
+}
+
+.navbar {
+  border-bottom: 1px solid var(--ifm-toc-border-color);
+}
+
+/* Buttons on the primary colour: dark text in dark mode keeps the contrast. */
+[data-theme='dark'] .button--primary {
+  --ifm-button-color: #042f2e;
+}
+
+/* The README GIFs inside docs pages. */
+.markdown img {
+  border-radius: 8px;
+  border: 1px solid var(--ifm-toc-border-color);
+}
+
+kbd {
+  font-size: 0.85em;
+}
+
+/* Links in running text are underlined, not told apart by colour alone (WCAG 1.4.1). */
+.markdown a,
+.footer__copyright a {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.footer__copyright a {
+  color: var(--ifm-footer-link-color);
+}
+
+/* Wide tables scroll inside their region (src/rehype-table-region.mjs) instead of widening the page. */
+.table-region {
+  max-width: 100%;
+  overflow-x: auto;
+  margin-bottom: var(--ifm-spacing-vertical);
+}
+
+.table-region table {
+  display: table;
+  margin-bottom: 0;
+}
+
+.table-region:focus-visible {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: 2px;
+}

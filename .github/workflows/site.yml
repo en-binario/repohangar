@@ -1,0 +1,93 @@
+# The documentation site, https://repohangar.enbinario.com (site/, Docusaurus).
+#
+# - Pull requests that touch the site or what it's generated from (package.json, CHANGELOG.md, media/) build it and
+#   run its accessibility and reference tests; the built site is uploaded as the `site-preview` artifact.
+# - A version tag (`v*`, pushed by the release procedure) deploys it, so the docs match the published extension.
+#   A tag pushed by a person triggers this; a release published by another workflow with GITHUB_TOKEN would not.
+# - "Run workflow" deploys it by hand, for example before the first release.
+#
+# Setup: Settings → Pages → Source: GitHub Actions, Custom domain: repohangar.enbinario.com, Enforce HTTPS; and the
+# `github-pages` environment must allow the `v*` tags and the default branch.
+name: Site
+
+on:
+  pull_request:
+    paths:
+      - 'site/**'
+      - 'package.json'
+      - 'CHANGELOG.md'
+      - 'media/**'
+      - '.github/workflows/site.yml'
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.event_name == 'pull_request' && github.ref || 'deploy' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    working-directory: site
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: site/.nvmrc
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci
+      - name: Type check
+        run: npm run typecheck
+      # Generates the settings, commands and changelog pages, then builds; broken links or anchors fail the build.
+      - name: Build
+        run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Accessibility and reference tests
+        run: npm run e2e
+      - name: Upload the built site (preview)
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: site-preview
+          path: site/build
+          retention-days: 7
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report
+          path: site/playwright-report
+          retention-days: 7
+          if-no-files-found: ignore
+      - if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site/build
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
