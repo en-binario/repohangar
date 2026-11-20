@@ -3,13 +3,18 @@ title: Getting started
 description: Install RepoHangar, open the dashboard, connect your GitLab and GitHub hosts and create your first merge request.
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Getting started
 
 ## Install
 
-RepoHangar's extension ID is `enbinario.repohangar`.
+RepoHangar's extension ID is `enbinario.repohangar`. Until the first release reaches the VS Code Marketplace, install
+it from a VSIX file.
 
-**From a VSIX file** (until the first Marketplace release):
+<Tabs groupId="install">
+<TabItem value="vsix" label="VSIX" default>
 
 1. Download `repohangar-<version>.vsix` from the
    [GitHub releases](https://github.com/en-binario/repohangar/releases).
@@ -19,7 +24,23 @@ RepoHangar's extension ID is `enbinario.repohangar`.
    code --install-extension repohangar-<version>.vsix
    ```
 
-**From the VS Code Marketplace or Open VSX**, once it's published: search for **RepoHangar** in the Extensions view.
+</TabItem>
+<TabItem value="marketplace" label="VS Code Marketplace">
+
+Once it's published, search for **RepoHangar** in the Extensions view, or run:
+
+```bash
+code --install-extension enbinario.repohangar
+```
+
+</TabItem>
+<TabItem value="openvsx" label="Open VSX">
+
+For VSCodium and other editors that use [Open VSX](https://open-vsx.org): once it's published, search for
+**RepoHangar** in the Extensions view.
+
+</TabItem>
+</Tabs>
 
 ## Open the dashboard
 

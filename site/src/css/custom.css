@@ -44,6 +44,15 @@
   border-bottom: 1px solid var(--ifm-toc-border-color);
 }
 
+/* The EnBinario footer colour (--enb-footer-bg), the same on every EnBinario site. */
+.footer--dark {
+  --ifm-footer-background-color: #0f172a;
+}
+
+[data-theme='dark'] .footer--dark {
+  --ifm-footer-background-color: #070b14;
+}
+
 /* Buttons on the primary colour: dark text in dark mode keeps the contrast. */
 [data-theme='dark'] .button--primary {
   --ifm-button-color: #042f2e;

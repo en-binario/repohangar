@@ -33,7 +33,7 @@ or GitHub pull requests with your team's defaults in one keystroke.
 
 RepoHangar shows the merge request or pull request of every branch and creates them with your profiles' defaults.
 Batch creation and auto-merge follow. Until the first release reaches the VS Code Marketplace, install it from a
-VSIX file, as described in [Getting started](getting-started.md).
+VSIX file, as described in [Getting started](getting-started.mdx).
 
 :::
 

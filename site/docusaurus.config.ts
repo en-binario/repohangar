@@ -55,6 +55,13 @@ const config: Config = {
 
   themeConfig: {
     image: 'img/social-card.png',
+    announcementBar: {
+      // Change the id when the message changes, so people who closed the old one see the new one.
+      id: 'preview-vsix',
+      content:
+        'RepoHangar is in preview: install it from a <a href="/docs/getting-started/">VSIX file</a> until it reaches the VS Code Marketplace.',
+      isCloseable: true,
+    },
     metadata: [
       { name: 'keywords', content: 'vscode extension, git, multi-repo, polyrepo, gitlab, github, merge request, pull request' },
     ],
@@ -67,6 +74,7 @@ const config: Config = {
         { type: 'docSidebar', sidebarId: 'docs', position: 'left', label: 'Docs' },
         { to: '/docs/reference/settings/', label: 'Settings', position: 'left' },
         { to: '/docs/changelog/', label: 'Changelog', position: 'left' },
+        { href: 'https://enbinario.com', label: 'EnBinario', position: 'right' },
         { href: repo, label: 'GitHub', position: 'right' },
       ],
     },
