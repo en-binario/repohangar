@@ -14,10 +14,17 @@
   "bugs": {
     "url": "https://github.com/en-binario/repohangar/issues"
   },
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#0b1120",
+    "theme": "dark"
+  },
+  "pricing": "Free",
+  "qna": "marketplace",
+  "preview": true,
   "categories": [
     "SCM Providers",
-    "Visualization",
-    "Other"
+    "Visualization"
   ],
   "keywords": [
     "multi-repo",
@@ -796,12 +803,14 @@
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
     "typecheck": "tsc -p . --noEmit",
-    "test": "vitest run",
+    "test": "npm run version:check && vitest run",
     "test:integration": "node esbuild.mjs --tests && node out/test/integration/runTest.js",
     "test:ui": "node esbuild.mjs && playwright test",
     "package": "vsce package --no-dependencies",
     "vscode:prepublish": "node esbuild.mjs --production",
-    "test:nightly": "vitest run --config vitest.nightly.config.ts"
+    "test:nightly": "vitest run --config vitest.nightly.config.ts",
+    "version:check": "node scripts/version.mjs check",
+    "version:bump": "node scripts/version.mjs bump"
   },
   "dependencies": {
     "@vscode/codicons": "0.0.36",
@@ -818,7 +827,7 @@
     "glob": "11.1.0",
     "jsdom": "26.1.0",
     "mocha": "11.8.0",
-    "msw": "^2.15.0",
+    "msw": "2.15.0",
     "typescript": "5.9.3",
     "vitest": "3.2.7"
   }

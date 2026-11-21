@@ -1,0 +1,66 @@
+# Runs on every pull request and every push to main across Linux, Windows and macOS.
+# The release workflow (release.yml) requires this workflow to have passed on the tagged commit via scripts/ci-gate.mjs.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Type check
+        run: npm run typecheck
+      - name: Version check and unit/contract tests
+        run: npm test
+      - name: Cache VS Code test build
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .vscode-test
+          key: vscode-test-${{ runner.os }}-stable
+      - name: Integration tests (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:integration
+      - name: Integration tests (Windows, macOS)
+        if: runner.os != 'Linux'
+        run: npm run test:integration
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Webview UI tests (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:ui
+      - name: Webview UI tests (Windows, macOS)
+        if: runner.os != 'Linux'
+        run: npm run test:ui
+      - name: Package VSIX
+        if: runner.os == 'Linux'
+        run: npm run package
+      - name: Upload VSIX artifact
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: repohangar-vsix
+          path: repohangar-*.vsix
+          retention-days: 7

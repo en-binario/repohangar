@@ -1,0 +1,56 @@
+# Builds ONE VSIX from a tagged commit (`v*`) and publishes the exact same bytes to the VS Code Marketplace,
+# Open VSX, and GitHub Releases. The documentation site is deployed in parallel by site.yml on the same `v*` tag.
+#
+# Setup: Settings → Environments → `release` (required reviewer, limited to tags `v*`) with secrets VSCE_PAT and OVSX_PAT.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Publish VSIX and GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release
+    permissions:
+      contents: write # GitHub Release and VSIX asset
+      actions: read # scripts/ci-gate.mjs checks ci.yml status for this commit
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Verify tag matches package.json version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          test "v$VERSION" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME does not match version $VERSION"; exit 1; }
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+      - name: Verify CI passed on every platform for this commit
+        run: node scripts/ci-gate.mjs --sha "$GITHUB_SHA"
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Run version check and unit/contract tests
+        run: npm test
+      - name: Package VSIX with tag-pinned README media URLs
+        run: npx --yes @vscode/vsce@4.0.0 package --no-dependencies --githubBranch "$GITHUB_REF_NAME" -o "repohangar-$VERSION.vsix"
+      - name: Publish to VS Code Marketplace
+        run: npx --yes @vscode/vsce@4.0.0 publish --packagePath "repohangar-$VERSION.vsix"
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      - name: Publish the same VSIX to Open VSX
+        run: npx --yes ovsx@1.2.0 publish "repohangar-$VERSION.vsix"
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+      - name: Create GitHub Release with VSIX
+        run: |
+          awk -v v="## $VERSION" '$0 ~ "^"v { on = 1; next } on && /^## / { exit } on' CHANGELOG.md > notes.md
+          gh release create "$GITHUB_REF_NAME" "repohangar-$VERSION.vsix" --title "$GITHUB_REF_NAME" --notes-file notes.md
+        env:
+          GH_TOKEN: ${{ github.token }}

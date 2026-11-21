@@ -1,0 +1,11 @@
+export const CHANGELOG: string;
+export const EXTENSION_MANIFEST: string;
+export const MANIFESTS: string[];
+export const LOCKFILE: string;
+export const KINDS: Record<string, 'major' | 'minor' | 'patch'>;
+export function parseUnreleased(text: string): { entries: Array<{ kind: string; line: number }>; errors: string[] };
+export function requiredLevel(entries: Array<{ kind: string }>): 'major' | 'minor' | 'patch' | null;
+export function nextVersion(version: string, level: string, opts?: { explicit?: boolean }): string;
+export function check(root: string): { code: number; stdout: string; stderr: string };
+export function bump(root: string, opts?: { level?: string; date?: string }): { code: number; stdout: string; stderr: string };
+export function main(argv: string[], root?: string): { code: number; stdout: string; stderr: string };

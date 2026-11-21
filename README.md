@@ -3,8 +3,8 @@
 See every Git repository in your workspace at a glance, act on all of them at once, and open GitLab merge requests
 or GitHub pull requests with your team's defaults in one keystroke.
 
-> RepoHangar is in early development. This version shows the merge request or pull request of every branch and creates
-> them with your profiles' defaults; batch creation and auto-merge follow.
+> RepoHangar is in preview. Dashboard operations, multi-repo branch switching/creation, MR profiles, and single or
+> linked batch merge/pull request creation are available today; auto-merge follows.
 
 ## Dashboard
 

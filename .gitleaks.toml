@@ -1,0 +1,10 @@
+title = "RepoHangar gitleaks allowlist"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Synthetic GitLab/GitHub test tokens in unit, contract, integration, and nightly test fixtures"
+paths = [
+  '''^test/''',
+]
