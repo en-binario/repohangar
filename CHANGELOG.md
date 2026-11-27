@@ -5,6 +5,8 @@ All notable changes to RepoHangar are recorded here. Entries are written and cla
 
 ## Unreleased
 
+## 0.1.0 — 2026-11-27
+
 - **Added — the RepoHangar dashboard.** **RepoHangar: Open Dashboard** (`repohangar.open`, `Ctrl+Alt+H`, `Ctrl+Cmd+H`
   on macOS, or **Open RepoHangar** in the Source Control title bar) opens one row per Git repository with its branch,
   sync state, changes, stashes and last fetch, including `REBASING 3/7`, `MERGING`, `detached` and `no upstream`
