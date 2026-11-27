@@ -172,34 +172,48 @@ test.describe('row context menu', () => {
     test(`${c.id}: right-click target matrix`, async () => {
       await c.setup?.();
       try {
-        let openBox: { x: number; y: number } | null = null;
+        // When another row's cell is targeted while a prior menu is open (R5), scroll it into view before opening
+        // `c.before` so scrolling does not close `c.before` or shift the viewport between measurement and click.
+        if (c.before && c.id !== 'R1') await c.target().scrollIntoViewIfNeeded();
+        let openRect: { left: number; top: number } | null = null;
         if (c.before) {
           await rightClick(row(frame, c.before).locator('[data-col="branch"]'));
           await expect(menu(c.before)).toBeVisible();
-          openBox = await menu(c.before).boundingBox();
+          openRect = await menu(c.before).evaluate((el) => {
+            const r = el.getBoundingClientRect();
+            return { left: r.left, top: r.top };
+          });
         }
         await expect(c.target()).toBeVisible();
         const focusedBefore = await focusedRepo();
         const suppressed = await watchContextMenu(frame);
-        const pointer = await rightClick(c.target());
+        // Capture the pointer in the dashboard's own viewport coordinates so scroll shifts cannot skew the check.
+        await frame.locator('body').evaluate(() => {
+          const w = window as unknown as { rhContextPoint?: { x: number; y: number } | null };
+          w.rhContextPoint = null;
+          window.addEventListener('contextmenu', (e) => (w.rhContextPoint = { x: e.clientX, y: e.clientY }), { capture: true, once: true });
+        });
+        await c.target().click({ button: 'right', position: AT });
         await expect.poll(suppressed).toBe(c.menu !== null);
 
         if (c.menu) {
           await expect(anyMenu()).toHaveCount(1);
           await expect(menu(c.menu)).toBeVisible();
           await expect(defaultMenu()).toHaveCount(0);
-          const box = await menu(c.menu).boundingBox();
-          const view = await page.locator('iframe.webview.ready').boundingBox();
+          const point = await frame.locator('body').evaluate(() => (window as unknown as { rhContextPoint?: { x: number; y: number } | null }).rhContextPoint ?? null);
+          const rect = await menu(c.menu).evaluate((el) => {
+            const r = el.getBoundingClientRect();
+            return { left: r.left, top: r.top, width: r.width, height: r.height };
+          });
           const inner = await frame.locator('body').evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));
           // R1 leaves the open menu where it was; the others open at the pointer, clamped to window.innerWidth/Height.
-          expect(box).not.toBeNull();
-          expect(view).not.toBeNull();
+          expect(point).not.toBeNull();
           const expectedX =
-            c.id === 'R1' ? (openBox?.x ?? 0) : Math.max(view?.x ?? 0, Math.min(pointer.x, (view?.x ?? 0) + inner.width - (box?.width ?? 0)));
+            c.id === 'R1' ? (openRect?.left ?? 0) : Math.max(0, Math.min(point?.x ?? 0, inner.width - rect.width));
           const expectedY =
-            c.id === 'R1' ? (openBox?.y ?? 0) : Math.max(view?.y ?? 0, Math.min(pointer.y, (view?.y ?? 0) + inner.height - (box?.height ?? 0)));
-          expect(Math.abs((box?.x ?? 0) - expectedX)).toBeLessThanOrEqual(2);
-          expect(Math.abs((box?.y ?? 0) - expectedY)).toBeLessThanOrEqual(2);
+            c.id === 'R1' ? (openRect?.top ?? 0) : Math.max(0, Math.min(point?.y ?? 0, inner.height - rect.height));
+          expect(Math.abs(rect.left - expectedX)).toBeLessThanOrEqual(2);
+          expect(Math.abs(rect.top - expectedY)).toBeLessThanOrEqual(2);
           expect(await focusedRepo()).toBe(c.focused);
         } else {
           await expect(anyMenu()).toHaveCount(0);
