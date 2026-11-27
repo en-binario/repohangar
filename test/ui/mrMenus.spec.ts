@@ -55,8 +55,8 @@ async function explorerSubmenu(path: string[]): Promise<void> {
 }
 
 async function closeMenu(): Promise<void> {
-  const menu = page.locator('.context-view .monaco-menu');
-  while ((await menu.count()) > 0) {
+  const menu = page.locator('.context-view .monaco-menu:visible');
+  for (let i = 0; i < 5 && (await menu.count()) > 0; i++) {
     await page.keyboard.press('Escape');
     await page.waitForTimeout(100);
   }

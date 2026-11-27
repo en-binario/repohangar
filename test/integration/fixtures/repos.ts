@@ -41,7 +41,7 @@ export interface Fixture {
 }
 
 export function createRoot(prefix = 'repohangar-'): { root: string; workspace: string; remotes: string } {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), prefix)));
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), prefix)));
   const workspace = join(root, 'acme');
   const remotes = join(root, 'remotes');
   mkdirSync(workspace, { recursive: true });

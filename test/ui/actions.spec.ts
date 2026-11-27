@@ -97,7 +97,7 @@ test.describe('row context menu', () => {
   const menu = (repo: string) => frame.getByRole('menu', { name: `Actions for ${repo}` });
   const anyMenu = () => frame.getByRole('menu');
   /** VS Code's Cut / Copy / Paste menu of the webview (`window.menuStyle` custom) */
-  const defaultMenu = () => page.locator('.context-view .monaco-menu');
+  const defaultMenu = () => page.locator('.context-view .monaco-menu:visible');
   const focusedRepo = async () => {
     const focused = frame.locator('.row.repo.focused');
     return (await focused.count()) > 0 ? focused.getAttribute('data-repo') : null;

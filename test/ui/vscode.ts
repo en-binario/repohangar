@@ -44,10 +44,9 @@ export async function launch(
 ): Promise<VsCode> {
   const executablePath = await downloadAndUnzipVSCode(process.env.VSCODE_VERSION ?? 'stable');
   const profile = mkdtempSync(join(tmpdir(), 'repohangar-ui-'));
-  if (options.settings) {
-    mkdirSync(join(profile, 'user-data', 'User'), { recursive: true });
-    writeFileSync(join(profile, 'user-data', 'User', 'settings.json'), JSON.stringify(options.settings, null, 2));
-  }
+  const settings = { 'workbench.secondarySideBar.defaultVisibility': 'hidden', ...options.settings };
+  mkdirSync(join(profile, 'user-data', 'User'), { recursive: true });
+  writeFileSync(join(profile, 'user-data', 'User', 'settings.json'), JSON.stringify(settings, null, 2));
   const env = { ...process.env } as Record<string, string>;
   delete env.ELECTRON_RUN_AS_NODE;
   Object.assign(env, options.env ?? {});
