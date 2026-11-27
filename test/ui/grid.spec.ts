@@ -72,6 +72,8 @@ test('collapses a group and keeps it collapsed after a reload', async () => {
   await header.locator('.group-name').click();
   await expect(header).toHaveText('▸ infra (3)');
   await expect(row(frame, 'merging')).toHaveCount(0);
+  // Let workspaceState flush the collapsed-group update to disk before reloading the window.
+  await page.waitForTimeout(500);
 
   await runCommand(page, 'Developer: Reload Window');
   await page.waitForSelector('.monaco-workbench', { timeout: 60_000 });

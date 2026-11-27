@@ -91,6 +91,9 @@ test('shows a failed fetch with Show Git Output', async () => {
   await expect(toast).toBeVisible({ timeout: 30_000 });
   await expect(toast.locator('.monaco-button', { hasText: 'Show Git Output' })).toBeVisible();
   await expect(row(frame, 'billing-api').locator('[data-col="sync"]')).toHaveText('✗ fetch failed');
+  // Dismiss the toast so it does not cover bottom-right menu items in subsequent tests.
+  const clear = toast.locator('.codicon-notifications-clear, [aria-label*="Clear Notification"]').first();
+  if ((await clear.count()) > 0) await clear.click();
 });
 
 test.describe('row context menu', () => {
@@ -107,6 +110,8 @@ test.describe('row context menu', () => {
 
   /** Right-clicks `target` at AT and returns the pointer in page coordinates, as boundingBox reports them. */
   async function rightClick(target: Locator): Promise<{ x: number; y: number }> {
+    // Scroll first so click() does not shift the viewport after boundingBox() was measured.
+    await target.scrollIntoViewIfNeeded();
     const box = await target.boundingBox();
     if (!box) throw new Error('target not visible');
     await target.click({ button: 'right', position: AT });
@@ -185,13 +190,14 @@ test.describe('row context menu', () => {
           await expect(defaultMenu()).toHaveCount(0);
           const box = await menu(c.menu).boundingBox();
           const view = await page.locator('iframe.webview.ready').boundingBox();
-          // R1 leaves the open menu where it was; the others open at the pointer, clamped to stay inside the dashboard on narrow screens.
+          const inner = await frame.locator('body').evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));
+          // R1 leaves the open menu where it was; the others open at the pointer, clamped to window.innerWidth/Height.
           expect(box).not.toBeNull();
           expect(view).not.toBeNull();
           const expectedX =
-            c.id === 'R1' ? (openBox?.x ?? 0) : Math.min(pointer.x, (view?.x ?? 0) + (view?.width ?? 0) - (box?.width ?? 0));
+            c.id === 'R1' ? (openBox?.x ?? 0) : Math.max(view?.x ?? 0, Math.min(pointer.x, (view?.x ?? 0) + inner.width - (box?.width ?? 0)));
           const expectedY =
-            c.id === 'R1' ? (openBox?.y ?? 0) : Math.min(pointer.y, (view?.y ?? 0) + (view?.height ?? 0) - (box?.height ?? 0));
+            c.id === 'R1' ? (openBox?.y ?? 0) : Math.max(view?.y ?? 0, Math.min(pointer.y, (view?.y ?? 0) + inner.height - (box?.height ?? 0)));
           expect(Math.abs((box?.x ?? 0) - expectedX)).toBeLessThanOrEqual(2);
           expect(Math.abs((box?.y ?? 0) - expectedY)).toBeLessThanOrEqual(2);
           expect(await focusedRepo()).toBe(c.focused);
