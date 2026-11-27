@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import type { TestApi } from '../../../../src/extension';
 import type { BatchConfirmModel } from '../../../../src/mr/service';
 import { commit, git } from '../../fixtures/repos';
-import { ready, recordIntegrations, setConfig } from '../helpers';
+import { ready, recordIntegrations, setConfig, waitFor } from '../helpers';
 import { answerHttp, graphql, json, stubAuthUi, users, type Route, type SentRequest } from '../providers/support';
 import { closeTempRepos, openTempRepo, type TempRepo } from '../tempRepos';
 
@@ -72,6 +72,11 @@ describe('merge requests on a selection', () => {
 
   const open = async (host: 'gitlab' | 'github', name: string) => {
     const repo = await openTempRepo(api, name, feature(host, name));
+    // Wait for any concurrent store recomputation triggered by git status/watchers to settle on the branch and provider.
+    await waitFor(() => {
+      const row = api.store.get(repo.id);
+      return row?.head.kind === 'branch' && row.head.name === BRANCH && row.provider === host;
+    }, `${name} on ${BRANCH} (${host})`);
     repos.push(repo);
     return repo;
   };
@@ -200,7 +205,7 @@ describe('merge requests on a selection', () => {
     http.requests.length = 0;
     await pressM([billing, ledger, infra]);
     const failed = api.actions.results.lineOf(infra.id);
-    assert.equal(failed?.state, 'failed');
+    assert.equal(failed?.state, 'failed', failed?.text);
     assert.match(failed?.text ?? '', /^✗ mr-infra {2}push failed: /);
     assert.equal(api.actions.results.panel()?.canRetry, true);
     assert.deepEqual(updates().map((r) => new URL(r.url).pathname).sort(), [

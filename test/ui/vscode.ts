@@ -44,9 +44,10 @@ export async function launch(
 ): Promise<VsCode> {
   const executablePath = await downloadAndUnzipVSCode(process.env.VSCODE_VERSION ?? 'stable');
   const profile = mkdtempSync(join(tmpdir(), 'repohangar-ui-'));
-  const settings = { 'workbench.secondarySideBar.defaultVisibility': 'hidden', ...options.settings };
-  mkdirSync(join(profile, 'user-data', 'User'), { recursive: true });
-  writeFileSync(join(profile, 'user-data', 'User', 'settings.json'), JSON.stringify(settings, null, 2));
+  if (options.settings) {
+    mkdirSync(join(profile, 'user-data', 'User'), { recursive: true });
+    writeFileSync(join(profile, 'user-data', 'User', 'settings.json'), JSON.stringify(options.settings, null, 2));
+  }
   const env = { ...process.env } as Record<string, string>;
   delete env.ELECTRON_RUN_AS_NODE;
   Object.assign(env, options.env ?? {});
@@ -74,16 +75,27 @@ export async function launch(
 /** Runs a command from the command palette by its title. */
 export async function runCommand(page: Page, title: string): Promise<void> {
   const input = page.locator('.quick-input-widget input');
-  await page.keyboard.press('F1');
-  // F1 can be lost while focus moves into or out of a webview; press it again once.
-  if (!(await input.isVisible())) {
-    await page.waitForTimeout(500);
-    if (!(await input.isVisible())) await page.keyboard.press('F1');
-  }
-  await expect(input).toBeVisible();
-  await input.fill(`>${title}`);
   const match = page.locator('.quick-input-list .monaco-list-row', { hasText: title }).first();
-  await expect(match).toBeVisible();
+  // On a fresh window the extension host may still be registering commands; reopen the palette until the command appears.
+  const deadline = Date.now() + 60_000;
+  for (;;) {
+    await page.keyboard.press('F1');
+    // F1 can be lost while focus moves into or out of a webview; press it again once.
+    if (!(await input.isVisible())) {
+      await page.waitForTimeout(500);
+      if (!(await input.isVisible())) await page.keyboard.press('F1');
+    }
+    await expect(input).toBeVisible();
+    await input.fill(`>${title}`);
+    try {
+      await expect(match).toBeVisible({ timeout: 5_000 });
+      break;
+    } catch (error) {
+      if (Date.now() >= deadline) throw error;
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(500);
+    }
+  }
   // The list can still be moving while it filters; the focused best match runs with Enter.
   if (await match.evaluate((e) => e.classList.contains('focused'))) await input.press('Enter');
   else await match.click();
