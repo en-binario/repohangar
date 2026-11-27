@@ -499,25 +499,29 @@ export function App({ api, now: initialNow }: { api: VsCodeApi; now?: number }) 
     }
   };
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (helpOpen) {
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          setHelpOpen(false);
-          focusRequested.current = true;
-          update({ focus: focusKey });
-        }
-        return;
+  // Keep the latest handler in a ref so back-to-back keypresses never hit a stale closure while Preact schedules effects.
+  const onKeyRef = useRef<(e: KeyboardEvent) => void>(() => undefined);
+  onKeyRef.current = (e: KeyboardEvent) => {
+    if (helpOpen) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setHelpOpen(false);
+        focusRequested.current = true;
+        update({ focus: focusKey });
       }
-      const target = e.target as HTMLElement | null;
-      // A focused column header takes its own keys; Enter and Space click its button (onHeaderKey).
-      if (target?.closest('input[type="text"], input[type="search"], select, [role="menu"], .batch-result, .row.header')) return;
-      onGridKey(e);
-    };
+      return;
+    }
+    const target = e.target as HTMLElement | null;
+    // A focused column header takes its own keys; Enter and Space click its button (onHeaderKey).
+    if (target?.closest('input[type="text"], input[type="search"], select, [role="menu"], .batch-result, .row.header')) return;
+    onGridKey(e);
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => onKeyRef.current(e);
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  });
+  }, []);
 
   if (!snapshot) return <div class="empty">Loading repositories…</div>;
   if (snapshot.firstRun) return <FirstRun panel={snapshot.firstRun} api={api} />;

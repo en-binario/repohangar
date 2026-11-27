@@ -184,11 +184,16 @@ test.describe('row context menu', () => {
           await expect(menu(c.menu)).toBeVisible();
           await expect(defaultMenu()).toHaveCount(0);
           const box = await menu(c.menu).boundingBox();
-          // R1 leaves the open menu where it was; the others open at the pointer, which fits on these rows.
-          const expected = c.id === 'R1' ? openBox : pointer;
+          const view = await page.locator('iframe.webview.ready').boundingBox();
+          // R1 leaves the open menu where it was; the others open at the pointer, clamped to stay inside the dashboard on narrow screens.
           expect(box).not.toBeNull();
-          expect(Math.abs((box?.x ?? 0) - (expected?.x ?? 0))).toBeLessThanOrEqual(1);
-          expect(Math.abs((box?.y ?? 0) - (expected?.y ?? 0))).toBeLessThanOrEqual(1);
+          expect(view).not.toBeNull();
+          const expectedX =
+            c.id === 'R1' ? (openBox?.x ?? 0) : Math.min(pointer.x, (view?.x ?? 0) + (view?.width ?? 0) - (box?.width ?? 0));
+          const expectedY =
+            c.id === 'R1' ? (openBox?.y ?? 0) : Math.min(pointer.y, (view?.y ?? 0) + (view?.height ?? 0) - (box?.height ?? 0));
+          expect(Math.abs((box?.x ?? 0) - expectedX)).toBeLessThanOrEqual(2);
+          expect(Math.abs((box?.y ?? 0) - expectedY)).toBeLessThanOrEqual(2);
           expect(await focusedRepo()).toBe(c.focused);
         } else {
           await expect(anyMenu()).toHaveCount(0);

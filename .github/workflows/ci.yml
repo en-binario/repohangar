@@ -45,7 +45,7 @@ jobs:
           key: vscode-test-${{ runner.os }}-${{ env.VSCODE_VERSION }}
       - name: Integration tests (Linux)
         if: runner.os == 'Linux'
-        run: xvfb-run -a npm run test:integration
+        run: xvfb-run -a -s "-screen 0 2048x1152x24" npm run test:integration
       - name: Integration tests (Windows, macOS)
         if: runner.os != 'Linux'
         run: npm run test:integration
@@ -53,7 +53,7 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Webview UI tests (Linux)
         if: runner.os == 'Linux'
-        run: xvfb-run -a npm run test:ui
+        run: xvfb-run -a -s "-screen 0 2048x1152x24" npm run test:ui
       - name: Webview UI tests (Windows, macOS)
         if: runner.os != 'Linux'
         run: npm run test:ui

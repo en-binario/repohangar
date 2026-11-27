@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Frame, type Page } from '@playwright/test';
 import { startProviderStub, type StubRequest } from '../integration/fixtures/providerStub';
-import { createMainFixture, createProvidersFixture } from '../integration/fixtures/repos';
+import { createManyFixture, createProvidersFixture } from '../integration/fixtures/repos';
 import { focusRow, launch, openDashboard, row, runCommand, type VsCode } from './vscode';
 
 let vscode: VsCode;
@@ -133,7 +133,7 @@ test.describe('Search users in with hosted repositories', () => {
 test.describe('Search users in without a hosted repository', () => {
   test.beforeAll(async () => {
     stub = await startProviderStub([routes]);
-    vscode = await launch(createMainFixture(), { env: { REPOHANGAR_HTTP_STUB: stub.url } });
+    vscode = await launch(createManyFixture(2), { env: { REPOHANGAR_HTTP_STUB: stub.url } });
     page = vscode.page;
   });
 

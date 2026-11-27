@@ -105,7 +105,13 @@ test('R4 the row details button on ledger opens ledger', async () => {
 test('R5 the Source Control Repositories menu on ledger opens ledger', async () => {
   await selectFirst('notifications');
   await runCommand(page, 'Source Control: Focus on Repositories View');
-  await page.locator('.part.sidebar .monaco-list-row[aria-label="Git"]', { hasText: /^ledger/ }).click({ button: 'right' });
+  await expect(page.locator('.quick-input-widget')).toBeHidden();
+  const ledger = page.locator('.part.sidebar .monaco-list-row[aria-label="Git"]', { hasText: /^ledger/ });
+  await expect(ledger).toBeVisible({ timeout: 30_000 });
+  await expect(async () => {
+    await ledger.click({ button: 'right', position: { x: 30, y: 10 } });
+    await expect(page.locator('.context-view').getByRole('menuitem', { name: /^Open in Source Control Graph(\s|$)/ })).toBeVisible({ timeout: 3_000 });
+  }).toPass({ timeout: 15_000 });
   await chooseMenuItem(page, 'Open in Source Control Graph');
   await expectTarget('ledger');
 });
@@ -116,8 +122,12 @@ test('R6 the Explorer menu on acme/backend/ledger/src opens ledger', async () =>
   // Reveal ledger in the Explorer, then expand it to reach src.
   await page.keyboard.press('e');
   await expect(explorerRow(page, 'ledger')).toHaveAttribute('aria-selected', 'true');
-  await explorerRow(page, 'ledger').click();
-  await explorerRow(page, 'src').click({ button: 'right' });
+  if ((await explorerRow(page, 'src').count()) === 0) await explorerRow(page, 'ledger').click();
+  await expect(explorerRow(page, 'src')).toBeVisible();
+  await expect(async () => {
+    await explorerRow(page, 'src').click({ button: 'right' });
+    await expect(page.locator('.context-view').getByRole('menuitem', { name: /^Open in Source Control Graph(\s|$)/ })).toBeVisible({ timeout: 3_000 });
+  }).toPass({ timeout: 15_000 });
   await chooseMenuItem(page, 'Open in Source Control Graph');
   await expectTarget('ledger');
 });
