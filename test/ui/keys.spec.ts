@@ -400,8 +400,11 @@ test('creates the branch in the focused row only with n and no row selected', as
   const box = page.locator('.quick-input-widget');
   await expect(box).toBeVisible();
   await expect(box).toContainText('Create branch in 1 repository');
-  await page.keyboard.type('feature/ABC-31-refunds');
-  await page.keyboard.press('Enter');
+  const input = box.locator('input');
+  await expect(input).toBeVisible();
+  await input.fill('feature/ABC-31-refunds');
+  await expect(input).toHaveValue('feature/ABC-31-refunds');
+  await input.press('Enter');
   await expect(row(frame, 'ledger').locator('[data-col="branch"]')).toHaveText('feature/ABC-31-refunds no upstream', { timeout: 30_000 });
   expect(git(fixture.repo('backend/ledger'), 'branch', '--show-current').trim()).toBe('feature/ABC-31-refunds');
   for (const other of ['backend/billing-api', 'backend/notifications', 'frontend/web-shop']) {

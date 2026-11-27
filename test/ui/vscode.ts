@@ -75,18 +75,28 @@ export async function launch(
 /** Runs a command from the command palette by its title. */
 export async function runCommand(page: Page, title: string): Promise<void> {
   const input = page.locator('.quick-input-widget input');
-  await page.keyboard.press('F1');
-  // F1 can be lost while focus moves into or out of a webview; press it again once.
-  if (!(await input.isVisible())) {
-    await page.waitForTimeout(500);
-    if (!(await input.isVisible())) await page.keyboard.press('F1');
-  }
-  await expect(input).toBeVisible();
-  await input.fill(`>${title}`);
   const match = page.locator('.quick-input-list .monaco-list-row', { hasText: title }).first();
-  await expect(match).toBeVisible();
+  // On a fresh window the extension host may still be registering commands, or F1 may be lost while focus leaves a webview.
+  const deadline = Date.now() + 60_000;
+  for (;;) {
+    try {
+      await page.keyboard.press('F1');
+      if (!(await input.isVisible())) {
+        await page.waitForTimeout(300);
+        if (!(await input.isVisible())) await page.keyboard.press('F1');
+      }
+      await expect(input).toBeVisible({ timeout: 2_000 });
+      await input.fill(`>${title}`);
+      await expect(match).toBeVisible({ timeout: 5_000 });
+      break;
+    } catch (error) {
+      if (Date.now() >= deadline) throw error;
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(400);
+    }
+  }
   // The list can still be moving while it filters; the focused best match runs with Enter.
-  if (await match.evaluate((e) => e.classList.contains('focused'))) await input.press('Enter');
+  if (await match.evaluate((e) => e.classList.contains('focused'))) await page.keyboard.press('Enter');
   else await match.click();
 }
 
@@ -123,12 +133,14 @@ export async function focusedKey(frame: FrameLocator): Promise<string | null> {
   return frame.locator('body').evaluate(() => document.activeElement?.closest('[data-key]')?.getAttribute('data-key') ?? null);
 }
 
-/** Gives keyboard focus to the Repository cell of a row, clicking beside the name, which runs an action. */
+/** Gives keyboard focus to the Repository cell of a row, clicking in its padding beside the name button. */
 export async function focusRow(frame: FrameLocator, repo: string): Promise<void> {
-  const cell = row(frame, repo).locator('[data-col="repository"]');
-  const box = await cell.boundingBox();
-  await cell.click(box ? { position: { x: box.width - 4, y: box.height / 2 } } : {});
+  const item = row(frame, repo);
+  const cell = item.locator('[data-col="repository"]');
+  await cell.click({ position: { x: 2, y: 2 } });
+  await expect(item).toHaveClass(/\bfocused\b/);
   await cell.focus();
+  await expect(cell).toBeFocused();
 }
 
 /**
@@ -169,9 +181,15 @@ export function selectedRepository(page: Page) {
   return page.locator('.part.sidebar .monaco-list-row[aria-label="Git"][aria-selected="true"]');
 }
 
-/** Clicks an item of the open context menu (`window.menuStyle` custom). */
+/** Chooses an item of the open context menu (`window.menuStyle` custom) by keyboard. */
 export async function chooseMenuItem(page: Page, label: string): Promise<void> {
-  await menuItem(page, label).click();
+  const item = menuItem(page, label);
+  await expect(item).toBeVisible();
+  for (let i = 0; i < 40; i++) {
+    if (await item.evaluate((el) => el.classList.contains('focused') || !!el.closest('.focused') || el === document.activeElement)) break;
+    await page.keyboard.press('ArrowDown');
+  }
+  await page.keyboard.press('Enter');
 }
 
 /** An item of the open context menu; its accessible name may end with the keybinding. */

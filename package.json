@@ -2,7 +2,7 @@
   "name": "repohangar",
   "displayName": "RepoHangar - Multi-Repo Git Dashboard",
   "description": "One dashboard for all your Git repositories: fetch, pull and switch branches across repos, open Git Graph, and create GitLab merge requests and GitHub pull requests with saved reviewers, squash and delete-branch defaults.",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "publisher": "enbinario",
   "author": "Jhon Tapia - enbinario.com",
   "license": "MIT",

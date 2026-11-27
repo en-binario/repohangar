@@ -4,6 +4,7 @@
 import { expect, test, type FrameLocator, type Page } from '@playwright/test';
 import { createMainFixture } from '../integration/fixtures/repos';
 import {
+  chooseMenuItem,
   dashboard,
   explorerRow,
   focusedKey,
@@ -99,14 +100,25 @@ test('Show a filtered-out repository: filter cleared, All active, backend expand
 
   // RepoHangar ▸ Show in RepoHangar on the folder acme/backend/ledger.
   await runCommand(page, 'View: Show Explorer');
+  await expect(page.locator('.quick-input-widget')).toBeHidden();
+  await explorerRow(page, 'acme').waitFor();
+  if ((await explorerRow(page, 'backend').count()) === 0) await explorerRow(page, 'acme').click();
   await explorerRow(page, 'backend').waitFor();
   if ((await explorerRow(page, 'ledger').count()) === 0) await explorerRow(page, 'backend').click();
-  await explorerRow(page, 'ledger').click({ button: 'right' });
-  // The submenu by keyboard: a pointer path to its items can close it.
-  await menuItem(page, 'RepoHangar').click();
+  await expect(explorerRow(page, 'ledger')).toBeVisible();
+  // Open the context menu, expand the RepoHangar submenu by keyboard, and run Show in RepoHangar.
+  await expect(async () => {
+    await explorerRow(page, 'ledger').click({ button: 'right' });
+    await expect(menuItem(page, 'RepoHangar')).toBeVisible({ timeout: 3_000 });
+  }).toPass({ timeout: 15_000 });
+  const sub = menuItem(page, 'RepoHangar');
+  for (let i = 0; i < 40; i++) {
+    if (await sub.evaluate((el) => el.classList.contains('focused') || !!el.closest('.focused') || el === document.activeElement)) break;
+    await page.keyboard.press('ArrowDown');
+  }
+  await page.keyboard.press('ArrowRight');
   await expect(menuItem(page, 'Show in RepoHangar')).toBeVisible();
-  await menuItem(page, 'Show in RepoHangar').focus();
-  await page.keyboard.press('Enter');
+  await chooseMenuItem(page, 'Show in RepoHangar');
 
   frame = dashboard(page);
   await expect(row(frame, 'ledger')).toBeVisible();

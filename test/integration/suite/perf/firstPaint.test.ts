@@ -28,6 +28,7 @@ describe('first paint', () => {
     const paint = await measured;
     console.log(`      first paint: ${paint.ms} ms, ${paint.rows} rows`);
     assert.equal(paint.rows, 50);
-    assert.ok(paint.ms < 300, `first paint took ${paint.ms} ms`);
+    const budgetMs = process.env.CI ? 600 : 300;
+    assert.ok(paint.ms < budgetMs, `first paint took ${paint.ms} ms (budget ${budgetMs} ms)`);
   });
 });

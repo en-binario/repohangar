@@ -24,6 +24,9 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 25
+    env:
+      # Pin the VS Code build for deterministic Playwright workbench DOM tests; override locally with VSCODE_VERSION=stable.
+      VSCODE_VERSION: '1.142.0'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -39,10 +42,10 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .vscode-test
-          key: vscode-test-${{ runner.os }}-stable
+          key: vscode-test-${{ runner.os }}-${{ env.VSCODE_VERSION }}
       - name: Integration tests (Linux)
         if: runner.os == 'Linux'
-        run: xvfb-run -a npm run test:integration
+        run: xvfb-run -a -s "-screen 0 2048x1152x24" npm run test:integration
       - name: Integration tests (Windows, macOS)
         if: runner.os != 'Linux'
         run: npm run test:integration
@@ -50,7 +53,7 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Webview UI tests (Linux)
         if: runner.os == 'Linux'
-        run: xvfb-run -a npm run test:ui
+        run: xvfb-run -a -s "-screen 0 2048x1152x24" npm run test:ui
       - name: Webview UI tests (Windows, macOS)
         if: runner.os != 'Linux'
         run: npm run test:ui
