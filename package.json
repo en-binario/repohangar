@@ -828,7 +828,7 @@
     "jsdom": "26.1.0",
     "mocha": "12.0.3",
     "msw": "2.15.0",
-    "typescript": "5.9.3",
+    "typescript": "7.0.2",
     "vitest": "5.1.2"
   },
   "overrides": {
