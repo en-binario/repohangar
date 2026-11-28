@@ -16,7 +16,7 @@ export interface PreparedUsers {
   notices: Notice[];
 }
 
-/** A username as the APIs expect it: `@jtapiap` → `jtapiap`; `@me` is kept. */
+/** A username as the APIs expect it: `@jtapia` → `jtapia`; `@me` is kept. */
 export function userName(entry: string): string {
   const name = entry.trim();
   return name !== '@me' && name.startsWith('@') ? name.slice(1) : name;
@@ -113,7 +113,7 @@ export function pickerList(fieldText: string, chips: readonly string[], answer: 
   return { kind: 'entries', entries };
 }
 
-/** `Jhon Wilber Tapia Pinto @jtapiap`, or `@jruiz` without a name. */
+/** `Jhon Tapia @jtapia`, or `@jruiz` without a name. */
 export function entryText(entry: PickerEntry): string {
   return entry.name ? `${entry.name} @${entry.username}` : `@${entry.username}`;
 }

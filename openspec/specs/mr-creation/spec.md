@@ -547,7 +547,7 @@ SHALL have its own list. An answer SHALL be shown only while the field still hol
 
 #### Scenario: User search list matrix
 The drawer is open for `billing-api` (`payments/billing-api` on `git.acme.com`). The host's users matching `jhon` are
-Jhon Wilber Tapia Pinto (`jtapiap`) and Jhon Ruiz (`jruiz`).
+Jhon Tapia (`jtapia`) and Jhon Ruiz (`jruiz`).
 
 | # | Field | Chips in the field | Text typed | Credential for `git.acme.com` | Answer | Requests | List |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -556,19 +556,19 @@ Jhon Wilber Tapia Pinto (`jtapiap`) and Jhon Ruiz (`jruiz`).
 | R3 | Reviewers | None | `team:sre` | Yes | *N/A* | **None** | **None** |
 | R4 | Reviewers | None | `jhon` | No | *N/A* | **None** | **`Sign in to git.acme.com to search users.`** |
 | R5 | Reviewers | None | `jhon` | Yes | Not received yet | **One, 300 ms after the last key** | **`Searching…`** |
-| R6 | Reviewers | None | `@jhon` | Yes | `jtapiap`, `jruiz` | **One, with `query=jhon`** | **`Jhon Wilber Tapia Pinto @jtapiap` (highlighted), `Jhon Ruiz @jruiz`** |
-| R7 | Reviewers | `jtapiap` | `jhon` | Yes | `jtapiap`, `jruiz` | **One** | **`Jhon Ruiz @jruiz` (highlighted)** |
-| R8 | Assignees | None | `jhon` | Yes | `jtapiap`, `jruiz` | **One** | **Under Assignees: `Jhon Wilber Tapia Pinto @jtapiap` (highlighted), `Jhon Ruiz @jruiz`; Reviewers shows none** |
+| R6 | Reviewers | None | `@jhon` | Yes | `jtapia`, `jruiz` | **One, with `query=jhon`** | **`Jhon Tapia @jtapia` (highlighted), `Jhon Ruiz @jruiz`** |
+| R7 | Reviewers | `jtapia` | `jhon` | Yes | `jtapia`, `jruiz` | **One** | **`Jhon Ruiz @jruiz` (highlighted)** |
+| R8 | Assignees | None | `jhon` | Yes | `jtapia`, `jruiz` | **One** | **Under Assignees: `Jhon Tapia @jtapia` (highlighted), `Jhon Ruiz @jruiz`; Reviewers shows none** |
 | R9 | Reviewers | None | `zz` | Yes | No users | **One** | **`No users on git.acme.com match "zz".`** |
 | R10 | Reviewers | None | `jhon` | Yes | `403 Forbidden` | **One** | **`User search failed: 403 Forbidden.`** |
 
 #### Scenario: User selection matrix
-The **Reviewers** list shows `Jhon Wilber Tapia Pinto @jtapiap` and `Jhon Ruiz @jruiz` for the text `jhon`, unless
+The **Reviewers** list shows `Jhon Tapia @jtapia` and `Jhon Ruiz @jruiz` for the text `jhon`, unless
 the row says otherwise.
 
 | # | List | Key or pointer | Reviewers chips after | Field text after | List after | Drawer after |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| R1 | Entries, first highlighted | Enter | **`jtapiap`** | **Empty** | **Closed** | **Open** |
+| R1 | Entries, first highlighted | Enter | **`jtapia`** | **Empty** | **Closed** | **Open** |
 | R2 | Entries, first highlighted | `↓`, then Enter | **`jruiz`** | **Empty** | **Closed** | **Open** |
 | R3 | Entries, first highlighted | `↑`, then Enter | **`jruiz`** | **Empty** | **Closed** | **Open** |
 | R4 | Entries, first highlighted | Click on `Jhon Ruiz @jruiz` | **`jruiz`** | **Empty** | **Closed** | **Open** |
@@ -591,6 +591,6 @@ the row says otherwise.
 
 | # | Provider | Search text | Answer | Request sent | Entries |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| R1 | GitLab | `jhon` | `jtapiap` (`active`), `jhon.old` (`blocked`), `jruiz` (`active`) | **`GET https://git.acme.com/api/v4/projects/payments%2Fbilling-api/members/all?query=jhon&per_page=20`** | **`Jhon Wilber Tapia Pinto @jtapiap`, `Jhon Ruiz @jruiz`** |
+| R1 | GitLab | `jhon` | `jtapia` (`active`), `jhon.old` (`blocked`), `jruiz` (`active`) | **`GET https://git.acme.com/api/v4/projects/payments%2Fbilling-api/members/all?query=jhon&per_page=20`** | **`Jhon Tapia @jtapia`, `Jhon Ruiz @jruiz`** |
 | R2 | GitLab | `a` | 14 `active` users | **`GET …/members/all?query=a&per_page=20`** | **The first 10, in answer order** |
-| R3 | GitHub | `jhon` | `jtapiap` with name `Jhon Tapia`, `jruiz` with no name | **One GraphQL request to `https://api.github.com/graphql` with `assignableUsers(query: "jhon", first: 10)` for `acme/web-shop`** | **`Jhon Tapia @jtapiap`, `@jruiz`** |
+| R3 | GitHub | `jhon` | `jtapia` with name `Jhon Tapia`, `jruiz` with no name | **One GraphQL request to `https://api.github.com/graphql` with `assignableUsers(query: "jhon", first: 10)` for `acme/web-shop`** | **`Jhon Tapia @jtapia`, `@jruiz`** |

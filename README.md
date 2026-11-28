@@ -150,7 +150,7 @@ with the title you typed, and it offers **Edit all fields…**, the other profil
 **Create MR drawer** beside the grid, opening the dashboard first when it is closed, every field filled in from the profile: profile, target, title, description, reviewers,
 assignees, labels, squash, delete source branch and draft. Under **Reviewers** and **Labels**, `recent: luis.gomez ·
 team:backend` offers the last 10 you sent on that host, one click each. In **Reviewers** and **Assignees**, type part of
-a name or username and pick from the list of the project's users (`Jhon Wilber Tapia Pinto @jtapiap`): `↑` `↓` move,
+a name or username and pick from the list of the project's users (`Jhon Tapia @jtapia`): `↑` `↓` move,
 `Enter` or a click adds the username, `Esc` closes the list. `Enter` with no match adds what you typed (a leading `@`
 is dropped), so `team:<slug>` still works on GitHub. On GitHub the search matches names as well as logins.
 `Ctrl+Enter` creates, `Esc` closes it. **Create MR**,
@@ -356,11 +356,32 @@ installed, RepoHangar hides its own Explorer item and offers once to uninstall G
 | `repohangar.mr.typeMap` | `{ "feature": "feat", … }` | Branch prefix → `{type}` |
 | `repohangar.gitlab.usePushOptions` | `"whenNoToken"` | Create GitLab merge requests with push options: `whenNoToken`, `always` or `never` |
 
-## Workspace Trust
+## Privacy & Security
 
-RepoHangar relies on VS Code's built-in Git extension, which does not run in Restricted Mode, so RepoHangar starts
-only once the workspace is trusted.
+- **No telemetry.** RepoHangar collects no analytics, usage metrics, or crash reports, and operates no EnBinario
+  backend servers.
+- **Direct host connections only.** Network requests go strictly to the GitLab or GitHub hosts of your workspace
+  repositories (or never, for hosts marked **Skip — git only**).
+- **Local credential storage.** GitHub sessions use VS Code's built-in authentication; personal access tokens (and
+  tokens imported from `glab`/`gh`) are stored only in VS Code `SecretStorage`, per host, and sent only to their own
+  host.
+- **Workspace Trust.** RepoHangar relies on VS Code's built-in Git extension, which does not run in Restricted Mode, so
+  RepoHangar starts only once the workspace is trusted.
 
-## License
+For full details on local state, network requests, and vulnerability reporting, see
+[Privacy and security](https://repohangar.enbinario.com/docs/privacy-and-security/) and [SECURITY.md](SECURITY.md).
 
-[MIT](LICENSE) © 2026 Jhon Tapia - enbinario.com
+## License & Legal
+
+- **License:** [MIT License](LICENSE) © 2026 Jhon Tapia - enbinario.com.
+- **Third-party notices:** Bundled components ([Preact](https://github.com/preactjs/preact) under MIT and
+  [@vscode/codicons](https://github.com/microsoft/vscode-codicons) under MIT and
+  [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/legalcode), distributed unmodified) and source-only notices
+  are documented in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+- **Disclaimer:** RepoHangar is provided **"AS IS"**, without warranty of any kind, as stated in the MIT License. You
+  are responsible for reviewing Git operations, pushes, merge/pull requests, and compliance with your organization's
+  Git hosting policies and API terms of service.
+- **Trademarks & non-affiliation:** Git, GitLab, GitHub, GitHub Enterprise, Visual Studio Code, VS Code, Microsoft,
+  Git Graph (`mhutchie.git-graph`), Open VSX, and other product names are trademarks or registered trademarks of their
+  respective owners. RepoHangar is an independent open-source project by EnBinario and is not affiliated with, endorsed
+  by, or sponsored by any of them. See [Legal and trademarks](https://repohangar.enbinario.com/docs/legal/).

@@ -386,11 +386,11 @@ SHALL take typed text only, with no request.
 
 #### Scenario: Pick a reviewer for a profile
 - **GIVEN** the editor shows profile `default` (user scope) with **Search users in** `billing-api (git.acme.com)`
-- **WHEN** the user types `jhon` in **Reviewers** and presses Enter on `Jhon Wilber Tapia Pinto @jtapiap`
-- **THEN** **Reviewers** shows the chip `jtapiap` and the profile is marked unsaved
+- **WHEN** the user types `jhon` in **Reviewers** and presses Enter on `Jhon Tapia @jtapia`
+- **THEN** **Reviewers** shows the chip `jtapia` and the profile is marked unsaved
 - **AND** `repohangar.mr.profiles` is unchanged until the user clicks **Save**
 - **AND WHEN** the user clicks **Save**
-- **THEN** `repohangar.mr.profiles.default.reviewers` at user scope contains `jtapiap`
+- **THEN** `repohangar.mr.profiles.default.reviewers` at user scope contains `jtapia`
 
 #### Scenario: Change the repository searched
 - **GIVEN** **Search users in** shows `billing-api (git.acme.com)`

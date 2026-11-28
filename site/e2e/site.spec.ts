@@ -12,6 +12,8 @@ const ROUTES = [
   '/docs/merge-requests/profiles/',
   '/docs/reference/settings/',
   '/docs/reference/commands/',
+  '/docs/privacy-and-security/',
+  '/docs/legal/',
   '/docs/changelog/',
 ];
 

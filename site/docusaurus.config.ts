@@ -102,6 +102,8 @@ const config: Config = {
           items: [
             { label: 'GitHub', href: repo },
             { label: 'Report an issue', href: `${repo}/issues` },
+            { label: 'Privacy & security', to: '/docs/privacy-and-security/' },
+            { label: 'Legal & trademarks', to: '/docs/legal/' },
             { label: 'Part of EnBinario', href: 'https://enbinario.com' },
           ],
         },

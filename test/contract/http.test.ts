@@ -3,7 +3,7 @@
 
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
-import { Http, HttpError } from '../../src/providers/http';
+import { DEFAULT_USER_AGENT, Http, HttpError } from '../../src/providers/http';
 import { contractServer } from './helpers';
 
 const TOKEN = 'glpat-x1y2z3secret';
@@ -77,5 +77,13 @@ describe('HTTP layer', () => {
     server.use(http.get('https://git.acme.com/api/v4/version', async () => new Promise<Response>(() => undefined)));
     const error = (await new Http().request({ url: 'https://git.acme.com/api/v4/version', timeoutMs: 50 }).catch((e) => e)) as HttpError;
     expect(error.kind).toBe('timeout');
+  });
+
+  it('sends an identifying User-Agent header by default and supports a versioned override', async () => {
+    server.use(http.get('https://api.github.com/user', () => HttpResponse.json({ login: 'ana.perez' })));
+    await new Http().request({ url: 'https://api.github.com/user' });
+    await new Http({ userAgent: 'RepoHangar/0.1.0 (+https://repohangar.enbinario.com)' }).request({ url: 'https://api.github.com/user' });
+    expect(requests[0]?.headers['user-agent']).toBe(DEFAULT_USER_AGENT);
+    expect(requests[1]?.headers['user-agent']).toBe('RepoHangar/0.1.0 (+https://repohangar.enbinario.com)');
   });
 });

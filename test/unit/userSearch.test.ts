@@ -8,7 +8,7 @@ import { UserSearch } from '../../src/mr/userSearch';
 import { entryText, pickerList, searchText, type UserAnswer, type UserField } from '../../src/mr/users';
 
 const JHON: UserMatch[] = [
-  { username: 'jtapiap', name: 'Jhon Wilber Tapia Pinto' },
+  { username: 'jtapia', name: 'Jhon Tapia' },
   { username: 'jruiz', name: 'Jhon Ruiz' },
 ];
 
@@ -115,7 +115,7 @@ describe('User search list matrix', () => {
     d.type('reviewers', '@jhon');
     await wait(300);
     expect(d.requests).toEqual(['jhon']);
-    expect(d.list('reviewers')).toEqual(['Jhon Wilber Tapia Pinto @jtapiap', 'Jhon Ruiz @jruiz']);
+    expect(d.list('reviewers')).toEqual(['Jhon Tapia @jtapia', 'Jhon Ruiz @jruiz']);
   });
 
   it('R7 leaves out a user already in the field', async () => {
@@ -123,7 +123,7 @@ describe('User search list matrix', () => {
     d.type('reviewers', 'jhon');
     await wait(300);
     expect(d.requests).toHaveLength(1);
-    expect(d.list('reviewers', ['jtapiap'])).toEqual(['Jhon Ruiz @jruiz']);
+    expect(d.list('reviewers', ['jtapia'])).toEqual(['Jhon Ruiz @jruiz']);
   });
 
   it('R8 shows the answer under Assignees only', async () => {
@@ -131,7 +131,7 @@ describe('User search list matrix', () => {
     d.type('assignees', 'jhon');
     await wait(300);
     expect(d.requests).toHaveLength(1);
-    expect(d.list('assignees')).toEqual(['Jhon Wilber Tapia Pinto @jtapiap', 'Jhon Ruiz @jruiz']);
+    expect(d.list('assignees')).toEqual(['Jhon Tapia @jtapia', 'Jhon Ruiz @jruiz']);
     expect(d.list('reviewers')).toEqual([]);
   });
 
@@ -165,7 +165,7 @@ describe('Answer for older text', () => {
     expect(d.list('reviewers')).toEqual(['Searching…']);
     d.resolve('jhon', JHON);
     await wait(0);
-    expect(d.list('reviewers')).toEqual(['Jhon Wilber Tapia Pinto @jtapiap', 'Jhon Ruiz @jruiz']);
+    expect(d.list('reviewers')).toEqual(['Jhon Tapia @jtapia', 'Jhon Ruiz @jruiz']);
   });
 
   it('keeps the newer entries when the answer for older text arrives last', async () => {
@@ -178,6 +178,6 @@ describe('Answer for older text', () => {
     await wait(0);
     d.resolve('jho', [{ username: 'jhonatan', name: 'Jhonatan Díaz' }]);
     await wait(0);
-    expect(d.list('reviewers')).toEqual(['Jhon Wilber Tapia Pinto @jtapiap', 'Jhon Ruiz @jruiz']);
+    expect(d.list('reviewers')).toEqual(['Jhon Tapia @jtapia', 'Jhon Ruiz @jruiz']);
   });
 });
