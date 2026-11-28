@@ -5,6 +5,7 @@
 export type FetchFn = (url: string, init: RequestInit) => Promise<Response>;
 
 export const REQUEST_TIMEOUT_MS = 15_000;
+export const DEFAULT_USER_AGENT = 'RepoHangar (+https://repohangar.enbinario.com)';
 
 export type HttpErrorKind = 'status' | 'network' | 'timeout' | 'redirect' | 'rateLimited';
 
@@ -49,6 +50,8 @@ export interface HttpPort {
   /** One line per request, at the trace level: method, URL, status and duration; never headers or bodies */
   trace?: (line: string) => void;
   now?: () => number;
+  /** Identifying User-Agent header sent on provider API requests (required by GitHub API terms) */
+  userAgent?: string;
 }
 
 export class Http {
@@ -66,7 +69,11 @@ export class Http {
   async request<T = unknown>(request: HttpRequest): Promise<HttpResponse<T>> {
     const method = request.method ?? 'GET';
     const url = new URL(request.url);
-    const headers: Record<string, string> = { Accept: 'application/json', ...request.headers };
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      'User-Agent': this.port.userAgent ?? DEFAULT_USER_AGENT,
+      ...request.headers,
+    };
     if (request.credential && request.credential.apiHost === url.host) {
       headers.Authorization = `Bearer ${request.credential.token}`;
     }

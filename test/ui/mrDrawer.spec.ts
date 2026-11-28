@@ -237,7 +237,7 @@ test.describe('User selection matrix', () => {
     if (query === 'jhon') {
       return {
         body: [
-          { id: 21, username: 'jtapiap', name: 'Jhon Wilber Tapia Pinto', state: 'active' },
+          { id: 21, username: 'jtapia', name: 'Jhon Tapia', state: 'active' },
           { id: 22, username: 'jruiz', name: 'Jhon Ruiz', state: 'active' },
         ],
       };
@@ -279,7 +279,7 @@ test.describe('User selection matrix', () => {
   /** `jhon` typed in Reviewers, its two users listed, the first highlighted. */
   const typeJhon = async () => {
     await input('reviewers').fill('jhon');
-    await expect(options('reviewers')).toHaveText(['Jhon Wilber Tapia Pinto @jtapiap', 'Jhon Ruiz @jruiz']);
+    await expect(options('reviewers')).toHaveText(['Jhon Tapia @jtapia', 'Jhon Ruiz @jruiz']);
     await expect(options('reviewers').first()).toHaveAttribute('aria-selected', 'true');
   };
   const closeDrawer = async () => {
@@ -296,7 +296,7 @@ test.describe('User selection matrix', () => {
   test('R1 adds the highlighted first user with Enter', async () => {
     await typeJhon();
     await input('reviewers').press('Enter');
-    await addedAndClosed('jtapiap');
+    await addedAndClosed('jtapia');
   });
 
   test('R2 adds the second user after ↓', async () => {

@@ -1,7 +1,7 @@
 ## Why
 
-Reviewers and assignees are GitLab or GitHub usernames, and nobody remembers them. Jhon Wilber Tapia Pinto is
-`jtapiap` on `git.acme.com`, but the drawer only accepts what is typed. A guess such as `@jtapiap`,
+Reviewers and assignees are GitLab or GitHub usernames, and nobody remembers them. Jhon Tapia is
+`jtapia` on `git.acme.com`, but the drawer only accepts what is typed. A guess such as `@jtapia`,
 `jhon.tapia` or `Jhon Tapia` ends in `Reviewer … not found on <host>.` after the merge request already exists. The
 `@` and case slips are fixed (`9c76cc7`), but people still have to know the exact username.
 
@@ -25,7 +25,7 @@ profile editor, `mr-profiles`). Both are unarchived, so the deltas use `ADDED` o
 ## What Changes
 
 - **A user picker in the Reviewers and Assignees fields** of the Create MR drawer. Typing shows a list under the field,
-  up to 10 entries such as `Jhon Wilber Tapia Pinto  @jtapiap`, matching the display name or the username. `↑` `↓`
+  up to 10 entries such as `Jhon Tapia  @jtapia`, matching the display name or the username. `↑` `↓`
   move the highlight, Enter or a click adds the highlighted username as a chip and clears the field, and `Esc` closes the
   list without closing the drawer. Enter with nothing highlighted still adds the typed text (`@` dropped), so
   `team:<slug>` and unlisted names keep working.

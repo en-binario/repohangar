@@ -30,7 +30,7 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Reference',
-      items: ['reference/settings', 'reference/commands', 'privacy-and-security', 'troubleshooting'],
+      items: ['reference/settings', 'reference/commands', 'privacy-and-security', 'legal', 'troubleshooting'],
     },
     'changelog',
   ],

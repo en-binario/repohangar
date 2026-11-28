@@ -18,13 +18,13 @@ describe('User search request matrix', () => {
   it('R1 asks GitLab for the project members matching the text and leaves out inactive users', async () => {
     server.use(
       http.get(MEMBERS, () =>
-        HttpResponse.json([member('jtapiap', 'Jhon Wilber Tapia Pinto'), member('jhon.old', 'Jhon Old', 'blocked'), member('jruiz', 'Jhon Ruiz')]),
+        HttpResponse.json([member('jtapia', 'Jhon Tapia'), member('jhon.old', 'Jhon Old', 'blocked'), member('jruiz', 'Jhon Ruiz')]),
       ),
     );
     const users = await new GitLabProvider(new Http(), 'git.acme.com', 'https://git.acme.com').searchUsers('payments/billing-api', 'jhon', GL);
     expect(requests.map((r) => `${r.method} ${r.url}`)).toEqual([`GET ${MEMBERS}?query=jhon&per_page=20`]);
     expect(users).toEqual([
-      { username: 'jtapiap', name: 'Jhon Wilber Tapia Pinto' },
+      { username: 'jtapia', name: 'Jhon Tapia' },
       { username: 'jruiz', name: 'Jhon Ruiz' },
     ]);
   });
@@ -41,7 +41,7 @@ describe('User search request matrix', () => {
     server.use(
       http.post('https://api.github.com/graphql', () =>
         HttpResponse.json({
-          data: { repository: { assignableUsers: { nodes: [{ login: 'jtapiap', name: 'Jhon Tapia' }, { login: 'jruiz', name: null }] } } },
+          data: { repository: { assignableUsers: { nodes: [{ login: 'jtapia', name: 'Jhon Tapia' }, { login: 'jruiz', name: null }] } } },
         }),
       ),
     );
@@ -52,7 +52,7 @@ describe('User search request matrix', () => {
     expect(body.query).toContain('assignableUsers(query: $q, first: 10)');
     expect(body.variables).toEqual({ owner: 'acme', name: 'web-shop', q: 'jhon' });
     expect(users).toEqual([
-      { username: 'jtapiap', name: 'Jhon Tapia' },
+      { username: 'jtapia', name: 'Jhon Tapia' },
       { username: 'jruiz', name: '' },
     ]);
   });

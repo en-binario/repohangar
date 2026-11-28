@@ -26,7 +26,7 @@ function routes(request: StubRequest) {
       body:
         query === 'jhon'
           ? [
-              { id: 21, username: 'jtapiap', name: 'Jhon Wilber Tapia Pinto', state: 'active' },
+              { id: 21, username: 'jtapia', name: 'Jhon Tapia', state: 'active' },
               { id: 22, username: 'jruiz', name: 'Jhon Ruiz', state: 'active' },
             ]
           : [],
@@ -96,17 +96,17 @@ test.describe('Search users in with hosted repositories', () => {
 
     const reviewers = editor.locator('[aria-label="Add to reviewers"]');
     await reviewers.fill('jhon');
-    await expect(editor.locator('[data-users="reviewers"] [role="option"]')).toHaveText(['Jhon Wilber Tapia Pinto @jtapiap', 'Jhon Ruiz @jruiz']);
+    await expect(editor.locator('[data-users="reviewers"] [role="option"]')).toHaveText(['Jhon Tapia @jtapia', 'Jhon Ruiz @jruiz']);
     await reviewers.press('Enter');
 
-    await expect(editor.locator('[data-chips="reviewers"] .chip-value')).toHaveText(['jtapiap✕']);
+    await expect(editor.locator('[data-chips="reviewers"] .chip-value')).toHaveText(['jtapia✕']);
     // Unsaved: Save is enabled and the setting is as it was.
     await expect(editor.locator('[data-button="save"]')).toBeEnabled();
     expect(userProfiles()).toEqual({ default: {} });
 
     await editor.locator('[data-button="save"]').click();
 
-    await expect.poll(userProfiles).toEqual({ default: { reviewers: ['jtapiap'] } });
+    await expect.poll(userProfiles).toEqual({ default: { reviewers: ['jtapia'] } });
     await runCommand(page, 'View: Close Editor');
   });
 

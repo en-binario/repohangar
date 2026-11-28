@@ -59,7 +59,7 @@ delete source branch and draft.
 - **Recent values.** Under **Reviewers** and **Labels**, `recent: luis.gomez · team:backend` offers the last 10 you
   sent on that host, one click each.
 - **User search.** In **Reviewers** and **Assignees**, type part of a name or username and pick from the project's
-  users (`Jhon Wilber Tapia Pinto @jtapiap`): `↑` `↓` move, `Enter` or a click adds the username, `Esc` closes the
+  users (`Jhon Tapia @jtapia`): `↑` `↓` move, `Enter` or a click adds the username, `Esc` closes the
   list. `Enter` with no match adds what you typed (a leading `@` is dropped), so `team:<slug>` still works on GitHub.
   On GitHub the search matches names as well as logins.
 - **Save as defaults ▾** keeps the values that differ from the profile, for you, the workspace or this repository.

@@ -60,7 +60,9 @@ export class ProviderService implements vscode.Disposable {
     private readonly notifier: Notifier,
     private readonly log: RepoHangarLog,
   ) {
-    this.http = new Http({ trace: (line) => log.trace(line) });
+    const version = extensionVersion(context);
+    const userAgent = version ? `RepoHangar/${version} (+https://repohangar.enbinario.com)` : undefined;
+    this.http = new Http({ trace: (line) => log.trace(line), ...(userAgent ? { userAgent } : {}) });
     const stub = process.env.REPOHANGAR_HTTP_STUB;
     if (stub && context.extensionMode !== vscode.ExtensionMode.Production) this.http.fetchOverride = stubFetch(stub);
     this.factory = new ProviderFactory(this.http);

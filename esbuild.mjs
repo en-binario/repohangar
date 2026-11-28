@@ -9,6 +9,8 @@ const production = args.has('--production');
 const watch = args.has('--watch');
 const tests = args.has('--tests');
 
+const LICENSE_BANNER = '/* RepoHangar — MIT License. See LICENSE and THIRD_PARTY_NOTICES.md for copyright and third-party license notices. */';
+
 /** @type {import('esbuild').BuildOptions} */
 const extension = {
   entryPoints: ['src/extension.ts'],
@@ -18,6 +20,7 @@ const extension = {
   target: 'node20',
   outfile: 'dist/extension.js',
   external: ['vscode'],
+  banner: { js: LICENSE_BANNER },
   sourcemap: !production,
   minify: production,
   logLevel: 'info',
@@ -33,6 +36,7 @@ const webview = {
   outdir: 'dist',
   jsx: 'automatic',
   jsxImportSource: 'preact',
+  banner: { js: LICENSE_BANNER },
   sourcemap: !production,
   minify: production,
   logLevel: 'info',

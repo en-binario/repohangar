@@ -17,8 +17,8 @@ describe('searchText', () => {
 
 describe('userName', () => {
   it.each([
-    ['@jtapiap', 'jtapiap'],
-    [' jtapiap ', 'jtapiap'],
+    ['@jtapia', 'jtapia'],
+    [' jtapia ', 'jtapia'],
     ['@me', '@me'],
     ['team:sre', 'team:sre'],
   ])('%j is sent as %j', (entry, expected) => {

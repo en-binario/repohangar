@@ -37,7 +37,8 @@ graph. [`repohangar.gitGraph.whenMissing`](../reference/settings.md#repohangar-g
 | `"offerInstall"` | The items keep reading **Open in Git Graph** and offer to install it |
 | `"hide"` | The items are hidden |
 
-RepoHangar installs nothing unless you click **Install Git Graph**.
+RepoHangar installs nothing unless you click **Install Git Graph**. Git Graph (`mhutchie.git-graph`) is an independent
+third-party extension not affiliated with RepoHangar and is subject to its own license and terms.
 
 :::note
 

@@ -1,0 +1,8 @@
+# Security contact for RepoHangar (https://repohangar.enbinario.com)
+# Please prefer GitHub Private Vulnerability Reporting for undisclosed issues.
+Contact: https://github.com/en-binario/repohangar/security/advisories/new
+Contact: mailto:admin@enbinario.com
+Expires: 2027-11-19T00:00:00.000Z
+Preferred-Languages: en, es
+Canonical: https://repohangar.enbinario.com/.well-known/security.txt
+Policy: https://repohangar.enbinario.com/docs/privacy-and-security/

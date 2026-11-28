@@ -29,11 +29,11 @@ or GitHub pull requests with your team's defaults in one keystroke.
   VS Code's secret storage, or your `glab` / `gh` login. See [Status and signing in](merge-requests/status-and-sign-in.md).
 - **Git Graph, Explorer and Source Control** one key away for any row. See [Git Graph](integrations/git-graph.md).
 
-:::info[Early development]
+:::info[Preview]
 
-RepoHangar shows the merge request or pull request of every branch and creates them with your profiles' defaults.
-Batch creation and auto-merge follow. Until the first release reaches the VS Code Marketplace, install it from a
-VSIX file, as described in [Getting started](getting-started.mdx).
+RepoHangar is in preview. Dashboard operations, multi-repo branch switching/creation, MR profiles, and single or linked
+batch merge/pull request creation are available today; auto-merge follows. See [Getting started](getting-started.mdx)
+for installation options.
 
 :::
 

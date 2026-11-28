@@ -41,7 +41,7 @@ describe('Batched review status', () => {
     expect(counts('https://api.github.com/graphql')).toEqual([15]);
     expect(gitlab.results.size).toBe(25);
     expect(github.results.size).toBe(15);
-    expect(requests.find((r) => r.url.includes('api.github.com'))?.headers.authorization).toBe('Bearer gho_abc');
+    expect(requests.find((r) => r.url === 'https://api.github.com/graphql')?.headers.authorization).toBe('Bearer gho_abc');
   });
 
   it('splits 120 repositories on github.com into requests of 50, 50 and 20 aliases, one after another', async () => {

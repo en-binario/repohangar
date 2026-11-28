@@ -173,11 +173,11 @@ All notable changes to RepoHangar are recorded here. Entries are written and cla
   no `[Create MR]`): GitLab rejected the batched status request as too large or too complex (`HTTP 422`). Requests now
   carry at most 10 repositories and are split further when GitLab still rejects them, and the RepoHangar log shows
   GitLab's message (`Query too large`) instead of `HTTP 422`.
-- **Fixed:** a reviewer or assignee written as `@jtapiap` (with the leading `@`), or in a different case than the
-  GitLab username, was left out of the merge request with `Reviewer @jtapiap not found on <host>.` The `@` is now
+- **Fixed:** a reviewer or assignee written as `@jtapia` (with the leading `@`), or in a different case than the
+  GitLab username, was left out of the merge request with `Reviewer @jtapia not found on <host>.` The `@` is now
   dropped (`@me` still means you) and GitLab usernames match regardless of case.
 - **Added — find users for Reviewers and Assignees.** Typing in **Reviewers** or **Assignees** in the Create MR drawer
-  lists the project's users by name and username (`Jhon Wilber Tapia Pinto @jtapiap`); `↑` `↓` and `Enter` or a click
+  lists the project's users by name and username (`Jhon Tapia @jtapia`); `↑` `↓` and `Enter` or a click
   add one, and `Esc` closes the list without closing the drawer. The list says `Searching…`,
   `No users on <host> match "<text>".`, `Sign in to <host> to search users.` or `User search failed: <message>.`
 - **Added:** **Search users in** in the MR profile editor: **Reviewers** and **Assignees** search the users of the

@@ -12,6 +12,8 @@ const ROUTES = [
   '/docs/merge-requests/profiles/',
   '/docs/reference/settings/',
   '/docs/reference/commands/',
+  '/docs/privacy-and-security/',
+  '/docs/legal/',
   '/docs/changelog/',
 ];
 
@@ -69,7 +71,7 @@ test('the settings reference lists every setting of the manifest', async ({ page
 test('the commands reference lists every command of the manifest', async ({ page }) => {
   await page.goto('/docs/reference/commands/');
   for (const c of manifest.contributes.commands) {
-    await expect(page.locator('td code', { hasText: new RegExp(`^${c.command.replace(/\./g, '\\.')}$`) })).toBeAttached();
+    await expect(page.locator('td code', { hasText: new RegExp(`^${c.command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`) })).toBeAttached();
   }
 });
 
