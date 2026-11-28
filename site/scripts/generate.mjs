@@ -53,7 +53,7 @@ function settingLinks(text) {
 
 /** A table cell: pipes are escaped even inside code spans (GitHub-flavoured Markdown tables). */
 function cell(text) {
-  return text.replace(/\|/g, '\\|').replace(/\n+/g, ' ');
+  return text.replace(/[\\|]/g, '\\$&').replace(/\n+/g, ' ');
 }
 
 /** The keys of an object setting whose values have a fixed shape (MR profiles, rules, …). */
